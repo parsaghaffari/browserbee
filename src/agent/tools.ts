@@ -3,7 +3,7 @@ import type { Page, BrowserContext, Dialog } from "playwright-crx/test";
 
 /** Hard cap for anything we stream back to the LLM. */
 const MAX_RETURN_CHARS = 20_000;
-const MAX_IMG_BASE64_CHARS = 60_000;
+const MAX_IMG_BASE64_CHARS = 100_000;
 
 /** Truncate long strings so they don’t blow the context window. */
 const truncate = (str: string, max = MAX_RETURN_CHARS) =>
