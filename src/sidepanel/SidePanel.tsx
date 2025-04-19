@@ -49,7 +49,10 @@ export function SidePanel() {
   return (
     <div className="flex flex-col h-screen p-4 bg-base-200">
       <header className="mb-4">
-        <h1 className="text-2xl font-bold text-primary">Playwright LLM</h1>
+        <h1 className="text-2xl font-bold text-primary">Browser LLM ✨</h1>
+        <p className="text-sm text-gray-600">
+          What can I do for you today?
+        </p>
       </header>
 
       <form onSubmit={handleSubmit} className="flex flex-col mb-4">
