@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import './SidePanel.css';
 
 export function SidePanel() {
   const [prompt, setPrompt] = useState('');
@@ -48,14 +47,14 @@ export function SidePanel() {
   }, []);
 
   return (
-    <div className="sidepanel-container">
-      <header className="header">
-        <h1>Playwright LLM</h1>
+    <div className="flex flex-col h-screen p-4 bg-base-200">
+      <header className="mb-4">
+        <h1 className="text-2xl font-bold text-primary">Playwright LLM</h1>
       </header>
 
-      <form onSubmit={handleSubmit} className="prompt-form">
+      <form onSubmit={handleSubmit} className="flex flex-col mb-4">
         <textarea
-          className="prompt-input"
+          className="textarea textarea-bordered w-full mb-2"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Enter your prompt (e.g., 'go to google.com, search for Cicero, and click on the first result')"
@@ -64,17 +63,21 @@ export function SidePanel() {
         />
         <button 
           type="submit" 
-          className="submit-button"
+          className="btn btn-primary self-end"
           disabled={isProcessing || !prompt.trim()}
         >
           {isProcessing ? 'Processing...' : 'Execute'}
         </button>
       </form>
 
-      <div className="output-container">
-        <div className="output-panel">
-          <h3>LLM Output</h3>
-          <pre className="llm-output">{llmOutput || 'No output yet'}</pre>
+      <div className="flex flex-col flex-grow gap-4 overflow-hidden md:flex-row">
+        <div className="card bg-base-100 shadow-md flex-1 flex flex-col overflow-hidden">
+          <div className="card-title p-3 bg-base-300 text-base-content text-lg">
+            LLM Output
+          </div>
+          <pre className="card-body p-3 overflow-auto font-mono text-sm whitespace-pre-wrap bg-base-100 flex-1">
+            {llmOutput || 'No output yet'}
+          </pre>
         </div>
       </div>
     </div>
