@@ -1,0 +1,33 @@
+{
+  "name": "browser-llm",
+  "description": "control your browser with natural language ✨",
+  "version": "0.0.1",
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "build": "tsc && vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@langchain/anthropic": "^0.3.18",
+    "@langchain/core": "^0.3.45",
+    "@langchain/langgraph": "^0.2.64",
+    "langchain": "^0.3.22",
+    "playwright-crx": "0.13.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.281",
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@vitejs/plugin-react": "^4.4.0",
+    "rollup-plugin-sourcemaps": "^0.6.3",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
+  }
+}
