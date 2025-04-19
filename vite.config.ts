@@ -21,6 +21,14 @@ export default defineConfig({
       },
       output: {
         entryFileNames: '[name].js',
+        assetFileNames: (assetInfo) => {
+          // Use a fixed name for CSS files
+          if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+            return 'assets/styles.css';
+          }
+          // Use the default naming pattern for other assets
+          return 'assets/[name].[hash].[ext]';
+        },
       },
     },
   },
