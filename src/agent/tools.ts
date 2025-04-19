@@ -1,5 +1,5 @@
 import { DynamicTool } from "langchain/tools";
-import type { Page } from "playwright-crx/test";
+import type { Page, BrowserContext, Dialog } from "playwright-crx/test";
 
 /** Hard cap for anything we stream back to the LLM. */
 const MAX_RETURN_CHARS = 20_000;
@@ -251,3 +251,281 @@ export const browserScreenshot = (page: Page) =>
       }
     },
   });
+
+/*────────────────────────────  MOUSE TOOLS  ────────────────────────────*/
+
+export const browserMoveMouse = (page: Page) =>
+  new DynamicTool({
+    name: "browser_move_mouse",
+    description:
+      "Move the mouse cursor to absolute screen coordinates.\n" +
+      "Input format: `x|y`  (example: `250|380`)",
+    func: async (input: string) => {
+      try {
+        const [xRaw, yRaw] = input.split("|").map(s => s.trim());
+        const x = Number(xRaw), y = Number(yRaw);
+        if (Number.isNaN(x) || Number.isNaN(y))
+          return "Error: expected `x|y` numbers (e.g. 120|240)";
+        await page.mouse.move(x, y);
+        return `Mouse moved to (${x}, ${y})`;
+      } catch (err) {
+        return `Error moving mouse: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+export const browserClickXY = (page: Page) =>
+  new DynamicTool({
+    name: "browser_click_xy",
+    description:
+      "Left‑click at absolute coordinates.\n" +
+      "Input format: `x|y`  (example: `250|380`)",
+    func: async (input: string) => {
+      try {
+        const [xRaw, yRaw] = input.split("|").map(s => s.trim());
+        const x = Number(xRaw), y = Number(yRaw);
+        if (Number.isNaN(x) || Number.isNaN(y))
+          return "Error: expected `x|y` numbers (e.g. 120|240)";
+        await page.mouse.click(x, y);
+        return `Clicked at (${x}, ${y})`;
+      } catch (err) {
+        return `Error clicking at coords: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+export const browserDrag = (page: Page) =>
+  new DynamicTool({
+    name: "browser_drag",
+    description:
+      "Drag‑and‑drop with the left button.\n" +
+      "Input format: `startX|startY|endX|endY`  (example: `100|200|300|400`)",
+    func: async (input: string) => {
+      try {
+        const [sx, sy, ex, ey] = input.split("|").map(s => Number(s.trim()));
+        if ([sx, sy, ex, ey].some(v => Number.isNaN(v)))
+          return "Error: expected `startX|startY|endX|endY` numbers";
+        await page.mouse.move(sx, sy);
+        await page.mouse.down();
+        await page.mouse.move(ex, ey);
+        await page.mouse.up();
+        return `Dragged (${sx},${sy}) → (${ex},${ey})`;
+      } catch (err) {
+        return `Error during drag: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+/*───────────────────────────  KEYBOARD TOOLS  ──────────────────────────*/
+
+export const browserPressKey = (page: Page) =>
+  new DynamicTool({
+    name: "browser_press_key",
+    description:
+      "Press a single key. Input is the key name (e.g. `Enter`, `ArrowLeft`, `a`).",
+    func: async (key: string) => {
+      try {
+        if (!key.trim()) return "Error: key name required";
+        await page.keyboard.press(key.trim());
+        return `Pressed key: ${key.trim()}`;
+      } catch (err) {
+        return `Error pressing key '${key}': ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+export const browserKeyboardType = (page: Page) =>
+  new DynamicTool({
+    name: "browser_keyboard_type",
+    description:
+      "Type arbitrary text at the current focus location. Input is the literal text to type. Use `\\n` for new lines.",
+    func: async (text: string) => {
+      try {
+        await page.keyboard.type(text);
+        return `Typed ${text.length} characters`;
+      } catch (err) {
+        return `Error typing text: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+/*──────────────────────────
+   Helpers (module‑scoped)
+──────────────────────────*/
+let lastDialog: Dialog | null = null;
+const installDialogListener = (page: Page) => {
+  // add only once per context
+  const ctx: BrowserContext = page.context();
+  if ((ctx as any)._dialogListenerInstalled) return;
+  ctx.on("page", p =>
+    p.on("dialog", d => {
+      lastDialog = d;
+    })
+  );
+  page.on("dialog", d => {
+    lastDialog = d;
+  });
+  (ctx as any)._dialogListenerInstalled = true;
+};
+
+/*──────────────────────────
+   NAVIGATION HISTORY TOOLS
+──────────────────────────*/
+export const browserNavigateBack = (page: Page) =>
+  new DynamicTool({
+    name: "browser_navigate_back",
+    description: "Go back to the previous page (history.back()). No input.",
+    func: async () => {
+      try {
+        await page.goBack();
+        return "Navigated back.";
+      } catch (err) {
+        return `Error going back: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+export const browserNavigateForward = (page: Page) =>
+  new DynamicTool({
+    name: "browser_navigate_forward",
+    description: "Go forward to the next page (history.forward()). No input.",
+    func: async () => {
+      try {
+        await page.goForward();
+        return "Navigated forward.";
+      } catch (err) {
+        return `Error going forward: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+/*──────────────────────────
+   TAB TOOLS
+──────────────────────────*/
+export const browserTabList = (page: Page) =>
+  new DynamicTool({
+    name: "browser_tab_list",
+    description: "Return a list of open tabs with their indexes and URLs.",
+    func: async () => {
+      try {
+        const pages = page.context().pages();
+        const list = pages
+          .map((p, i) => `${i}: ${p.url() || "<blank>"}`)
+          .join("\n");
+        return list || "No tabs.";
+      } catch (err) {
+        return `Error listing tabs: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+export const browserTabNew = (page: Page) =>
+  new DynamicTool({
+    name: "browser_tab_new",
+    description:
+      "Open a new tab. Optional input = URL to navigate to (otherwise blank tab).",
+    func: async (input: string) => {
+      try {
+        const p = await page.context().newPage();
+        if (input.trim()) await p.goto(input.trim());
+        return `Opened new tab (#${page.context().pages().length - 1}).`;
+      } catch (err) {
+        return `Error opening new tab: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+export const browserTabSelect = (page: Page) =>
+  new DynamicTool({
+    name: "browser_tab_select",
+    description:
+      "Switch focus to a tab by index. Input = integer index from browser_tab_list.",
+    func: async (input: string) => {
+      try {
+        const idx = Number(input.trim());
+        if (Number.isNaN(idx))
+          return "Error: input must be a tab index (integer).";
+        const pages = page.context().pages();
+        if (idx < 0 || idx >= pages.length)
+          return `Error: index ${idx} out of range (0‑${pages.length - 1}).`;
+        await pages[idx].bringToFront();
+        return `Switched to tab ${idx}.`;
+      } catch (err) {
+        return `Error selecting tab: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+export const browserTabClose = (page: Page) =>
+  new DynamicTool({
+    name: "browser_tab_close",
+    description:
+      "Close a tab. Input = index to close (defaults to current tab if blank).",
+    func: async (input: string) => {
+      try {
+        const pages = page.context().pages();
+        const idx =
+          input.trim() === "" ? pages.indexOf(page) : Number(input.trim());
+        if (Number.isNaN(idx) || idx < 0 || idx >= pages.length)
+          return "Error: invalid tab index.";
+        await pages[idx].close();
+        return `Closed tab ${idx}.`;
+      } catch (err) {
+        return `Error closing tab: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+
+/*──────────────────────────
+   DIALOG TOOL
+──────────────────────────*/
+export const browserHandleDialog = (page: Page) => {
+  installDialogListener(page);
+  return new DynamicTool({
+    name: "browser_handle_dialog",
+    description:
+      "Accept or dismiss the most recent alert/confirm/prompt dialog.\n" +
+      "Input `accept` or `dismiss`. For prompt dialogs you may append `|text` to supply response text.",
+    func: async (input: string) => {
+      try {
+        if (!lastDialog)
+          return "Error: no dialog is currently open or was detected.";
+        const [action, text] = input.split("|").map(s => s.trim().toLowerCase());
+        if (action !== "accept" && action !== "dismiss")
+          return "Error: first part must be `accept` or `dismiss`.";
+        if (action === "accept")
+          await lastDialog.accept(text || undefined);
+        else await lastDialog.dismiss();
+        const type = lastDialog.type();
+        lastDialog = null;
+        return `${action === "accept" ? "Accepted" : "Dismissed"} ${type} dialog.`;
+      } catch (err) {
+        return `Error handling dialog: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+      }
+    },
+  });
+};

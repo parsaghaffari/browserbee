@@ -11,6 +11,18 @@ import {
   browserQuery,
   browserReadText,
   browserSnapshotDom,
+  browserMoveMouse,
+  browserClickXY,
+  browserDrag,
+  browserKeyboardType,
+  browserPressKey,
+  browserNavigateBack,
+  browserNavigateForward,
+  browserTabList,
+  browserTabNew,
+  browserTabSelect,
+  browserTabClose,
+  browserHandleDialog  
 } from "./tools";
 
 /**──── Quick‑win guardrails ───────────────────────────────────────────────────*/
@@ -59,6 +71,18 @@ export class BrowserAgent {
       browserQuery(page),
       browserReadText(page),
       browserSnapshotDom(page),
+      browserMoveMouse(page),
+      browserClickXY(page),
+      browserDrag(page),
+      browserPressKey(page),
+      browserKeyboardType(page),
+      browserNavigateBack(page),
+      browserNavigateForward(page),
+      browserTabList(page),
+      browserTabNew(page),
+      browserTabSelect(page),
+      browserTabClose(page),
+      browserHandleDialog(page)
     ];
   }
 
