@@ -53,6 +53,7 @@ function trimHistory(
 export class BrowserAgent {
   private anthropic: Anthropic;
   private tools: any[];
+  private isCancelled: boolean = false;
 
   constructor(page: Page, apiKey: string) {
     this.anthropic = new Anthropic({
@@ -106,6 +107,16 @@ Wait for each tool result before the next step.
 Think step‑by‑step; summarise your work when finished.`;
   }
 
+  /** Cancel the current execution */
+  cancel(): void {
+    this.isCancelled = true;
+  }
+
+  /** Reset the cancel flag */
+  resetCancel(): void {
+    this.isCancelled = false;
+  }
+
   /** Main public runner. */
   async executePrompt(
     prompt: string,
@@ -115,6 +126,8 @@ Think step‑by‑step; summarise your work when finished.`;
       onComplete: () => void;
     }
   ): Promise<void> {
+    // Reset cancel flag at the start of execution
+    this.resetCancel();
     try {
       let messages: Anthropic.MessageParam[] = [
         { role: "user", content: prompt },
@@ -123,66 +136,108 @@ Think step‑by‑step; summarise your work when finished.`;
       let done = false;
       let step = 0;
 
-      while (!done && step++ < MAX_STEPS) {
-        // ── 1. Call LLM ───────────────────────────────────────────────────────
-        const response = await this.anthropic.messages.create({
-          model: "claude-3-7-sonnet-20250219",
-          system: this.getSystemPrompt(),
-          temperature: 0,
-          max_tokens: 1024,
-          messages,
-        });
+      while (!done && step++ < MAX_STEPS && !this.isCancelled) {
+        try {
+          // Check for cancellation before each major step
+          if (this.isCancelled) break;
 
-        const firstChunk = response.content[0];
-        const assistantText =
-          firstChunk.type === "text"
-            ? firstChunk.text
-            : JSON.stringify(firstChunk);
+          // ── 1. Call LLM ───────────────────────────────────────────────────────
+          const responsePromise = this.anthropic.messages.create({
+            model: "claude-3-7-sonnet-20250219",
+            system: this.getSystemPrompt(),
+            temperature: 0,
+            max_tokens: 1024,
+            messages,
+          });
 
-        callbacks.onLlmOutput(assistantText);
+          // Set up a check for cancellation during LLM call
+          const checkCancellation = async () => {
+            while (!this.isCancelled) {
+              await new Promise(resolve => setTimeout(resolve, 100)); // Check every 100ms
+            }
+            // If we get here, cancellation was requested
+            return null;
+          };
 
-        // ── 2. Parse for tool invocation ─────────────────────────────────────
-        const toolMatch = assistantText.match(
-          /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/
-        );
+          // Race between the LLM response and cancellation
+          const response = await Promise.race([
+            responsePromise,
+            checkCancellation().then(() => null)
+          ]);
 
-        if (!toolMatch) {
-          // no tool tag ⇒ task complete
-          done = true;
-          break;
-        }
+          // If cancelled during LLM call
+          if (this.isCancelled || !response) {
+            break;
+          }
 
-        const [, toolNameRaw, toolInputRaw] = toolMatch;
-        const toolName = toolNameRaw.trim();
-        const toolInput = toolInputRaw.trim();
-        const tool = this.tools.find((t) => t.name === toolName);
+          const firstChunk = response.content[0];
+          const assistantText =
+            firstChunk.type === "text"
+              ? firstChunk.text
+              : JSON.stringify(firstChunk);
 
-        if (!tool) {
+          callbacks.onLlmOutput(assistantText);
+
+          // Check for cancellation after LLM response
+          if (this.isCancelled) break;
+
+          // ── 2. Parse for tool invocation ─────────────────────────────────────
+          const toolMatch = assistantText.match(
+            /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/
+          );
+
+          if (!toolMatch) {
+            // no tool tag ⇒ task complete
+            done = true;
+            break;
+          }
+
+          const [, toolNameRaw, toolInputRaw] = toolMatch;
+          const toolName = toolNameRaw.trim();
+          const toolInput = toolInputRaw.trim();
+          const tool = this.tools.find((t) => t.name === toolName);
+
+          if (!tool) {
+            messages.push(
+              { role: "assistant", content: assistantText },
+              {
+                role: "user",
+                content: `Error: tool "${toolName}" not found. Available: ${this.tools
+                  .map((t) => t.name)
+                  .join(", ")}`,
+              }
+            );
+            continue;
+          }
+
+          // Check for cancellation before tool execution
+          if (this.isCancelled) break;
+
+          // ── 3. Execute tool ──────────────────────────────────────────────────
+          callbacks.onToolOutput(`Tool: ${toolName}\nArgs: ${toolInput}`);
+          const result = await tool.func(toolInput);
+
+          // Check for cancellation after tool execution
+          if (this.isCancelled) break;
+
+          // ── 4. Record turn & prune history ───────────────────────────────────
           messages.push(
             { role: "assistant", content: assistantText },
-            {
-              role: "user",
-              content: `Error: tool "${toolName}" not found. Available: ${this.tools
-                .map((t) => t.name)
-                .join(", ")}`,
-            }
+            { role: "user", content: `Tool result: ${result}` }
           );
-          continue;
+          messages = trimHistory(messages);
+        } catch (error) {
+          // If an error occurs during execution, check if it was due to cancellation
+          if (this.isCancelled) break;
+          throw error; // Re-throw if it wasn't a cancellation
         }
-
-        // ── 3. Execute tool ──────────────────────────────────────────────────
-        callbacks.onToolOutput(`Tool: ${toolName}\nArgs: ${toolInput}`);
-        const result = await tool.func(toolInput);
-
-        // ── 4. Record turn & prune history ───────────────────────────────────
-        messages.push(
-          { role: "assistant", content: assistantText },
-          { role: "user", content: `Tool result: ${result}` }
-        );
-        messages = trimHistory(messages);
       }
 
-      if (step >= MAX_STEPS) {
+      if (this.isCancelled) {
+        callbacks.onLlmOutput(
+          `\n\nExecution cancelled by user.`
+        );
+      } else if (step >= MAX_STEPS) {
         callbacks.onLlmOutput(
           `Stopped: exceeded maximum of ${MAX_STEPS} steps.`
         );

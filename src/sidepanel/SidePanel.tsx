@@ -32,6 +32,16 @@ export function SidePanel() {
     }
   };
 
+  const handleCancel = () => {
+    chrome.runtime.sendMessage({ 
+      action: 'cancelExecution' 
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error(chrome.runtime.lastError);
+      }
+    });
+  };
+
   // Listen for updates from the background script
   useEffect(() => {
     const messageListener = (message: any) => {
@@ -64,13 +74,24 @@ export function SidePanel() {
           disabled={isProcessing}
           rows={4}
         />
-        <button 
-          type="submit" 
-          className="btn btn-primary self-end"
-          disabled={isProcessing || !prompt.trim()}
-        >
-          {isProcessing ? 'Processing...' : 'Execute'}
-        </button>
+        <div className="flex justify-end gap-2">
+          {isProcessing && (
+            <button 
+              type="button" 
+              onClick={handleCancel}
+              className="btn btn-error"
+            >
+              Cancel
+            </button>
+          )}
+          <button 
+            type="submit" 
+            className="btn btn-primary"
+            disabled={isProcessing || !prompt.trim()}
+          >
+            {isProcessing ? 'Processing...' : 'Execute'}
+          </button>
+        </div>
       </form>
 
       <div className="flex flex-col flex-grow gap-4 overflow-hidden md:flex-row">

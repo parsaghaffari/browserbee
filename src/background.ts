@@ -24,9 +24,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     handlePromptExecution(message.prompt);
     sendResponse({ success: true });
     return true; // Keep the message channel open for async response
+  } else if (message.action === 'cancelExecution') {
+    handleCancelExecution();
+    sendResponse({ success: true });
+    return true;
   }
   return false;
 });
+
+// Cancel the current execution
+function handleCancelExecution() {
+  if (agent) {
+    agent.cancel();
+    sendUIMessage('updateLlmOutput', '\nCancelling execution...\n');
+    // Immediately notify UI that processing is complete
+    sendUIMessage('processingComplete', null);
+  }
+}
 
 // Execute a prompt using the LLM agent
 async function handlePromptExecution(prompt: string) {
