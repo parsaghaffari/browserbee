@@ -276,7 +276,7 @@ export function SidePanel() {
   return (
     <div className="flex flex-col h-screen p-4 bg-base-200">
       <header className="mb-4">
-        <h1 className="text-2xl font-bold text-primary">Browser LLM ✨</h1>
+        <h1 className="text-2xl font-bold text-primary">BrowserBee 🐝</h1>
         <p className="text-sm text-gray-600">
           What can I do for you today?
         </p>
@@ -315,7 +315,7 @@ export function SidePanel() {
         <div className="card bg-base-100 shadow-md flex-1 flex flex-col overflow-hidden">
           <div className="flex justify-between items-center bg-base-300 p-3">
             <div className="card-title text-base-content text-lg">
-              LLM Output
+              Output
             </div>
             <div className="flex items-center gap-2">
               <div className="tooltip tooltip-left" data-tip="Clears conversation history and context from both UI and LLM memory">

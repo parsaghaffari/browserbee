@@ -26,7 +26,7 @@ let agent: BrowserAgent | null = null;
 
 // Initialize the extension
 chrome.runtime.onInstalled.addListener((details) => {
-  console.log('Playwright LLM extension installed');
+  console.log('BrowserBee 🐝 extension installed');
   
   // Open options page when the extension is first installed
   if (details.reason === 'install') {
