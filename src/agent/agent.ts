@@ -141,6 +141,7 @@ Think step‑by‑step; summarise your work when finished.`;
       onLlmOutput: (s: string) => void;
       onToolOutput: (s: string) => void;
       onComplete: () => void;
+      onError?: (error: any) => void;
     }
   ): Promise<void> {
     const streamingSupported = await this.isStreamingSupported();
@@ -169,6 +170,7 @@ Think step‑by‑step; summarise your work when finished.`;
       onToolStart?: (toolName: string, toolInput: string) => void;
       onToolEnd?: (result: string) => void;
       onSegmentComplete?: (segment: string) => void;
+      onError?: (error: any) => void;
     }
   ): Promise<void> {
     // Reset cancel flag at the start of execution
@@ -319,11 +321,23 @@ Think step‑by‑step; summarise your work when finished.`;
         );
       }
       callbacks.onComplete();
-    } catch (err) {
-      callbacks.onLlmOutput(
-        `Fatal error: ${err instanceof Error ? err.message : String(err)}`
-      );
-      callbacks.onComplete();
+    } catch (err: any) {
+      // Check if this is a rate limit error
+      if (err?.error?.type === 'rate_limit_error') {
+        // For rate limit errors, notify but don't complete processing
+        // This allows the fallback mechanism to retry while maintaining UI state
+        if (callbacks.onError) {
+          callbacks.onError(err);
+        } else {
+          callbacks.onLlmOutput(`Rate limit error: ${err.error.message}`);
+        }
+      } else {
+        // For other errors, show error and complete processing
+        callbacks.onLlmOutput(
+          `Fatal error: ${err instanceof Error ? err.message : String(err)}`
+        );
+        callbacks.onComplete();
+      }
       throw err; // Re-throw to trigger fallback
     }
   }
@@ -336,6 +350,7 @@ Think step‑by‑step; summarise your work when finished.`;
       onLlmOutput: (s: string) => void;
       onToolOutput: (s: string) => void;
       onComplete: () => void;
+      onError?: (error: any) => void;
     }
   ): Promise<void> {
     // Reset cancel flag at the start of execution
@@ -455,11 +470,22 @@ Think step‑by‑step; summarise your work when finished.`;
         );
       }
       callbacks.onComplete();
-    } catch (err) {
-      callbacks.onLlmOutput(
-        `Fatal error: ${err instanceof Error ? err.message : String(err)}`
-      );
-      callbacks.onComplete();
+    } catch (err: any) {
+      // Check if this is a rate limit error
+      if (err?.error?.type === 'rate_limit_error') {
+        // For rate limit errors, notify but don't complete processing
+        if (callbacks.onError) {
+          callbacks.onError(err);
+        } else {
+          callbacks.onLlmOutput(`Rate limit error: ${err.error.message}`);
+        }
+      } else {
+        // For other errors, show error and complete processing
+        callbacks.onLlmOutput(
+          `Fatal error: ${err instanceof Error ? err.message : String(err)}`
+        );
+        callbacks.onComplete();
+      }
     }
   }
 }
@@ -499,6 +525,7 @@ export async function executePromptWithFallback(
     onToolStart?: (toolName: string, toolInput: string) => void;
     onToolEnd?: (result: string) => void;
     onSegmentComplete?: (segment: string) => void;
+    onError?: (error: any) => void;
   }
 ): Promise<void> {
   return agent.executePromptWithFallback(prompt, callbacks);

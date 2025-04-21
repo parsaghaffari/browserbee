@@ -156,6 +156,15 @@ async function handlePromptExecution(prompt: string) {
           content: content
         });
       },
+      onError: (error) => {
+        // For rate limit errors, show a message but don't complete processing
+        if (error?.error?.type === 'rate_limit_error') {
+          sendUIMessage('updateOutput', {
+            type: 'system',
+            content: `⚠️ Rate limit exceeded. Retrying... (${error.error.message})`
+          });
+        }
+      },
       // New callbacks for the conversational flow
       onSegmentComplete: (segment) => {
         if (useStreaming) {
