@@ -36,7 +36,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 function handleCancelExecution() {
   if (agent) {
     agent.cancel();
-    sendUIMessage('updateLlmOutput', '\nCancelling execution...\n');
+    sendUIMessage('updateOutput', {
+      type: 'system',
+      content: 'Cancelling execution...'
+    });
     // Immediately notify UI that processing is complete
     sendUIMessage('processingComplete', null);
   }
@@ -49,14 +52,20 @@ async function handlePromptExecution(prompt: string) {
     const { anthropicApiKey } = await chrome.storage.sync.get(['anthropicApiKey']);
     
     if (!anthropicApiKey) {
-      sendUIMessage('updateLlmOutput', 'Error: API key not found. Please set your Anthropic API key in the extension options.');
+      sendUIMessage('updateOutput', {
+        type: 'system',
+        content: 'Error: API key not found. Please set your Anthropic API key in the extension options.'
+      });
       sendUIMessage('processingComplete', null);
       return;
     }
 
     // Initialize Playwright if not already initialized
     if (!crxApp) {
-      sendUIMessage('updateLlmOutput', 'Initializing Playwright...\n');
+      sendUIMessage('updateOutput', {
+        type: 'system',
+        content: 'Initializing Playwright...'
+      });
       crxApp = await crx.start();
     }
 
@@ -68,32 +77,53 @@ async function handlePromptExecution(prompt: string) {
       if (activeTabId) {
         try {
           page = await crxApp.attach(activeTabId);
-          sendUIMessage('updateLlmOutput', 'Attached to active tab.\n');
+          sendUIMessage('updateOutput', {
+            type: 'system',
+            content: 'Attached to active tab.'
+          });
         } catch (error) {
           page = await crxApp.newPage();
-          sendUIMessage('updateLlmOutput', 'Created new page.\n');
+          sendUIMessage('updateOutput', {
+            type: 'system',
+            content: 'Created new page.'
+          });
         }
       } else {
         page = await crxApp.newPage();
-        sendUIMessage('updateLlmOutput', 'Created new page.\n');
+        sendUIMessage('updateOutput', {
+          type: 'system',
+          content: 'Created new page.'
+        });
       }
     }
 
     // Create the agent if not already created
     if (!agent) {
-      sendUIMessage('updateLlmOutput', 'Creating LLM agent...\n');
+      sendUIMessage('updateOutput', {
+        type: 'system',
+        content: 'Creating LLM agent...'
+      });
       agent = await createBrowserAgent(page, anthropicApiKey);
     }
 
     // Execute the prompt
-    sendUIMessage('updateLlmOutput', `Executing prompt: "${prompt}"\n\n`);
+    sendUIMessage('updateOutput', {
+      type: 'system',
+      content: `Executing prompt: "${prompt}"`
+    });
     
     await executePrompt(agent, prompt, {
       onLlmOutput: (content) => {
-        sendUIMessage('updateLlmOutput', content + '\n');
+        sendUIMessage('updateOutput', {
+          type: 'llm',
+          content: content
+        });
       },
       onToolOutput: (content) => {
-        sendUIMessage('updateLlmOutput', content + '\n\n');
+        sendUIMessage('updateOutput', {
+          type: 'system',
+          content: content
+        });
       },
       onComplete: () => {
         sendUIMessage('processingComplete', null);
@@ -101,7 +131,10 @@ async function handlePromptExecution(prompt: string) {
     });
   } catch (error) {
     console.error('Error executing prompt:', error);
-    sendUIMessage('updateLlmOutput', `Error: ${error instanceof Error ? error.message : String(error)}\n`);
+    sendUIMessage('updateOutput', {
+      type: 'system',
+      content: `Error: ${error instanceof Error ? error.message : String(error)}`
+    });
     sendUIMessage('processingComplete', null);
   }
 }

@@ -214,7 +214,7 @@ Think step‑by‑step; summarise your work when finished.`;
           if (this.isCancelled) break;
 
           // ── 3. Execute tool ──────────────────────────────────────────────────
-          callbacks.onToolOutput(`Tool: ${toolName}\nArgs: ${toolInput}`);
+          callbacks.onToolOutput(`🕹️ tool: ${toolName} | args: ${toolInput}`);
           const result = await tool.func(toolInput);
 
           // Check for cancellation after tool execution
