@@ -3,7 +3,7 @@ import type { Page, BrowserContext, Dialog } from "playwright-crx/test";
 
 /** Hard cap for anything we stream back to the LLM. */
 const MAX_RETURN_CHARS = 20_000;
-const MAX_IMG_BASE64_CHARS = 100_000;
+const MAX_SCREENSHOT_CHARS = 80_000; 
 
 /** Truncate long strings so they don’t blow the context window. */
 const truncate = (str: string, max = MAX_RETURN_CHARS) =>
@@ -205,48 +205,37 @@ export const browserScreenshot = (page: Page) =>
   new DynamicTool({
     name: "browser_screenshot",
     description:
-      "Capture a JPEG screenshot and return JSON with:\n" +
-      "  data   – Base‑64 data‑URL\n" +
-      "  width  – CSS‑pixel width\n" +
-      "  height – CSS‑pixel height\n\n" +
+      "Take a screenshot of the current page. *Use only if `browser_snapshot_dom` did **not** provide enough info.*\n\n" +
+      "Returns JSON: `{ data, width, height }` where `data` is a Base‑64 data‑URL.\n\n" +
       "Input flags (comma‑separated):\n" +
-      "  full    – full‑page (else viewport)\n" +
-      "  low     – start Q=40 (default 55)\n" +
-      "  tiny    – start Q=25\n" +
-      "  device  – use device pixels instead of CSS pixels (bigger image)\n\n" +
-      "Captures are automatically down‑sampled in quality until ≤ 100 000 chars.",
+      "  full    – capture the full scrolling page (else viewport)\n" +
+      "  tiny    – start at Q = 25 (default Q = 40)\n" +
+      "  device  – capture at device‑pixel scale (bigger image; avoid if possible)",
     func: async (input: string) => {
       try {
-        /*── Flags ───────────────────────────────────────────────────────────*/
+        /*────────── flag parsing ───────────────────────────────────────────*/
         const flags = input
           .split(",")
           .map((s) => s.trim().toLowerCase())
           .filter(Boolean);
 
         const fullPage = flags.includes("full");
-        const scale = flags.includes("device") ? "device" : ("css" as const);
-        let quality = flags.includes("tiny")
-          ? 25
-          : flags.includes("low")
-          ? 40
-          : 55;
+        const scale = flags.includes("device") ? ("device" as const) : ("css" as const);
+        let quality = flags.includes("tiny") ? 25 : 40; // start lower
 
-        /*── helper to capture ──────────────────────────────────────────────*/
         const snap = async (q: number) =>
           page.screenshot({ type: "jpeg", fullPage, quality: q, scale });
 
-        /*── iterative quality back‑off ─────────────────────────────────────*/
         let buf = await snap(quality);
         let b64 = buf.toString("base64");
-        while (b64.length > MAX_IMG_BASE64_CHARS && quality > 20) {
-          quality = Math.max(20, quality - 10);
+        while (b64.length > MAX_SCREENSHOT_CHARS && quality > 20) {
+          quality = Math.max(20, quality - 5);
           buf = await snap(quality);
           b64 = buf.toString("base64");
         }
-        if (b64.length > MAX_IMG_BASE64_CHARS)
-          return `Error: screenshot exceeds ${MAX_IMG_BASE64_CHARS} chars even at Q=20.`;
+        if (b64.length > MAX_SCREENSHOT_CHARS)
+          return `Error: screenshot still exceeds ${MAX_SCREENSHOT_CHARS} chars at minimum quality.`;
 
-        /*── meta info ──────────────────────────────────────────────────────*/
         const { width, height } = await page.evaluate(() => ({
           width: document.documentElement.clientWidth,
           height: document.documentElement.clientHeight,
@@ -256,8 +245,8 @@ export const browserScreenshot = (page: Page) =>
           data: `data:image/jpeg;base64,${b64}`,
           width,
           height,
-          scale,
           quality,
+          scale,
         });
       } catch (err) {
         return `Error taking screenshot: ${
