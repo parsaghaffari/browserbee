@@ -158,6 +158,7 @@ Think step‑by‑step; summarise your work when finished.`;
       onToolStart?: (toolName: string, toolInput: string) => void;
       onToolEnd?: (result: string) => void;
       onSegmentComplete?: (segment: string) => void;
+      onFallbackStarted?: () => void; // New callback for fallback notification
     },
     initialMessages: Anthropic.MessageParam[] = []
   ): Promise<void> {
@@ -168,6 +169,24 @@ Think step‑by‑step; summarise your work when finished.`;
         await this.executePromptWithStreaming(prompt, callbacks, initialMessages);
       } catch (error) {
         console.warn("Streaming failed, falling back to non-streaming mode:", error);
+        
+        // Notify about fallback before switching modes
+        if (callbacks.onFallbackStarted) {
+          callbacks.onFallbackStarted();
+        }
+        
+        // Check if this is a rate limit error
+        // Use type assertion to handle the error object structure
+        const errorObj = error as any;
+        if (errorObj?.error?.type === 'rate_limit_error') {
+          console.log("Rate limit error detected in fallback handler:", errorObj);
+          // Ensure the error callback is called even during fallback
+          if (callbacks.onError) {
+            callbacks.onError(errorObj);
+          }
+        }
+        
+        // Continue with fallback
         await this.executePrompt(prompt, callbacks, initialMessages);
       }
     } else {
@@ -188,6 +207,7 @@ Think step‑by‑step; summarise your work when finished.`;
       onToolEnd?: (result: string) => void;
       onSegmentComplete?: (segment: string) => void;
       onError?: (error: any) => void;
+      onFallbackStarted?: () => void; // Include the new callback
     },
     initialMessages: Anthropic.MessageParam[] = []
   ): Promise<void> {
@@ -351,12 +371,18 @@ Think step‑by‑step; summarise your work when finished.`;
     } catch (err: any) {
       // Check if this is a rate limit error
       if (err?.error?.type === 'rate_limit_error') {
+        console.log("Rate limit error detected in streaming mode:", err);
         // For rate limit errors, notify but don't complete processing
         // This allows the fallback mechanism to retry while maintaining UI state
         if (callbacks.onError) {
           callbacks.onError(err);
         } else {
           callbacks.onLlmOutput(`Rate limit error: ${err.error.message}`);
+        }
+        
+        // Notify about fallback before re-throwing
+        if (callbacks.onFallbackStarted) {
+          callbacks.onFallbackStarted();
         }
       } else {
         // For other errors, show error and complete processing
@@ -378,6 +404,10 @@ Think step‑by‑step; summarise your work when finished.`;
       onToolOutput: (s: string) => void;
       onComplete: () => void;
       onError?: (error: any) => void;
+      onToolStart?: (toolName: string, toolInput: string) => void;
+      onToolEnd?: (result: string) => void;
+      onSegmentComplete?: (segment: string) => void;
+      onFallbackStarted?: () => void; // Include the new callback
     },
     initialMessages: Anthropic.MessageParam[] = []
   ): Promise<void> {
@@ -510,12 +540,23 @@ Think step‑by‑step; summarise your work when finished.`;
     } catch (err: any) {
       // Check if this is a rate limit error
       if (err?.error?.type === 'rate_limit_error') {
+        console.log("Rate limit error detected in non-streaming mode:", err);
         // For rate limit errors, notify but don't complete processing
         if (callbacks.onError) {
           callbacks.onError(err);
         } else {
           callbacks.onLlmOutput(`Rate limit error: ${err.error.message}`);
         }
+        
+        // Since this is already the fallback mode, we need to retry
+        // Wait a bit before retrying to avoid hitting rate limits again
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Notify that we're retrying
+        callbacks.onToolOutput("Retrying after rate limit error...");
+        
+        // Recursive retry with the same parameters
+        return this.executePrompt(prompt, callbacks, initialMessages);
       } else {
         // For other errors, show error and complete processing
         callbacks.onLlmOutput(
@@ -564,6 +605,7 @@ export async function executePromptWithFallback(
     onToolEnd?: (result: string) => void;
     onSegmentComplete?: (segment: string) => void;
     onError?: (error: any) => void;
+    onFallbackStarted?: () => void; // Add the new callback to the type definition
   },
   initialMessages: Anthropic.MessageParam[] = []
 ): Promise<void> {

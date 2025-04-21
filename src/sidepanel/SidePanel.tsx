@@ -241,6 +241,28 @@ export function SidePanel() {
           content: message.content,
           isComplete: true 
         }]);
+      } else if (message.action === 'rateLimit') {
+        // Handle rate limit notification - ensure we stay in processing mode
+        console.log("Rate limit notification received, maintaining processing state");
+        // We don't change isProcessing here - it should stay true
+        
+        // Add a system message about the rate limit
+        setMessages(prev => [...prev, { 
+          type: 'system', 
+          content: "⚠️ Rate limit reached. Retrying automatically...",
+          isComplete: true 
+        }]);
+      } else if (message.action === 'fallbackStarted') {
+        // Handle fallback notification - ensure we stay in processing mode
+        console.log("Fallback notification received, maintaining processing state");
+        // We don't change isProcessing here - it should stay true
+        
+        // Add a system message about the fallback
+        setMessages(prev => [...prev, { 
+          type: 'system', 
+          content: message.content.message || "Switching to fallback mode. Processing continues...",
+          isComplete: true 
+        }]);
       } else if (message.action === 'processingComplete') {
         setIsProcessing(false);
         setIsStreaming(false);

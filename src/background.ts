@@ -229,11 +229,24 @@ Use your judgment to determine whether the request is meant to be performed on t
       onError: (error) => {
         // For rate limit errors, show a message but don't complete processing
         if (error?.error?.type === 'rate_limit_error') {
+          console.log("Rate limit error detected in background.ts onError handler:", error);
           sendUIMessage('updateOutput', {
             type: 'system',
             content: `⚠️ Rate limit exceeded. Retrying... (${error.error.message})`
           });
+          
+          // Explicitly tell the UI to stay in processing mode
+          sendUIMessage('rateLimit', {
+            isRetrying: true
+          });
         }
+      },
+      onFallbackStarted: () => {
+        // Notify the UI that we're falling back but still processing
+        console.log("Fallback started, notifying UI to maintain processing state");
+        sendUIMessage('fallbackStarted', {
+          message: "Switching to fallback mode due to error. Processing continues..."
+        });
       },
       // New callbacks for the conversational flow
       onSegmentComplete: (segment) => {
