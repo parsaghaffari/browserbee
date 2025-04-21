@@ -114,7 +114,7 @@ export const browserSnapshotDom = (page: Page) =>
   new DynamicTool({
     name: "browser_snapshot_dom",
     description:
-      "Return full page HTML. Optional input = max char length (default 20 000).",
+      "Capture accessibility snapshot of the current page, this is better than screenshot. Optional input = max char length (default 20 000).",
     func: async (input: string) => {
       try {
         const limit = parseInt(input.trim(), 10);
@@ -205,45 +205,60 @@ export const browserScreenshot = (page: Page) =>
   new DynamicTool({
     name: "browser_screenshot",
     description:
-      "Take a JPEG screenshot and return it as a Base‑64 data‑URL.\n" +
-      "Input options (comma‑separated):\n" +
-      "  • full   – capture the full page, not just the viewport\n" +
-      "  • low    – lower quality (≈40) to save tokens\n" +
-      "  • tiny   – very low quality (≈25) for the smallest payload\n" +
-      "The tool automatically down‑samples quality until the payload fits",
+      "Capture a JPEG screenshot and return JSON with:\n" +
+      "  data   – Base‑64 data‑URL\n" +
+      "  width  – CSS‑pixel width\n" +
+      "  height – CSS‑pixel height\n\n" +
+      "Input flags (comma‑separated):\n" +
+      "  full    – full‑page (else viewport)\n" +
+      "  low     – start Q=40 (default 55)\n" +
+      "  tiny    – start Q=25\n" +
+      "  device  – use device pixels instead of CSS pixels (bigger image)\n\n" +
+      "Captures are automatically down‑sampled in quality until ≤ 100 000 chars.",
     func: async (input: string) => {
       try {
-        /*──────── parse options ────────*/
+        /*── Flags ───────────────────────────────────────────────────────────*/
         const flags = input
           .split(",")
           .map((s) => s.trim().toLowerCase())
           .filter(Boolean);
 
         const fullPage = flags.includes("full");
+        const scale = flags.includes("device") ? "device" : ("css" as const);
         let quality = flags.includes("tiny")
           ? 25
           : flags.includes("low")
           ? 40
-          : 60; // default
+          : 55;
 
-        /*──────── iterative capture until under size limit ────────*/
-        const take = async (q: number) =>
-          page.screenshot({ type: "jpeg", fullPage, quality: q });
+        /*── helper to capture ──────────────────────────────────────────────*/
+        const snap = async (q: number) =>
+          page.screenshot({ type: "jpeg", fullPage, quality: q, scale });
 
-        let buffer = await take(quality);
-        let base64 = buffer.toString("base64");
-
-        while (base64.length > MAX_IMG_BASE64_CHARS && quality > 20) {
-          quality = Math.max(20, quality - 10); // step down
-          buffer = await take(quality);
-          base64 = buffer.toString("base64");
+        /*── iterative quality back‑off ─────────────────────────────────────*/
+        let buf = await snap(quality);
+        let b64 = buf.toString("base64");
+        while (b64.length > MAX_IMG_BASE64_CHARS && quality > 20) {
+          quality = Math.max(20, quality - 10);
+          buf = await snap(quality);
+          b64 = buf.toString("base64");
         }
+        if (b64.length > MAX_IMG_BASE64_CHARS)
+          return `Error: screenshot exceeds ${MAX_IMG_BASE64_CHARS} chars even at Q=20.`;
 
-        if (base64.length > MAX_IMG_BASE64_CHARS) {
-          return `Error: screenshot still exceeds ${MAX_IMG_BASE64_CHARS} characters at minimum quality.`;
-        }
+        /*── meta info ──────────────────────────────────────────────────────*/
+        const { width, height } = await page.evaluate(() => ({
+          width: document.documentElement.clientWidth,
+          height: document.documentElement.clientHeight,
+        })) as { width: number; height: number };
 
-        return `data:image/jpeg;base64,${base64}`;
+        return JSON.stringify({
+          data: `data:image/jpeg;base64,${b64}`,
+          width,
+          height,
+          scale,
+          quality,
+        });
       } catch (err) {
         return `Error taking screenshot: ${
           err instanceof Error ? err.message : String(err)
@@ -251,6 +266,7 @@ export const browserScreenshot = (page: Page) =>
       }
     },
   });
+
 
 /*────────────────────────────  MOUSE TOOLS  ────────────────────────────*/
 
