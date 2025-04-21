@@ -113,6 +113,8 @@ type MessageType = 'system' | 'llm';
 interface Message {
   type: MessageType;
   content: string;
+  isComplete?: boolean;
+  segmentId?: number;
 }
 
 export function SidePanel() {
@@ -120,6 +122,9 @@ export function SidePanel() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [showSystemMessages, setShowSystemMessages] = useState(true);
+  const [streamingSegments, setStreamingSegments] = useState<Record<number, string>>({});
+  const [currentSegmentId, setCurrentSegmentId] = useState<number>(0);
+  const [isStreaming, setIsStreaming] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
 
   // Filter messages based on showSystemMessages toggle
@@ -133,6 +138,7 @@ export function SidePanel() {
 
     setIsProcessing(true);
     setMessages([]);
+    setStreamingSegments({});
 
     try {
       // Send message to background script
@@ -167,29 +173,71 @@ export function SidePanel() {
     });
   };
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom when messages or streaming segments change
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
-  }, [messages, showSystemMessages]);
+  }, [messages, streamingSegments, showSystemMessages]);
 
   // Listen for updates from the background script
   useEffect(() => {
     const messageListener = (message: any) => {
       if (message.action === 'updateOutput') {
-        setMessages(prev => [...prev, message.content]);
+        // For complete messages (system messages or non-streaming LLM output)
+        setMessages(prev => [...prev, { 
+          ...message.content, 
+          isComplete: true 
+        }]);
+      } else if (message.action === 'updateStreamingChunk') {
+        // For streaming chunks
+        setIsStreaming(true);
+        setStreamingSegments(prev => ({
+          ...prev,
+          [currentSegmentId]: (prev[currentSegmentId] || '') + message.content.content
+        }));
+      } else if (message.action === 'finalizeStreamingSegment') {
+        // Finalize a streaming segment
+        const { id, content } = message.content;
+        
+        // Add the finalized segment as a complete message
+        setMessages(prev => [...prev, { 
+          type: 'llm', 
+          content: content,
+          isComplete: true,
+          segmentId: id
+        }]);
+        
+        // Remove the segment from streaming segments
+        setStreamingSegments(prev => {
+          const newSegments = { ...prev };
+          delete newSegments[id];
+          return newSegments;
+        });
+      } else if (message.action === 'startNewSegment') {
+        // Start a new streaming segment
+        const { id } = message.content;
+        setCurrentSegmentId(id);
+      } else if (message.action === 'streamingComplete') {
+        // When streaming is complete
+        setIsStreaming(false);
+        setStreamingSegments({});
       } else if (message.action === 'updateLlmOutput') {
         // Handle legacy format for backward compatibility
-        setMessages(prev => [...prev, { type: 'llm', content: message.content }]);
+        setMessages(prev => [...prev, { 
+          type: 'llm', 
+          content: message.content,
+          isComplete: true 
+        }]);
       } else if (message.action === 'processingComplete') {
         setIsProcessing(false);
+        setIsStreaming(false);
       }
     };
 
     chrome.runtime.onMessage.addListener(messageListener);
     return () => chrome.runtime.onMessage.removeListener(messageListener);
-  }, []);
+  }, [currentSegmentId]);
 
   return (
     <div className="flex flex-col h-screen p-4 bg-base-200">
@@ -251,10 +299,11 @@ export function SidePanel() {
             ref={outputRef}
             className="card-body p-3 overflow-auto bg-base-100 flex-1"
           >
-            {filteredMessages.length > 0 ? (
+            {filteredMessages.length > 0 || Object.keys(streamingSegments).length > 0 ? (
               <div>
+                {/* Render completed messages */}
                 {filteredMessages.map((msg, index) => (
-                  <div key={index} className="mb-2">
+                  <div key={`msg-${index}`} className="mb-2">
                     {msg.type === 'system' ? (
                       <div className="bg-base-200 px-3 py-1 rounded text-gray-500 text-sm">
                         {msg.content}
@@ -262,6 +311,13 @@ export function SidePanel() {
                     ) : (
                       <LlmContent content={msg.content} />
                     )}
+                  </div>
+                ))}
+                
+                {/* Render currently streaming segments */}
+                {isStreaming && Object.entries(streamingSegments).map(([id, content]) => (
+                  <div key={`segment-${id}`} className="mb-2 animate-pulse-subtle">
+                    <LlmContent content={content} />
                   </div>
                 ))}
               </div>
