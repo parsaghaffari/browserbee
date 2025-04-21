@@ -15,8 +15,13 @@ let page: any = null;
 let agent: BrowserAgent | null = null;
 
 // Initialize the extension
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   console.log('Playwright LLM extension installed');
+  
+  // Open options page when the extension is first installed
+  if (details.reason === 'install') {
+    chrome.runtime.openOptionsPage();
+  }
   
   // Open the side panel when the extension icon is clicked
   chrome.action.onClicked.addListener(async (tab) => {

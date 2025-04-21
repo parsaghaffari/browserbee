@@ -31,7 +31,7 @@ export function Options() {
 
   return (
     <div className="max-w-3xl mx-auto p-5 font-sans text-gray-800">
-      <h1 className="text-2xl font-bold mb-6 text-primary">Playwright LLM Options</h1>
+      <h1 className="text-2xl font-bold mb-6 text-primary">Browser LLM ✨</h1>
       
       <div className="card bg-base-100 shadow-md mb-6">
         <div className="card-body">
@@ -71,7 +71,7 @@ export function Options() {
         <div className="card-body">
           <h2 className="card-title text-xl">About</h2>
           <p className="mb-3">
-            Playwright LLM is a Chrome extension that allows you to control your browser using natural language.
+            Browser LLM ✨ is a Chrome extension that allows you to control your browser using natural language.
             It uses the Claude 3 Sonnet model to interpret your instructions and Playwright to execute them.
           </p>
           <p>

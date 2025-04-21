@@ -3,7 +3,7 @@ friends launch:
 - [x] add streaming output
 - [ ] add button to clear context (otherwise continue with previous context)
 - [ ] tab management for deciding which tab to control
-- [ ] open options.html on install
+- [x] open options.html on install
 - [ ] code robustness and refactoring
 - [ ] prompt improvements e.g. to stop preempting what we're going to see when navigating to a website
 - [ ] put on github
