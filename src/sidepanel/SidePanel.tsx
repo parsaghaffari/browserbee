@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import TextareaAutosize from 'react-textarea-autosize';
 
 // Component to handle LLM content with tool calls
 const LlmContent = ({ content }: { content: string }) => {
@@ -283,14 +284,23 @@ export function SidePanel() {
       </header>
 
       <form onSubmit={handleSubmit} className="flex flex-col mb-4">
-        <textarea
-          className="textarea textarea-bordered w-full mb-2"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Enter your prompt (e.g., 'go to google.com, search for Cicero, and click on the first result')"
-          disabled={isProcessing}
-          rows={4}
-        />
+        <div className="w-full mb-2">
+          <TextareaAutosize
+            className="textarea textarea-bordered w-full"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Enter your prompt (e.g., 'go to google.com, search for Cicero, and click on the first result')"
+            disabled={isProcessing}
+            minRows={1}
+            maxRows={10}
+            style={{ 
+              resize: 'none',
+              minHeight: '38px',
+              maxHeight: '300px',
+              overflow: 'auto'
+            } as any}
+          />
+        </div>
         <div className="flex justify-end gap-2">
           {isProcessing && (
             <button 
