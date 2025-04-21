@@ -1,6 +1,6 @@
 friends launch:
 - [x] render markdown in output
-- [ ] add streaming output
+- [x] add streaming output
 - [ ] add button to clear context (otherwise continue with previous context)
 - [ ] tab management for deciding which tab to control
 - [ ] open options.html on install
