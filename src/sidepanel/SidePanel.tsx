@@ -115,6 +115,7 @@ interface Message {
   content: string;
   isComplete?: boolean;
   segmentId?: number;
+  isStreaming?: boolean;
 }
 
 export function SidePanel() {
@@ -326,7 +327,7 @@ export function SidePanel() {
           >
             {filteredMessages.length > 0 || Object.keys(streamingSegments).length > 0 ? (
               <div>
-                {/* Render completed messages */}
+                {/* Render completed messages in their original order */}
                 {filteredMessages.map((msg, index) => (
                   <div key={`msg-${index}`} className="mb-2">
                     {msg.type === 'system' ? (
@@ -339,9 +340,9 @@ export function SidePanel() {
                   </div>
                 ))}
                 
-                {/* Render currently streaming segments */}
+                {/* Render currently streaming segments at the end */}
                 {isStreaming && Object.entries(streamingSegments).map(([id, content]) => (
-                  <div key={`segment-${id}`} className="mb-2 animate-pulse-subtle">
+                  <div key={`segment-${id}`} className="mb-2 animate-pulse">
                     <LlmContent content={content} />
                   </div>
                 ))}

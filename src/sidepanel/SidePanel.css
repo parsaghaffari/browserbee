@@ -92,22 +92,7 @@
   background-color: #f8f8f8;
 }
 
-/* Animation for streaming content */
-@keyframes pulse-subtle {
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.85;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-.animate-pulse-subtle {
-  animation: pulse-subtle 1.5s ease-in-out infinite;
-}
+/* Animation for streaming content is now using Tailwind's built-in animate-pulse */
 
 @media (min-width: 768px) {
   .output-container {
