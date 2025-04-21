@@ -13,7 +13,7 @@ friends launch:
 - [ ] make prompt input elastic, and remove resizer
 
 HN launch:
-- [ ] hygiene and marketing (readme, license, videos, etc)
+- [ ] hygiene and marketing (readme, license, videos, acknowledgements (Cline, playwright-crx, playwright-mcp))
 - [ ] llm adaptors (config in options, show active LLM)
 - [ ] add sessions (similar to Cline tasks) with persistence in local DB
 - [ ] max llm calls: allow user to configure, ask for user permission to exceed
