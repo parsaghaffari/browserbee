@@ -1,5 +1,6 @@
 import { crx } from 'playwright-crx';
 import { BrowserAgent, createBrowserAgent, executePrompt, executePromptWithFallback } from './agent/agent';
+import Anthropic from "@anthropic-ai/sdk";
 
 // Streaming buffer and regex patterns
 let streamingBuffer = '';
@@ -8,6 +9,15 @@ const sentenceEndRegex = /[.!?]\s+/;
 
 // Current streaming segment ID
 let currentSegmentId = 0;
+
+// Message history for conversation context
+let messageHistory: Anthropic.MessageParam[] = [];
+
+// Function to clear message history
+function clearMessageHistory() {
+  messageHistory = [];
+  console.log("Message history cleared");
+}
 
 // Global variables
 let crxApp: Awaited<ReturnType<typeof crx.start>> | null = null;
@@ -39,6 +49,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true; // Keep the message channel open for async response
   } else if (message.action === 'cancelExecution') {
     handleCancelExecution();
+    sendResponse({ success: true });
+    return true;
+  } else if (message.action === 'clearHistory') {
+    clearMessageHistory();
     sendResponse({ success: true });
     return true;
   }
@@ -119,6 +133,36 @@ async function handlePromptExecution(prompt: string) {
       agent = await createBrowserAgent(page, anthropicApiKey);
     }
 
+    // Add current page context to history if we have a page
+    if (page) {
+      try {
+        const currentUrl = await page.url();
+        const currentTitle = await page.title();
+        
+        // Add a more explicit system message about the current page
+        const pageContextMessage = `Current page: ${currentUrl} (${currentTitle}) - Consider this context when executing commands. If asked to summarize, create tables, or analyze options without specific references, assume the request refers to content on this page.`;
+        
+        sendUIMessage('updateOutput', {
+          type: 'system',
+          content: pageContextMessage
+        });
+        
+        // Always add page context to message history, even if it's empty
+        messageHistory.push({
+          role: "user",
+          content: `[System: You are currently on ${currentUrl} (${currentTitle}). 
+          
+If the user's request seems to continue a previous task (like asking to "summarize options" after a search), interpret it in the context of what you've just been doing.
+
+If the request seems to start a new task that requires going to a different website, you should navigate there.
+
+Use your judgment to determine whether the request is meant to be performed on the current page or requires navigation elsewhere.]`
+        });
+      } catch (error) {
+        console.warn("Could not get current page info:", error);
+      }
+    }
+    
     // Execute the prompt
     sendUIMessage('updateOutput', {
       type: 'system',
@@ -131,6 +175,18 @@ async function handlePromptExecution(prompt: string) {
     // Reset streaming buffer and segment ID
     streamingBuffer = '';
     currentSegmentId = 0;
+    
+    // Add the new prompt to message history
+    if (messageHistory.length === 0) {
+      // If history is empty, just add the prompt
+      messageHistory.push({ role: "user", content: prompt });
+    } else {
+      // If there's existing history, add a separator and the new prompt
+      messageHistory.push({ 
+        role: "user", 
+        content: `New prompt: ${prompt}` 
+      });
+    }
     
     await executePromptWithFallback(agent, prompt, {
       onLlmChunk: (chunk) => {
@@ -153,6 +209,15 @@ async function handlePromptExecution(prompt: string) {
           // For streaming mode, store the final content to ensure it's not lost
           // This will be used in onComplete if needed
           streamingBuffer = content;
+        }
+        
+        // Add the assistant's response to message history
+        messageHistory.push({ role: "assistant", content: content });
+        
+        // Trim history if it gets too long
+        if (messageHistory.length > 20) {
+          // Keep the most recent messages
+          messageHistory = messageHistory.slice(messageHistory.length - 20);
         }
       },
       onToolOutput: (content) => {
@@ -224,7 +289,7 @@ async function handlePromptExecution(prompt: string) {
         }
         sendUIMessage('processingComplete', null);
       }
-    });
+    }, messageHistory);
   } catch (error) {
     console.error('Error executing prompt:', error);
     sendUIMessage('updateOutput', {

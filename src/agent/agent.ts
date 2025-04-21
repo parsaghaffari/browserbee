@@ -99,6 +99,19 @@ You have access to these tools:
 
 ${toolDescriptions}
 
+IMPORTANT CONTEXT RULES:
+1. Always consider the current page you're on when deciding how to execute commands
+2. When asked to search while on a website with search functionality, use that site's search box
+3. Only navigate away from the current site when:
+   - The user explicitly asks you to go to another website
+   - The current task cannot be completed on the current website
+   - The user's request clearly implies a need to go elsewhere
+4. If a task can be completed on the current page, prefer to stay on that page
+5. Pay attention to the "Current page:" information provided before each prompt
+6. Maintain conversation continuity - each new prompt is part of an ongoing session
+7. When a user refers to content without being specific (e.g., "summarize the options", "create a table"), assume they're referring to the content currently visible on the page, not to your available tools or capabilities
+8. Review the conversation history to understand the context of the current request - if the user just performed a search or viewed specific content, subsequent requests likely refer to those results
+
 To use a tool, reply exactly as:
 <tool>tool_name</tool>
 <input>arguments here</input>
@@ -133,7 +146,7 @@ Think step‑by‑step; summarise your work when finished.`;
     }
   }
 
-  /** Main public runner with fallback support. */
+  /** Main public runner with fallback support and optional initial messages. */
   async executePromptWithFallback(
     prompt: string,
     callbacks: {
@@ -142,24 +155,28 @@ Think step‑by‑step; summarise your work when finished.`;
       onToolOutput: (s: string) => void;
       onComplete: () => void;
       onError?: (error: any) => void;
-    }
+      onToolStart?: (toolName: string, toolInput: string) => void;
+      onToolEnd?: (result: string) => void;
+      onSegmentComplete?: (segment: string) => void;
+    },
+    initialMessages: Anthropic.MessageParam[] = []
   ): Promise<void> {
     const streamingSupported = await this.isStreamingSupported();
     
     if (streamingSupported && callbacks.onLlmChunk) {
       try {
-        await this.executePromptWithStreaming(prompt, callbacks);
+        await this.executePromptWithStreaming(prompt, callbacks, initialMessages);
       } catch (error) {
         console.warn("Streaming failed, falling back to non-streaming mode:", error);
-        await this.executePrompt(prompt, callbacks);
+        await this.executePrompt(prompt, callbacks, initialMessages);
       }
     } else {
       // Directly use non-streaming mode
-      await this.executePrompt(prompt, callbacks);
+      await this.executePrompt(prompt, callbacks, initialMessages);
     }
   }
 
-  /** Streaming version of the prompt execution */
+  /** Streaming version of the prompt execution with optional initial messages */
   async executePromptWithStreaming(
     prompt: string,
     callbacks: {
@@ -171,14 +188,24 @@ Think step‑by‑step; summarise your work when finished.`;
       onToolEnd?: (result: string) => void;
       onSegmentComplete?: (segment: string) => void;
       onError?: (error: any) => void;
-    }
+    },
+    initialMessages: Anthropic.MessageParam[] = []
   ): Promise<void> {
     // Reset cancel flag at the start of execution
     this.resetCancel();
     try {
-      let messages: Anthropic.MessageParam[] = [
-        { role: "user", content: prompt },
-      ];
+      // Use initial messages if provided, otherwise start with just the prompt
+      let messages: Anthropic.MessageParam[] = initialMessages.length > 0 
+        ? [...initialMessages] 
+        : [{ role: "user", content: prompt }];
+      
+      // If we have initial messages and the last one isn't the current prompt,
+      // add the current prompt
+      if (initialMessages.length > 0 && 
+          (messages[messages.length - 1].role !== "user" || 
+           messages[messages.length - 1].content !== prompt)) {
+        messages.push({ role: "user", content: prompt });
+      }
 
       let done = false;
       let step = 0;
@@ -342,7 +369,7 @@ Think step‑by‑step; summarise your work when finished.`;
     }
   }
 
-  /** Original non-streaming implementation */
+  /** Original non-streaming implementation with optional initial messages */
   async executePrompt(
     prompt: string,
     callbacks: {
@@ -351,14 +378,24 @@ Think step‑by‑step; summarise your work when finished.`;
       onToolOutput: (s: string) => void;
       onComplete: () => void;
       onError?: (error: any) => void;
-    }
+    },
+    initialMessages: Anthropic.MessageParam[] = []
   ): Promise<void> {
     // Reset cancel flag at the start of execution
     this.resetCancel();
     try {
-      let messages: Anthropic.MessageParam[] = [
-        { role: "user", content: prompt },
-      ];
+      // Use initial messages if provided, otherwise start with just the prompt
+      let messages: Anthropic.MessageParam[] = initialMessages.length > 0 
+        ? [...initialMessages] 
+        : [{ role: "user", content: prompt }];
+      
+      // If we have initial messages and the last one isn't the current prompt,
+      // add the current prompt
+      if (initialMessages.length > 0 && 
+          (messages[messages.length - 1].role !== "user" || 
+           messages[messages.length - 1].content !== prompt)) {
+        messages.push({ role: "user", content: prompt });
+      }
 
       let done = false;
       let step = 0;
@@ -509,9 +546,10 @@ export async function executePrompt(
     onLlmOutput: (s: string) => void;
     onToolOutput: (s: string) => void;
     onComplete: () => void;
-  }
+  },
+  initialMessages: Anthropic.MessageParam[] = []
 ): Promise<void> {
-  return agent.executePrompt(prompt, callbacks);
+  return agent.executePrompt(prompt, callbacks, initialMessages);
 }
 
 export async function executePromptWithFallback(
@@ -526,7 +564,8 @@ export async function executePromptWithFallback(
     onToolEnd?: (result: string) => void;
     onSegmentComplete?: (segment: string) => void;
     onError?: (error: any) => void;
-  }
+  },
+  initialMessages: Anthropic.MessageParam[] = []
 ): Promise<void> {
-  return agent.executePromptWithFallback(prompt, callbacks);
+  return agent.executePromptWithFallback(prompt, callbacks, initialMessages);
 }

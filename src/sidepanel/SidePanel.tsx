@@ -137,8 +137,15 @@ export function SidePanel() {
     if (!prompt.trim() || isProcessing) return;
 
     setIsProcessing(true);
-    setMessages([]);
+    // Don't clear messages anymore: setMessages([]);
     setStreamingSegments({});
+
+    // Add a system message to indicate a new prompt
+    setMessages(prev => [...prev, { 
+      type: 'system', 
+      content: `New prompt: "${prompt}"`,
+      isComplete: true 
+    }]);
 
     try {
       // Send message to background script
@@ -146,16 +153,20 @@ export function SidePanel() {
         action: 'executePrompt', 
         prompt 
       }, () => {
-        if (chrome.runtime.lastError) {
-          console.error(chrome.runtime.lastError);
-          setMessages([{ type: 'system', content: 'Error: ' + chrome.runtime.lastError.message }]);
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error(lastError);
+          setMessages(prev => [...prev, { 
+            type: 'system', 
+            content: 'Error: ' + (lastError.message || 'Unknown error') 
+          }]);
           setIsProcessing(false);
           return;
         }
       });
     } catch (error) {
       console.error('Error:', error);
-      setMessages([{ 
+      setMessages(prev => [...prev, { 
         type: 'system', 
         content: 'Error: ' + (error instanceof Error ? error.message : String(error)) 
       }]);
@@ -283,16 +294,30 @@ export function SidePanel() {
             <div className="card-title text-base-content text-lg">
               LLM Output
             </div>
-            <div className="form-control">
-              <label className="label cursor-pointer">
-                <span className="label-text mr-2">System messages</span> 
-                <input 
-                  type="checkbox" 
-                  className="toggle toggle-primary toggle-sm" 
-                  checked={showSystemMessages}
-                  onChange={() => setShowSystemMessages(!showSystemMessages)}
-                />
-              </label>
+            <div className="flex items-center gap-2">
+              <div className="tooltip tooltip-left" data-tip="Clears conversation history and context from both UI and LLM memory">
+                <button 
+                  onClick={() => {
+                    setMessages([]);
+                    // Also send a message to clear history in the background
+                    chrome.runtime.sendMessage({ action: 'clearHistory' });
+                  }}
+                  className="btn btn-sm btn-outline"
+                >
+                  Clear History
+                </button>
+              </div>
+              <div className="form-control">
+                <label className="label cursor-pointer">
+                  <span className="label-text mr-2">System messages</span> 
+                  <input 
+                    type="checkbox" 
+                    className="toggle toggle-primary toggle-sm" 
+                    checked={showSystemMessages}
+                    onChange={() => setShowSystemMessages(!showSystemMessages)}
+                  />
+                </label>
+              </div>
             </div>
           </div>
           <div 
