@@ -372,16 +372,16 @@ Think step‑by‑step; summarise your work when finished.`;
                   ]
                 });
                 
-                console.log("Sending screenshot to Claude as a proper image content block");
+                // Screenshot sent to Claude as a proper image content block
               } else {
                 // Fallback if the structure isn't as expected
                 messages.push({ role: "user", content: `Tool result: ${result}` });
-                console.log("Screenshot data didn't have the expected structure, sending as text");
+                // Fallback to sending as text when structure isn't as expected
               }
             } catch (error) {
               // Fallback if parsing fails
               messages.push({ role: "user", content: `Tool result: ${result}` });
-              console.error("Failed to parse screenshot result as JSON:", error);
+              // Failed to parse screenshot result as JSON, sending as text
             }
           } else {
             // Normal handling for other tools

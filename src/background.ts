@@ -221,10 +221,45 @@ Use your judgment to determine whether the request is meant to be performed on t
         }
       },
       onToolOutput: (content) => {
+        // Check if this is a screenshot result
+        if (content.startsWith('🕹️ tool: browser_screenshot')) {
+          // Screenshot detection is handled in onToolEnd
+        }
+        
+        // Normal handling for tool outputs
         sendUIMessage('updateOutput', {
           type: 'system',
           content: content
         });
+      },
+      onToolEnd: (result) => {
+        // Check if this is a screenshot result by trying to parse it as JSON
+        try {
+          const data = JSON.parse(result);
+          
+          if (data.type === "image" && 
+              data.source && 
+              data.source.type === "base64" &&
+              data.source.media_type === "image/jpeg" &&
+              data.source.data) {
+            
+            // Send special screenshot message to UI
+            sendUIMessage('updateScreenshot', {
+              type: 'screenshot',
+              content: "Screenshot captured",
+              imageData: data.source.data,
+              mediaType: data.source.media_type
+            });
+          }
+        } catch (error) {
+          // Not JSON or not a screenshot, ignore
+        }
+        
+        // For streaming mode
+        if (useStreaming) {
+          // Tool execution is complete, we can continue with the next segment
+          // The actual tool output is already sent via onToolOutput
+        }
       },
       onError: (error) => {
         // For rate limit errors, show a message but don't complete processing
@@ -269,12 +304,6 @@ Use your judgment to determine whether the request is meant to be performed on t
           sendUIMessage('startNewSegment', {
             id: currentSegmentId
           });
-        }
-      },
-      onToolEnd: (result) => {
-        if (useStreaming) {
-          // Tool execution is complete, we can continue with the next segment
-          // The actual tool output is already sent via onToolOutput
         }
       },
       onComplete: () => {

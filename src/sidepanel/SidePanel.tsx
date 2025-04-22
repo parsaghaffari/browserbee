@@ -109,7 +109,7 @@ const LlmContent = ({ content }: { content: string }) => {
 };
 
 // Define message types
-type MessageType = 'system' | 'llm';
+type MessageType = 'system' | 'llm' | 'screenshot';
 
 interface Message {
   type: MessageType;
@@ -117,7 +117,24 @@ interface Message {
   isComplete?: boolean;
   segmentId?: number;
   isStreaming?: boolean;
+  imageData?: string;
+  mediaType?: string;
 }
+
+// Component to render screenshot images
+const ScreenshotMessage = ({ imageData, mediaType = 'image/jpeg' }: { imageData: string, mediaType?: string }) => {
+  return (
+    <div className="my-2">
+      <div className="text-sm text-gray-500 mb-1">Screenshot captured:</div>
+      <img 
+        src={`data:${mediaType};base64,${imageData}`}
+        alt="Screenshot"
+        className="max-w-full rounded shadow-md"
+        style={{ maxHeight: '400px' }}
+      />
+    </div>
+  );
+};
 
 export function SidePanel() {
   const [prompt, setPrompt] = useState('');
@@ -132,7 +149,7 @@ export function SidePanel() {
   // Filter messages based on showSystemMessages toggle
   const filteredMessages = showSystemMessages 
     ? messages 
-    : messages.filter(msg => msg.type === 'llm');
+    : messages.filter(msg => msg.type === 'llm' || msg.type === 'screenshot');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -264,6 +281,12 @@ export function SidePanel() {
           content: message.content.message || "Switching to fallback mode. Processing continues...",
           isComplete: true 
         }]);
+      } else if (message.action === 'updateScreenshot') {
+        // Handle screenshot messages
+        setMessages(prev => [...prev, { 
+          ...message.content, 
+          isComplete: true 
+        }]);
       } else if (message.action === 'processingComplete') {
         setIsProcessing(false);
         setIsStreaming(false);
@@ -366,6 +389,8 @@ export function SidePanel() {
                       <div className="bg-base-200 px-3 py-1 rounded text-gray-500 text-sm">
                         {msg.content}
                       </div>
+                    ) : msg.type === 'screenshot' && msg.imageData ? (
+                      <ScreenshotMessage imageData={msg.imageData} mediaType={msg.mediaType} />
                     ) : (
                       <LlmContent content={msg.content} />
                     )}
