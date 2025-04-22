@@ -348,32 +348,12 @@ function processStreamingBuffer() {
   const toolCallMatch = streamingBuffer.match(toolCallRegex);
   
   if (toolCallMatch) {
-    // Extract the complete tool call
-    const [fullMatch] = toolCallMatch;
-    const matchIndex = streamingBuffer.indexOf(fullMatch);
-    const endIndex = matchIndex + fullMatch.length;
+    // When a tool call is detected, we don't send any more streaming chunks
+    // The entire segment (including text before the tool call) will be finalized together
+    // This prevents duplication of content in the UI
     
-    // Send text before the tool call
-    if (matchIndex > 0) {
-      sendUIMessage('updateStreamingChunk', {
-        type: 'llm',
-        content: streamingBuffer.substring(0, matchIndex)
-      });
-    }
-    
-    // Send the complete tool call
-    sendUIMessage('updateStreamingChunk', {
-      type: 'llm',
-      content: fullMatch
-    });
-    
-    // Update buffer to contain only text after the tool call
-    streamingBuffer = streamingBuffer.substring(endIndex);
-    
-    // Process remaining buffer recursively
-    if (streamingBuffer.length > 0) {
-      processStreamingBuffer();
-    }
+    // We keep the entire buffer intact, including the tool call
+    // It will be handled by onSegmentComplete after the tool execution
     
     return;
   }
