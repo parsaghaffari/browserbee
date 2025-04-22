@@ -347,9 +347,47 @@ Think step‑by‑step; summarise your work when finished.`;
 
           // ── 4. Record turn & prune history ───────────────────────────────────
           messages.push(
-            { role: "assistant", content: accumulatedText },
-            { role: "user", content: `Tool result: ${result}` }
+            { role: "assistant", content: accumulatedText }
           );
+          
+          // Special handling for screenshot results
+          if (toolName === "browser_screenshot") {
+            try {
+              // Parse the JSON result from the screenshot tool
+              const screenshotData = JSON.parse(result);
+              
+              // Check if it has the expected structure
+              if (screenshotData.type === "image" && 
+                  screenshotData.source && 
+                  screenshotData.source.type === "base64" &&
+                  screenshotData.source.media_type === "image/jpeg" &&
+                  screenshotData.source.data) {
+                
+                // Create a content array with both text and image
+                messages.push({
+                  role: "user",
+                  content: [
+                    { type: "text", text: "Tool result: Screenshot captured. What do you see in this image?" },
+                    screenshotData // This is already in the correct format for Claude
+                  ]
+                });
+                
+                console.log("Sending screenshot to Claude as a proper image content block");
+              } else {
+                // Fallback if the structure isn't as expected
+                messages.push({ role: "user", content: `Tool result: ${result}` });
+                console.log("Screenshot data didn't have the expected structure, sending as text");
+              }
+            } catch (error) {
+              // Fallback if parsing fails
+              messages.push({ role: "user", content: `Tool result: ${result}` });
+              console.error("Failed to parse screenshot result as JSON:", error);
+            }
+          } else {
+            // Normal handling for other tools
+            messages.push({ role: "user", content: `Tool result: ${result}` });
+          }
+          
           messages = trimHistory(messages);
         } catch (error) {
           // If an error occurs during execution, check if it was due to cancellation
@@ -516,9 +554,47 @@ Think step‑by‑step; summarise your work when finished.`;
 
           // ── 4. Record turn & prune history ───────────────────────────────────
           messages.push(
-            { role: "assistant", content: assistantText },
-            { role: "user", content: `Tool result: ${result}` }
+            { role: "assistant", content: assistantText }
           );
+          
+          // Special handling for screenshot results
+          if (toolName === "browser_screenshot") {
+            try {
+              // Parse the JSON result from the screenshot tool
+              const screenshotData = JSON.parse(result);
+              
+              // Check if it has the expected structure
+              if (screenshotData.type === "image" && 
+                  screenshotData.source && 
+                  screenshotData.source.type === "base64" &&
+                  screenshotData.source.media_type === "image/jpeg" &&
+                  screenshotData.source.data) {
+                
+                // Create a content array with both text and image
+                messages.push({
+                  role: "user",
+                  content: [
+                    { type: "text", text: "Tool result: Screenshot captured. What do you see in this image?" },
+                    screenshotData // This is already in the correct format for Claude
+                  ]
+                });
+                
+                console.log("Sending screenshot to Claude as a proper image content block");
+              } else {
+                // Fallback if the structure isn't as expected
+                messages.push({ role: "user", content: `Tool result: ${result}` });
+                console.log("Screenshot data didn't have the expected structure, sending as text");
+              }
+            } catch (error) {
+              // Fallback if parsing fails
+              messages.push({ role: "user", content: `Tool result: ${result}` });
+              console.error("Failed to parse screenshot result as JSON:", error);
+            }
+          } else {
+            // Normal handling for other tools
+            messages.push({ role: "user", content: `Tool result: ${result}` });
+          }
+          
           messages = trimHistory(messages);
         } catch (error) {
           // If an error occurs during execution, check if it was due to cancellation

@@ -8,10 +8,11 @@ friends launch:
 - [ ] put on github
 - [x] better llm rate limit handling
 - [x] decide name, add icon
-- [ ] fix screenshot issue (screenshots are mostly useless right now)
+- [x] fix screenshot issue (screenshots are mostly useless right now)
 - [x] make prompt input elastic, and remove resizer
 
 HN launch:
+- [ ] add token counter
 - [ ] context summarization
 - [ ] code robustness and refactoring
 - [ ] hygiene and marketing (readme, license, videos, acknowledgements (Cline, playwright-crx, playwright-mcp))
