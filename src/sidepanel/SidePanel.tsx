@@ -328,7 +328,7 @@ export function SidePanel() {
               Output
             </div>
             <div className="flex items-center gap-2">
-              <div className="tooltip tooltip-left" data-tip="Clears conversation history and context from both UI and LLM memory">
+              <div className="tooltip tooltip-bottom" data-tip="Clear conversation history and LLM context">
                 <button 
                   onClick={() => {
                     setMessages([]);
