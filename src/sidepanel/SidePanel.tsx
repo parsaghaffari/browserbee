@@ -312,6 +312,14 @@ export function SidePanel() {
             className="textarea textarea-bordered w-full"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              // Check if Enter was pressed without Shift key
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent default behavior (new line)
+                handleSubmit(e); // Submit the form
+              }
+              // Allow Shift+Enter to create a new line (default behavior)
+            }}
             placeholder="Enter your prompt (e.g., 'go to google.com, search for Cicero, and click on the first result')"
             disabled={isProcessing}
             minRows={1}
