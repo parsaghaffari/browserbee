@@ -363,11 +363,11 @@ Think step‑by‑step; summarise your work when finished.`;
                   screenshotData.source.media_type === "image/jpeg" &&
                   screenshotData.source.data) {
                 
-                // Create a content array with both text and image
+                // Create a content array with both text and image, including the original prompt
                 messages.push({
                   role: "user",
                   content: [
-                    { type: "text", text: "Tool result: Screenshot captured. What do you see in this image?" },
+                    { type: "text", text: `Tool result: Screenshot captured. Based on this image, please answer the user's original question: "${prompt}". Don't just describe the image - focus on answering the specific question or completing the task the user asked for.` },
                     screenshotData // This is already in the correct format for Claude
                   ]
                 });
@@ -570,11 +570,11 @@ Think step‑by‑step; summarise your work when finished.`;
                   screenshotData.source.media_type === "image/jpeg" &&
                   screenshotData.source.data) {
                 
-                // Create a content array with both text and image
+                // Create a content array with both text and image, including the original prompt
                 messages.push({
                   role: "user",
                   content: [
-                    { type: "text", text: "Tool result: Screenshot captured. What do you see in this image?" },
+                    { type: "text", text: `Tool result: Screenshot captured. Based on this image, please answer the user's original question: "${prompt}". Don't just describe the image - focus on answering the specific question or completing the task the user asked for.` },
                     screenshotData // This is already in the correct format for Claude
                   ]
                 });
