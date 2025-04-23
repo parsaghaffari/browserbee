@@ -155,18 +155,20 @@ export function SidePanel() {
         const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         if (tabs && tabs[0] && tabs[0].id) {
           const activeTabId = tabs[0].id;
+          const windowId = tabs[0].windowId;
           setTabId(activeTabId);
-          console.log(`Using tab ID ${activeTabId} from last focused window`);
+          console.log(`Using tab ID ${activeTabId} in window ${windowId} from last focused window`);
           
-          // Initialize tab attachment early
+          // Initialize tab attachment early, including the window ID
           chrome.runtime.sendMessage({ 
             action: 'initializeTab', 
-            tabId: activeTabId 
+            tabId: activeTabId,
+            windowId: windowId
           }, (response) => {
             if (chrome.runtime.lastError) {
               console.error('Error initializing tab:', chrome.runtime.lastError);
             } else if (response && response.success) {
-              console.log('Tab initialized successfully');
+              console.log(`Tab ${activeTabId} in window ${windowId} initialized successfully`);
             }
           });
         }

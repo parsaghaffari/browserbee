@@ -13,8 +13,9 @@ let currentSegmentId = 0;
 // Message histories for conversation context (one per tab)
 const messageHistories = new Map<number, Anthropic.MessageParam[]>();
 
-// Track attached tabs
+// Track attached tabs and their windows
 const attachedTabIds = new Set<number>();
+const tabToWindowMap = new Map<number, number>();
 
 // Function to clear message history for a specific tab
 function clearMessageHistory(tabId?: number) {
@@ -48,9 +49,21 @@ let agent: BrowserAgent | null = null;
 let currentTabId: number | null = null;
 
 // Get or create the shared Playwright instance
-async function getCrxApp() {
-  if (!crxAppPromise) {
-    console.log('Initializing shared Playwright instance');
+async function getCrxApp(forceNew = false) {
+  if (forceNew || !crxAppPromise) {
+    console.log(forceNew ? 'Forcing new Playwright instance' : 'Initializing shared Playwright instance');
+    
+    // If we're forcing a new instance, close the old one first
+    if (forceNew && crxAppPromise) {
+      try {
+        const oldApp = await crxAppPromise;
+        await oldApp.close().catch(err => console.error('Error closing old Playwright instance:', err));
+      } catch (error) {
+        console.error('Error accessing old Playwright instance:', error);
+      }
+    }
+    
+    // Create a new instance
     crxAppPromise = crx.start().then(app => {
       // Set up event listeners
       app.addListener('attached', ({ tabId }) => {
@@ -70,49 +83,151 @@ async function getCrxApp() {
   return await crxAppPromise;
 }
 
-// Simplified attachment function
-async function attachToTab(tabId: number): Promise<boolean> {
+// Reset everything when a debug session is cancelled
+async function resetAfterDebugSessionCancellation() {
+  console.log('Resetting after debug session cancellation');
+  
+  // Reset all state
+  page = null;
+  agent = null;
+  currentTabId = null;
+  attachedTabIds.clear();
+  
+  // Force a new Playwright instance
+  await getCrxApp(true);
+  
+  return true;
+}
+
+// Check if the connection to the page is still healthy
+async function isConnectionHealthy(): Promise<boolean> {
+  if (!page) return false;
+  
   try {
-    console.log(`Initializing for tab ${tabId}`);
+    // Try a simple operation that would fail if the connection is broken
+    await page.evaluate(() => true);
+    return true;
+  } catch (error) {
+    console.log("Connection health check failed:", error);
+    return false;
+  }
+}
+
+// Attachment function with retry mechanism
+async function attachToTab(tabId: number, windowId?: number, maxRetries = 3): Promise<boolean> {
+  try {
+    console.log(`Initializing for tab ${tabId} in window ${windowId || 'unknown'}`);
     
-    // Get the shared Playwright instance
-    const crxApp = await getCrxApp();
+    // Store the window ID for this tab if provided
+    if (windowId) {
+      tabToWindowMap.set(tabId, windowId);
+      console.log(`Stored window ID ${windowId} for tab ${tabId}`);
+    }
     
-    // If already attached, do nothing
+    // If already attached, verify the connection is still healthy
     if (attachedTabIds.has(tabId)) {
-      console.log(`Tab ${tabId} already attached`);
-      return true;
-    }
-    
-    console.log(`Attempting to attach to tab ${tabId}`);
-    
-    try {
-      // Simple direct attachment
-      page = await crxApp.attach(tabId);
-      currentTabId = tabId;
-      console.log(`Successfully attached to tab ${tabId}`);
-      return true;
-    } catch (error) {
-      console.error(`Error attaching to tab ${tabId}:`, error);
-      
-      // Simple fallback - create a new page
-      page = await crxApp.newPage();
-      console.log(`Created new page instead`);
-      
-      // Try to navigate to the same URL
-      try {
-        const tabInfo = await chrome.tabs.get(tabId);
-        if (tabInfo.url && !tabInfo.url.startsWith('chrome://')) {
-          await page.goto(tabInfo.url);
-          console.log(`Navigated new page to ${tabInfo.url}`);
-        }
-      } catch (navError) {
-        console.error(`Error navigating to tab URL:`, navError);
+      if (await isConnectionHealthy()) {
+        console.log(`Tab ${tabId} already attached and connection is healthy`);
+        return true;
+      } else {
+        console.log(`Tab ${tabId} was attached but connection is broken, resetting...`);
+        // If the connection is broken, we need to reset everything
+        await resetAfterDebugSessionCancellation();
+        attachedTabIds.delete(tabId);
       }
-      
-      currentTabId = tabId;
-      return false;
     }
+    
+    // Try to attach with retries
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        console.log(`Attachment attempt ${attempt + 1} for tab ${tabId}`);
+        
+        // Get the shared Playwright instance
+        const crxApp = await getCrxApp();
+        
+        // Try to attach to the tab in the correct window if we have a window ID
+        if (tabToWindowMap.has(tabId)) {
+          const storedWindowId = tabToWindowMap.get(tabId)!;
+          console.log(`Using stored window ID ${storedWindowId} for tab ${tabId}`);
+          
+          try {
+            // Get tabs in the specific window
+            const tabsInWindow = await chrome.tabs.query({ windowId: storedWindowId });
+            
+            // Find our tab in that window
+            const tabInWindow = tabsInWindow.find(t => t.id === tabId);
+            
+            if (tabInWindow) {
+              console.log(`Found tab ${tabId} in window ${storedWindowId}`);
+              page = await crxApp.attach(tabId);
+              currentTabId = tabId;
+              console.log(`Successfully attached to tab ${tabId} in window ${storedWindowId} on attempt ${attempt + 1}`);
+            } else {
+              console.log(`Tab ${tabId} not found in window ${storedWindowId}, trying direct attachment`);
+              page = await crxApp.attach(tabId);
+              currentTabId = tabId;
+              console.log(`Successfully attached to tab ${tabId} on attempt ${attempt + 1}`);
+            }
+          } catch (windowError) {
+            console.error(`Error finding tab in window: ${windowError}`);
+            // Fall back to direct attachment
+            page = await crxApp.attach(tabId);
+            currentTabId = tabId;
+            console.log(`Successfully attached to tab ${tabId} on attempt ${attempt + 1} (fallback)`);
+          }
+        } else {
+          // No window ID stored, use direct attachment
+          page = await crxApp.attach(tabId);
+          currentTabId = tabId;
+          console.log(`Successfully attached to tab ${tabId} on attempt ${attempt + 1}`);
+        }
+        
+        // Verify the connection is healthy
+        if (await isConnectionHealthy()) {
+          console.log(`Connection to tab ${tabId} is healthy`);
+          return true;
+        } else {
+          console.log(`Connection to tab ${tabId} is not healthy after attachment, retrying...`);
+          // If we get here, attachment succeeded but connection is unhealthy
+          // Reset everything and try again
+          await resetAfterDebugSessionCancellation();
+        }
+      } catch (error) {
+        console.error(`Error on attachment attempt ${attempt + 1} for tab ${tabId}:`, error);
+        
+        // If this is the last attempt, don't wait
+        if (attempt < maxRetries - 1) {
+          // Wait with exponential backoff
+          const waitTime = Math.pow(2, attempt) * 500;
+          console.log(`Waiting ${waitTime}ms before next attempt...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+    }
+    
+    // If we get here, all attachment attempts failed
+    console.log(`All attachment attempts failed for tab ${tabId}, creating new page`);
+    
+    // Get a fresh Playwright instance
+    const crxApp = await getCrxApp(true);
+    
+    // Create a new page as fallback
+    page = await crxApp.newPage();
+    console.log(`Created new page instead`);
+    
+    // Try to navigate to the same URL
+    try {
+      const tabInfo = await chrome.tabs.get(tabId);
+      if (tabInfo.url && !tabInfo.url.startsWith('chrome://')) {
+        await page.goto(tabInfo.url);
+        console.log(`Navigated new page to ${tabInfo.url}`);
+      }
+    } catch (navError) {
+      console.error(`Error navigating to tab URL:`, navError);
+    }
+    
+    currentTabId = tabId;
+    return false;
   } catch (error) {
     console.error(`Unexpected error in attachToTab:`, error);
     return false;
@@ -171,10 +286,22 @@ try {
     chrome.sidePanel.onShown.addListener(async (info: SidePanelInfo) => {
       console.log(`Side panel shown for tab ${info.tabId}`);
       if (info.tabId) {
-        // Attach to the tab when the side panel is shown
-        await attachToTab(info.tabId);
-        // Initialize the agent
-        await initializeAgent();
+        // Get the window ID for this tab
+        try {
+          const tab = await chrome.tabs.get(info.tabId);
+          const windowId = tab.windowId;
+          console.log(`Side panel shown for tab ${info.tabId} in window ${windowId}`);
+          
+          // Attach to the tab when the side panel is shown, including the window ID
+          await attachToTab(info.tabId, windowId);
+          // Initialize the agent
+          await initializeAgent();
+        } catch (error) {
+          console.error(`Error getting window ID for tab ${info.tabId}:`, error);
+          // Fall back to attaching without window ID
+          await attachToTab(info.tabId);
+          await initializeAgent();
+        }
       }
     });
   }
@@ -219,9 +346,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       // Use setTimeout to make this asynchronous and return the response immediately
       setTimeout(async () => {
         try {
-          await attachToTab(message.tabId);
+          await attachToTab(message.tabId, message.windowId);
           await initializeAgent();
-          console.log(`Tab ${message.tabId} initialized from side panel`);
+          console.log(`Tab ${message.tabId} in window ${message.windowId || 'unknown'} initialized from side panel`);
         } catch (error) {
           console.error(`Error initializing tab from side panel:`, error);
         }
@@ -276,21 +403,35 @@ async function handlePromptExecution(prompt: string, tabId?: number) {
     console.log("Target tab ID:", targetTabId);
     console.log("Current tab ID:", currentTabId);
     
-    // If we're not already initialized or attached to a different tab, initialize now
-    if (!page || (targetTabId && currentTabId !== targetTabId)) {
-      sendUIMessage('updateOutput', {
-        type: 'system',
-        content: 'Initializing for tab...'
-      });
+    // Check if we need to initialize or reattach
+    const needsInitialization = !page || (targetTabId && currentTabId !== targetTabId);
+    const connectionBroken = page && !(await isConnectionHealthy());
+    
+    if (needsInitialization || connectionBroken) {
+      // If connection is broken, log it
+      if (connectionBroken) {
+        console.log("Connection health check failed, reattaching...");
+        sendUIMessage('updateOutput', {
+          type: 'system',
+          content: 'Debug session was closed, reattaching...'
+        });
+      } else {
+        sendUIMessage('updateOutput', {
+          type: 'system',
+          content: 'Initializing for tab...'
+        });
+      }
       
       if (targetTabId) {
-        await attachToTab(targetTabId);
+        // Use the stored window ID if available
+        const windowId = tabToWindowMap.get(targetTabId);
+        await attachToTab(targetTabId, windowId);
         await initializeAgent();
       } else {
         // Fallback if no tab ID is available
         const lastFocusedTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         if (lastFocusedTabs && lastFocusedTabs[0] && lastFocusedTabs[0].id) {
-          await attachToTab(lastFocusedTabs[0].id);
+          await attachToTab(lastFocusedTabs[0].id, lastFocusedTabs[0].windowId);
           await initializeAgent();
         } else {
           // Last resort fallback

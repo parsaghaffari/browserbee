@@ -55,36 +55,113 @@ export class BrowserAgent {
   private tools: any[];
   private isCancelled: boolean = false;
 
+  private page: Page;
+  
   constructor(page: Page, apiKey: string) {
     this.anthropic = new Anthropic({
       apiKey,
       dangerouslyAllowBrowser: true,
     });
+    
+    this.page = page;
 
+    // Create tools with wrapped functions that check connection health
     this.tools = [
-      browserNavigate(page),
-      browserClick(page),
-      browserType(page),
-      browserGetTitle(page),
-      browserWaitForNavigation(page),
-      browserScreenshot(page),
-      browserAccessibleTree(page),
-      browserQuery(page),
-      browserReadText(page),
-      browserSnapshotDom(page),
-      browserMoveMouse(page),
-      browserClickXY(page),
-      browserDrag(page),
-      browserPressKey(page),
-      browserKeyboardType(page),
-      browserNavigateBack(page),
-      browserNavigateForward(page),
+      this.wrapToolWithHealthCheck(browserNavigate(page)),
+      this.wrapToolWithHealthCheck(browserClick(page)),
+      this.wrapToolWithHealthCheck(browserType(page)),
+      this.wrapToolWithHealthCheck(browserGetTitle(page)),
+      this.wrapToolWithHealthCheck(browserWaitForNavigation(page)),
+      this.wrapToolWithHealthCheck(browserScreenshot(page)),
+      this.wrapToolWithHealthCheck(browserAccessibleTree(page)),
+      this.wrapToolWithHealthCheck(browserQuery(page)),
+      this.wrapToolWithHealthCheck(browserReadText(page)),
+      this.wrapToolWithHealthCheck(browserSnapshotDom(page)),
+      this.wrapToolWithHealthCheck(browserMoveMouse(page)),
+      this.wrapToolWithHealthCheck(browserClickXY(page)),
+      this.wrapToolWithHealthCheck(browserDrag(page)),
+      this.wrapToolWithHealthCheck(browserPressKey(page)),
+      this.wrapToolWithHealthCheck(browserKeyboardType(page)),
+      this.wrapToolWithHealthCheck(browserNavigateBack(page)),
+      this.wrapToolWithHealthCheck(browserNavigateForward(page)),
+      // Tab tools don't need health check as they operate at browser context level
       browserTabList(page),
       browserTabNew(page),
       browserTabSelect(page),
       browserTabClose(page),
       browserHandleDialog(page)
     ];
+  }
+  
+  // Flag to indicate if we should use tab tools exclusively
+  private useTabToolsOnly: boolean = false;
+  
+  // Check if the connection to the page is still healthy
+  private async isConnectionHealthy(): Promise<boolean> {
+    if (!this.page) return false;
+    
+    try {
+      // Try a simple operation that would fail if the connection is broken
+      await this.page.evaluate(() => true);
+      this.useTabToolsOnly = false; // Connection is healthy, use all tools
+      return true;
+    } catch (error) {
+      console.log("Agent connection health check failed:", error);
+      this.useTabToolsOnly = true; // Connection is broken, use tab tools only
+      return false;
+    }
+  }
+  
+  // Check if a tool is a tab tool
+  private isTabTool(toolName: string): boolean {
+    return toolName.startsWith('browser_tab_');
+  }
+  
+  // Wrap a tool's function with a health check
+  private wrapToolWithHealthCheck(tool: any): any {
+    const originalFunc = tool.func;
+    const toolName = tool.name;
+    const isTabTool = this.isTabTool(toolName);
+    
+    // Create a new function that checks health before executing
+    tool.func = async (input: string) => {
+      try {
+        // For non-tab tools, check connection health
+        if (!isTabTool && !await this.isConnectionHealthy()) {
+          // If this is a navigation tool, suggest using tab tools instead
+          if (toolName === 'browser_navigate') {
+            return `Error: Debug session was closed. Please use browser_tab_new instead with the URL as input. Example: browser_tab_new | ${input}`;
+          }
+          
+          // For screenshot or other observation tools, suggest creating a new tab
+          if (toolName.includes('screenshot') || toolName.includes('read') || toolName.includes('title')) {
+            return `Error: Debug session was closed. Please create a new tab first using browser_tab_new, then select it with browser_tab_select, and try again.`;
+          }
+          
+          // Generic message for other tools
+          return "Error: Debug session was closed. Please use tab tools (browser_tab_new, browser_tab_select, etc.) to create and work with a new tab.";
+        }
+        
+        // If connection is healthy or this is a tab tool, execute the original function
+        return await originalFunc(input);
+      } catch (error) {
+        // If this is a tab tool, provide a more helpful error message
+        if (isTabTool) {
+          return `Error executing ${toolName}: ${error instanceof Error ? error.message : String(error)}. Tab tools should still work even with a closed debug session. Try browser_tab_new to create a fresh tab.`;
+        }
+        
+        // For other tools, suggest using tab tools if the error might be related to a closed session
+        const errorStr = String(error);
+        if (errorStr.includes('closed') || errorStr.includes('detached') || errorStr.includes('destroyed')) {
+          this.useTabToolsOnly = true; // Set the flag to use tab tools only
+          return `Error: Debug session appears to be closed. Please use tab tools (browser_tab_new, browser_tab_select, etc.) to create and work with a new tab.`;
+        }
+        
+        return `Error executing tool: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    };
+    
+    return tool;
   }
 
   /** Build the fixed system prompt each call. */
