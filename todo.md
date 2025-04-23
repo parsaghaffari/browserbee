@@ -10,7 +10,7 @@ friends launch:
 - [x] fix screenshot issue (screenshots are mostly useless right now)
 - [x] make prompt input elastic, and remove resizer
 - [x] better handling of when user cancels the debugging session
-- [ ] put on github
+- [x] put on github
 
 HN launch:
 - [ ] better handling of multiple Chrome windows
