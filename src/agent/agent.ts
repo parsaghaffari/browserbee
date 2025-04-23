@@ -5,6 +5,7 @@ import { getAllTools } from "./tools/index";
 /**──── Quick‑win guardrails ───────────────────────────────────────────────────*/
 const MAX_STEPS = 50;            // prevent infinite loops
 const MAX_CONTEXT_TOKENS = 12_000; // rough cap for messages sent to the LLM
+const MAX_OUTPUT_TOKENS = 1024;  // max tokens for LLM response
 
 /** Very cheap "char/4" token estimator. */
 const approxTokens = (text: string) => Math.ceil(text.length / 4);
@@ -283,7 +284,7 @@ Think step‑by‑step; summarise your work when finished.`;
             model: "claude-3-7-sonnet-20250219",
             system: this.getSystemPrompt(),
             temperature: 0,
-            max_tokens: 1024,
+            max_tokens: MAX_OUTPUT_TOKENS,
             messages,
           });
 
@@ -517,7 +518,7 @@ Think step‑by‑step; summarise your work when finished.`;
             model: "claude-3-7-sonnet-20250219",
             system: this.getSystemPrompt(),
             temperature: 0,
-            max_tokens: 1024,
+            max_tokens: MAX_OUTPUT_TOKENS,
             messages,
           });
 
