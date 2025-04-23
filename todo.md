@@ -2,7 +2,7 @@ friends launch:
 - [x] render markdown in output
 - [x] add streaming output
 - [x] add button to clear context (otherwise continue with previous context)
-- [ ] tab management for deciding which tab to control
+- [x] tab management for deciding which tab to control
 - [x] open options.html on install
 - [x] prompt improvements e.g. to stop preempting what we're going to see when navigating to a website
 - [ ] put on github

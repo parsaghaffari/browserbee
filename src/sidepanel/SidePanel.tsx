@@ -144,7 +144,39 @@ export function SidePanel() {
   const [streamingSegments, setStreamingSegments] = useState<Record<number, string>>({});
   const [currentSegmentId, setCurrentSegmentId] = useState<number>(0);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [tabId, setTabId] = useState<number | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
+  
+  // Get the current tab ID when the component mounts
+  useEffect(() => {
+    const getCurrentTab = async () => {
+      try {
+        // Try to get the tab ID from the last focused window
+        const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        if (tabs && tabs[0] && tabs[0].id) {
+          const activeTabId = tabs[0].id;
+          setTabId(activeTabId);
+          console.log(`Using tab ID ${activeTabId} from last focused window`);
+          
+          // Initialize tab attachment early
+          chrome.runtime.sendMessage({ 
+            action: 'initializeTab', 
+            tabId: activeTabId 
+          }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error('Error initializing tab:', chrome.runtime.lastError);
+            } else if (response && response.success) {
+              console.log('Tab initialized successfully');
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error getting current tab:', error);
+      }
+    };
+    
+    getCurrentTab();
+  }, []);
 
   // Filter messages based on showSystemMessages toggle
   const filteredMessages = showSystemMessages 
@@ -167,10 +199,11 @@ export function SidePanel() {
     }]);
 
     try {
-      // Send message to background script
+      // Send message to background script with tab ID
       chrome.runtime.sendMessage({ 
         action: 'executePrompt', 
-        prompt 
+        prompt,
+        tabId 
       }, () => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
@@ -195,7 +228,8 @@ export function SidePanel() {
 
   const handleCancel = () => {
     chrome.runtime.sendMessage({ 
-      action: 'cancelExecution' 
+      action: 'cancelExecution',
+      tabId 
     }, () => {
       if (chrome.runtime.lastError) {
         console.error(chrome.runtime.lastError);
@@ -213,6 +247,13 @@ export function SidePanel() {
   // Listen for updates from the background script
   useEffect(() => {
     const messageListener = (message: any) => {
+      // Only process messages intended for this tab
+      // If the message has a tabId, check if it matches this tab's ID
+      // If the message doesn't have a tabId, process it (for backward compatibility)
+      if (message.tabId && message.tabId !== tabId) {
+        return; // Skip messages for other tabs
+      }
+      
       if (message.action === 'updateOutput') {
         // For complete messages (system messages or non-streaming LLM output)
         setMessages(prev => [...prev, { 
@@ -295,7 +336,7 @@ export function SidePanel() {
 
     chrome.runtime.onMessage.addListener(messageListener);
     return () => chrome.runtime.onMessage.removeListener(messageListener);
-  }, [currentSegmentId]);
+  }, [currentSegmentId, tabId]);
 
   return (
     <div className="flex flex-col h-screen p-4 bg-base-200">
@@ -364,7 +405,7 @@ export function SidePanel() {
                   onClick={() => {
                     setMessages([]);
                     // Also send a message to clear history in the background
-                    chrome.runtime.sendMessage({ action: 'clearHistory' });
+                    chrome.runtime.sendMessage({ action: 'clearHistory', tabId });
                   }}
                   className="btn btn-sm btn-outline"
                 >

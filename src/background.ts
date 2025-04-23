@@ -10,19 +10,136 @@ const sentenceEndRegex = /[.!?]\s+/;
 // Current streaming segment ID
 let currentSegmentId = 0;
 
-// Message history for conversation context
-let messageHistory: Anthropic.MessageParam[] = [];
+// Message histories for conversation context (one per tab)
+const messageHistories = new Map<number, Anthropic.MessageParam[]>();
 
-// Function to clear message history
-function clearMessageHistory() {
-  messageHistory = [];
-  console.log("Message history cleared");
+// Track attached tabs
+const attachedTabIds = new Set<number>();
+
+// Function to clear message history for a specific tab
+function clearMessageHistory(tabId?: number) {
+  if (tabId) {
+    // Clear message history for a specific tab
+    messageHistories.set(tabId, []);
+    console.log(`Message history cleared for tab ${tabId}`);
+  } else if (currentTabId) {
+    // Clear message history for the current tab
+    messageHistories.set(currentTabId, []);
+    console.log(`Message history cleared for current tab ${currentTabId}`);
+  } else {
+    // Clear all message histories if no tab ID is specified
+    messageHistories.clear();
+    console.log("All message histories cleared");
+  }
+}
+
+// Function to get message history for a specific tab
+function getMessageHistory(tabId: number): Anthropic.MessageParam[] {
+  if (!messageHistories.has(tabId)) {
+    messageHistories.set(tabId, []);
+  }
+  return messageHistories.get(tabId)!;
 }
 
 // Global variables
-let crxApp: Awaited<ReturnType<typeof crx.start>> | null = null;
+let crxAppPromise: Promise<Awaited<ReturnType<typeof crx.start>>> | null = null;
 let page: any = null;
 let agent: BrowserAgent | null = null;
+let currentTabId: number | null = null;
+
+// Get or create the shared Playwright instance
+async function getCrxApp() {
+  if (!crxAppPromise) {
+    console.log('Initializing shared Playwright instance');
+    crxAppPromise = crx.start().then(app => {
+      // Set up event listeners
+      app.addListener('attached', ({ tabId }) => {
+        attachedTabIds.add(tabId);
+        console.log(`Tab ${tabId} attached`);
+      });
+      
+      app.addListener('detached', (tabId) => {
+        attachedTabIds.delete(tabId);
+        console.log(`Tab ${tabId} detached`);
+      });
+      
+      return app;
+    });
+  }
+  
+  return await crxAppPromise;
+}
+
+// Simplified attachment function
+async function attachToTab(tabId: number): Promise<boolean> {
+  try {
+    console.log(`Initializing for tab ${tabId}`);
+    
+    // Get the shared Playwright instance
+    const crxApp = await getCrxApp();
+    
+    // If already attached, do nothing
+    if (attachedTabIds.has(tabId)) {
+      console.log(`Tab ${tabId} already attached`);
+      return true;
+    }
+    
+    console.log(`Attempting to attach to tab ${tabId}`);
+    
+    try {
+      // Simple direct attachment
+      page = await crxApp.attach(tabId);
+      currentTabId = tabId;
+      console.log(`Successfully attached to tab ${tabId}`);
+      return true;
+    } catch (error) {
+      console.error(`Error attaching to tab ${tabId}:`, error);
+      
+      // Simple fallback - create a new page
+      page = await crxApp.newPage();
+      console.log(`Created new page instead`);
+      
+      // Try to navigate to the same URL
+      try {
+        const tabInfo = await chrome.tabs.get(tabId);
+        if (tabInfo.url && !tabInfo.url.startsWith('chrome://')) {
+          await page.goto(tabInfo.url);
+          console.log(`Navigated new page to ${tabInfo.url}`);
+        }
+      } catch (navError) {
+        console.error(`Error navigating to tab URL:`, navError);
+      }
+      
+      currentTabId = tabId;
+      return false;
+    }
+  } catch (error) {
+    console.error(`Unexpected error in attachToTab:`, error);
+    return false;
+  }
+}
+
+// Initialize the agent if we have a page and API key
+async function initializeAgent(): Promise<boolean> {
+  if (page && !agent) {
+    try {
+      const { anthropicApiKey } = await chrome.storage.sync.get(['anthropicApiKey']);
+      if (anthropicApiKey) {
+        console.log('Creating LLM agent...');
+        agent = await createBrowserAgent(page, anthropicApiKey);
+        console.log('LLM agent created successfully');
+        return true;
+      } else {
+        console.log('No API key found, skipping agent initialization');
+        return false;
+      }
+    } catch (agentError) {
+      console.error(`Error creating agent:`, agentError);
+      return false;
+    }
+  }
+  return !!agent;
+}
 
 // Initialize the extension
 chrome.runtime.onInstalled.addListener((details) => {
@@ -41,18 +158,75 @@ chrome.runtime.onInstalled.addListener((details) => {
   });
 });
 
+// Define interface for side panel events (may not be in current type definitions)
+interface SidePanelInfo {
+  tabId?: number;
+}
+
+// Try to listen for side panel events if available
+try {
+  // @ts-ignore - These events might not be in the type definitions yet
+  if (chrome.sidePanel.onShown) {
+    // @ts-ignore
+    chrome.sidePanel.onShown.addListener(async (info: SidePanelInfo) => {
+      console.log(`Side panel shown for tab ${info.tabId}`);
+      if (info.tabId) {
+        // Attach to the tab when the side panel is shown
+        await attachToTab(info.tabId);
+        // Initialize the agent
+        await initializeAgent();
+      }
+    });
+  }
+
+  // @ts-ignore
+  if (chrome.sidePanel.onHidden) {
+    // @ts-ignore
+    chrome.sidePanel.onHidden.addListener((info: SidePanelInfo) => {
+      console.log(`Side panel hidden for tab ${info.tabId}`);
+      // We don't need to clean up here, but we could if needed
+    });
+  }
+} catch (error) {
+  console.warn("Side panel events not available:", error);
+  
+  // Alternative approach: initialize when a prompt is executed
+  console.log("Using fallback approach for initialization");
+}
+
 // Handle messages from the UI
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'executePrompt') {
-    handlePromptExecution(message.prompt);
+    // Use the tabId from the message if available
+    if (message.tabId) {
+      handlePromptExecution(message.prompt, message.tabId);
+    } else {
+      handlePromptExecution(message.prompt);
+    }
     sendResponse({ success: true });
     return true; // Keep the message channel open for async response
   } else if (message.action === 'cancelExecution') {
-    handleCancelExecution();
+    handleCancelExecution(message.tabId);
     sendResponse({ success: true });
     return true;
   } else if (message.action === 'clearHistory') {
-    clearMessageHistory();
+    clearMessageHistory(message.tabId);
+    sendResponse({ success: true });
+    return true;
+  } else if (message.action === 'initializeTab') {
+    // Initialize the tab as soon as the side panel is opened
+    if (message.tabId) {
+      // Use setTimeout to make this asynchronous and return the response immediately
+      setTimeout(async () => {
+        try {
+          await attachToTab(message.tabId);
+          await initializeAgent();
+          console.log(`Tab ${message.tabId} initialized from side panel`);
+        } catch (error) {
+          console.error(`Error initializing tab from side panel:`, error);
+        }
+      }, 0);
+    }
     sendResponse({ success: true });
     return true;
   }
@@ -60,7 +234,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 // Cancel the current execution
-function handleCancelExecution() {
+function handleCancelExecution(tabId?: number) {
+  // If a tabId is provided, make sure it matches the current tab
+  if (tabId && tabId !== currentTabId) {
+    console.log(`Ignoring cancel request for tab ${tabId} because current tab is ${currentTabId}`);
+    return;
+  }
   if (agent) {
     agent.cancel();
     sendUIMessage('updateOutput', {
@@ -73,7 +252,7 @@ function handleCancelExecution() {
 }
 
 // Execute a prompt using the LLM agent
-async function handlePromptExecution(prompt: string) {
+async function handlePromptExecution(prompt: string, tabId?: number) {
   try {
     // Get the API key from storage
     const { anthropicApiKey } = await chrome.storage.sync.get(['anthropicApiKey']);
@@ -87,50 +266,52 @@ async function handlePromptExecution(prompt: string) {
       return;
     }
 
-    // Initialize Playwright if not already initialized
-    if (!crxApp) {
+    // Use the provided tabId if available, otherwise query for the active tab
+    let targetTabId = tabId;
+    if (!targetTabId) {
+      const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      targetTabId = tabs[0]?.id;
+    }
+    
+    console.log("Target tab ID:", targetTabId);
+    console.log("Current tab ID:", currentTabId);
+    
+    // If we're not already initialized or attached to a different tab, initialize now
+    if (!page || (targetTabId && currentTabId !== targetTabId)) {
       sendUIMessage('updateOutput', {
         type: 'system',
-        content: 'Initializing Playwright...'
+        content: 'Initializing for tab...'
       });
-      crxApp = await crx.start();
-    }
-
-    // Get the active tab or create a new page
-    if (!page) {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      const activeTabId = tabs[0]?.id;
       
-      if (activeTabId) {
-        try {
-          page = await crxApp.attach(activeTabId);
-          sendUIMessage('updateOutput', {
-            type: 'system',
-            content: 'Attached to active tab.'
-          });
-        } catch (error) {
-          page = await crxApp.newPage();
-          sendUIMessage('updateOutput', {
-            type: 'system',
-            content: 'Created new page.'
-          });
-        }
+      if (targetTabId) {
+        await attachToTab(targetTabId);
+        await initializeAgent();
       } else {
-        page = await crxApp.newPage();
-        sendUIMessage('updateOutput', {
-          type: 'system',
-          content: 'Created new page.'
-        });
+        // Fallback if no tab ID is available
+        const lastFocusedTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        if (lastFocusedTabs && lastFocusedTabs[0] && lastFocusedTabs[0].id) {
+          await attachToTab(lastFocusedTabs[0].id);
+          await initializeAgent();
+        } else {
+          // Last resort fallback
+          sendUIMessage('updateOutput', {
+            type: 'system',
+            content: 'Error: Could not determine which tab to use.'
+          });
+          sendUIMessage('processingComplete', null);
+          return;
+        }
       }
     }
 
-    // Create the agent if not already created
-    if (!agent) {
+    // If we still don't have a page or agent, something went wrong
+    if (!page || !agent) {
       sendUIMessage('updateOutput', {
         type: 'system',
-        content: 'Creating LLM agent...'
+        content: 'Error: Failed to initialize Playwright or create agent.'
       });
-      agent = await createBrowserAgent(page, anthropicApiKey);
+      sendUIMessage('processingComplete', null);
+      return;
     }
 
     // Add current page context to history if we have a page
@@ -148,6 +329,7 @@ async function handlePromptExecution(prompt: string) {
         });
         
         // Always add page context to message history, even if it's empty
+        const messageHistory = getMessageHistory(currentTabId!);
         messageHistory.push({
           role: "user",
           content: `[System: You are currently on ${currentUrl} (${currentTitle}). 
@@ -177,6 +359,7 @@ Use your judgment to determine whether the request is meant to be performed on t
     currentSegmentId = 0;
     
     // Add the new prompt to message history
+    const messageHistory = getMessageHistory(currentTabId!);
     if (messageHistory.length === 0) {
       // If history is empty, just add the prompt
       messageHistory.push({ role: "user", content: prompt });
@@ -212,12 +395,13 @@ Use your judgment to determine whether the request is meant to be performed on t
         }
         
         // Add the assistant's response to message history
+        const messageHistory = getMessageHistory(currentTabId!);
         messageHistory.push({ role: "assistant", content: content });
         
         // Trim history if it gets too long
         if (messageHistory.length > 20) {
-          // Keep the most recent messages
-          messageHistory = messageHistory.slice(messageHistory.length - 20);
+          // Replace the message history with the trimmed version
+          messageHistories.set(currentTabId!, messageHistory.slice(messageHistory.length - 20));
         }
       },
       onToolOutput: (content) => {
@@ -331,7 +515,7 @@ Use your judgment to determine whether the request is meant to be performed on t
         }
         sendUIMessage('processingComplete', null);
       }
-    }, messageHistory);
+    }, getMessageHistory(currentTabId!));
   } catch (error) {
     console.error('Error executing prompt:', error);
     sendUIMessage('updateOutput', {
@@ -396,15 +580,23 @@ function clearStreamingBuffer() {
 
 // Send a message to the UI
 function sendUIMessage(action: string, content: any) {
-  chrome.runtime.sendMessage({ action, content });
+  // Include the current tab ID in the message if available
+  if (currentTabId) {
+    chrome.runtime.sendMessage({ action, content, tabId: currentTabId });
+  } else {
+    chrome.runtime.sendMessage({ action, content });
+  }
 }
 
 // Clean up when the extension is unloaded
 chrome.runtime.onSuspend.addListener(async () => {
+  const crxApp = await getCrxApp().catch(() => null);
   if (crxApp) {
     await crxApp.close();
-    crxApp = null;
+    crxAppPromise = null;
     page = null;
     agent = null;
+    currentTabId = null;
+    attachedTabIds.clear();
   }
 });
