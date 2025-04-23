@@ -1,35 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Page } from "playwright-crx/test";
-import {
-  browserNavigate,
-  browserClick,
-  browserType,
-  browserGetTitle,
-  browserWaitForNavigation,
-  browserScreenshot,
-  browserAccessibleTree,
-  browserQuery,
-  browserReadText,
-  browserSnapshotDom,
-  browserMoveMouse,
-  browserClickXY,
-  browserDrag,
-  browserKeyboardType,
-  browserPressKey,
-  browserNavigateBack,
-  browserNavigateForward,
-  browserTabList,
-  browserTabNew,
-  browserTabSelect,
-  browserTabClose,
-  browserHandleDialog  
-} from "./tools";
+import { getAllTools } from "./tools/index";
 
 /**──── Quick‑win guardrails ───────────────────────────────────────────────────*/
 const MAX_STEPS = 50;            // prevent infinite loops
 const MAX_CONTEXT_TOKENS = 12_000; // rough cap for messages sent to the LLM
 
-/** Very cheap “char/4” token estimator. */
+/** Very cheap "char/4" token estimator. */
 const approxTokens = (text: string) => Math.ceil(text.length / 4);
 const contextTokenCount = (msgs: Anthropic.MessageParam[]) =>
   msgs.reduce((sum, m) => {
@@ -65,32 +42,17 @@ export class BrowserAgent {
     
     this.page = page;
 
-    // Create tools with wrapped functions that check connection health
-    this.tools = [
-      this.wrapToolWithHealthCheck(browserNavigate(page)),
-      this.wrapToolWithHealthCheck(browserClick(page)),
-      this.wrapToolWithHealthCheck(browserType(page)),
-      this.wrapToolWithHealthCheck(browserGetTitle(page)),
-      this.wrapToolWithHealthCheck(browserWaitForNavigation(page)),
-      this.wrapToolWithHealthCheck(browserScreenshot(page)),
-      this.wrapToolWithHealthCheck(browserAccessibleTree(page)),
-      this.wrapToolWithHealthCheck(browserQuery(page)),
-      this.wrapToolWithHealthCheck(browserReadText(page)),
-      this.wrapToolWithHealthCheck(browserSnapshotDom(page)),
-      this.wrapToolWithHealthCheck(browserMoveMouse(page)),
-      this.wrapToolWithHealthCheck(browserClickXY(page)),
-      this.wrapToolWithHealthCheck(browserDrag(page)),
-      this.wrapToolWithHealthCheck(browserPressKey(page)),
-      this.wrapToolWithHealthCheck(browserKeyboardType(page)),
-      this.wrapToolWithHealthCheck(browserNavigateBack(page)),
-      this.wrapToolWithHealthCheck(browserNavigateForward(page)),
+    // Get all tools from the tools module
+    const allTools = getAllTools(page);
+    
+    // Wrap non-tab tools with health check
+    this.tools = allTools.map(tool => {
       // Tab tools don't need health check as they operate at browser context level
-      browserTabList(page),
-      browserTabNew(page),
-      browserTabSelect(page),
-      browserTabClose(page),
-      browserHandleDialog(page)
-    ];
+      if (this.isTabTool(tool.name)) {
+        return tool;
+      }
+      return this.wrapToolWithHealthCheck(tool);
+    });
   }
   
   // Flag to indicate if we should use tab tools exclusively
