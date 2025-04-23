@@ -1,11 +1,21 @@
 {
-  "name": "browser-llm",
-  "description": "control your browser with natural language ✨",
+  "name": "browserbee",
+  "description": "Control your browser with natural language using Claude 3 Sonnet and Playwright ✨",
   "version": "0.0.1",
   "type": "module",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "browser-automation",
+    "chrome-extension",
+    "natural-language",
+    "claude",
+    "playwright"
+  ],
+  "author": "BrowserBee Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/browserbee.git"
+  },
   "scripts": {
     "build": "tsc && vite build",
     "dev": "vite"
