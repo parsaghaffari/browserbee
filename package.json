@@ -1,7 +1,7 @@
 {
   "name": "browserbee",
   "description": "Control your browser with natural language using Claude 3 Sonnet and Playwright ✨",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "keywords": [
     "browser-automation",
