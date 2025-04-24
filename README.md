@@ -1,6 +1,9 @@
 # BrowserBee 🐝
+*Your AI-powered browser automation assistant. Control the web with natural language.*
 
-BrowserBee is a fully open source Chrome extension that allows you to control your browser using natural language. It uses Claude 3.7 Sonnet to interpret your instructions and Playwright to execute them. Given BrowserBee runs in a controlled environment within your browser, it can interact with websites you have logged into such as social media. This makes using it more convenient than running Playwright in the backend.
+BrowserBee is a privacy first open source Chrome extension that lets you control your browser using natural language. It combines the power of Claude 3.7 Sonnet for instruction parsing and Playwright for robust browser automation.
+
+Since BrowserBee runs entirely within your browser (with the exception of the LLM), it can interact with logged-in websites, like your social media accounts or email, without compromising security or requiring backend infrastructure. This makes it more convenient for personal use than other "browser use" type products out there.
 
 ## Features
 
@@ -9,14 +12,23 @@ BrowserBee is a fully open source Chrome extension that allows you to control yo
 - Navigate between tabs and manage browser windows
 - Interact with web elements (click, type, etc.)
 
+## Use Cases
+
+- **Social Media Assistant**: Checks your social media accounts, summarizes notifications and messages, and helps you respond.
+- **News Curator**: Gathers and summarizes the latest headlines from your preferred news sources and blogs, giving you a quick, personalized briefing.
+- **Personal Assistant**: Helps with everyday tasks like reading and sending emails and messages, booking flights, finding products, and more.
+- **Research Assistant**: Assists with deep dives into topics like companies, job listings, market trends, and academic publications by gathering and organizing information.
+- **Knowledge Bookmarking & Summarization**: Quickly summarizes articles, extracts key information, and saves useful insights for later reference.
+
 ## Roadmap
 
-Please refer to [todo.md](todo.md) for an up to date list of features we're aiming to add to BrowserBee. 
+Please refer to [ROADMAP.md](ROADMAP.md) for an up to date list of features we're aiming to add to BrowserBee. 
 
-- Ability to save and replay previous sessions, i.e. a "macro" feature set
-- Ability to run tasks periodically (great for repetitive tasks such as checking social media)
-- Ability to learn from your local and personal usage, i.e. memorize and recall optimal tool use sequences 
-- Support for more LLMs
+- Support for saving and replaying sessions (macros)
+- Ability to memorize key information as needed (in your local Chrome instance using [IndexedDB](https://developer.chrome.com/docs/devtools/storage/indexeddb))
+- Scheduled task execution (e.g. check news and social media every morning)
+- Ability to learn from your local and personal usage, i.e. memorize and recall optimal tool use sequences for a given website/task
+- Support for additional LLMs
 
 If you're interested in contributing to build any of these features or to improve BrowserBee in any way, please head over to [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -57,9 +69,9 @@ The extension is built with a modular architecture:
 
 ## Usage
 
-1. Click the BrowserBee icon in your browser toolbar to open the side panel
-2. Enter your instructions in natural language (e.g., "go to google.com, search for Cicero, and click on the first result")
-3. Click "Execute" to run your instructions
+1. Click the BrowserBee icon in your Chrome toolbar to open the side panel  
+2. Type your instruction (e.g., *"Go to Google, search for Cicero, and click the first result"*)  
+3. Click **Execute** – and watch BrowserBee go to work 🐝
 
 ## Development
 

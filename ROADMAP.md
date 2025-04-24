@@ -11,8 +11,10 @@ friends launch:
 - [x] make prompt input elastic, and remove resizer
 - [x] better handling of when user cancels the debugging session
 - [x] put on github
+- [ ] set minimium width on side panel
 
 HN launch:
+- [ ] write tests 
 - [ ] better handling of multiple Chrome windows
 - [ ] add token counter
 - [ ] context summarization
