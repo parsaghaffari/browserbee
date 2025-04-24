@@ -1,6 +1,8 @@
 # BrowserBee 🐝
 *Your AI-powered browser automation assistant. Control the web with natural language.*
 
+https://github.com/user-attachments/assets/0c9e870a-64b9-4c3a-b805-cfede39bb00a
+
 BrowserBee is a privacy first open source Chrome extension that lets you control your browser using natural language. It combines the power of Claude 3.7 Sonnet for instruction parsing and Playwright for robust browser automation.
 
 Since BrowserBee runs entirely within your browser (with the exception of the LLM), it can interact with logged-in websites, like your social media accounts or email, without compromising security or requiring backend infrastructure. This makes it more convenient for personal use than other "browser use" type products out there.
