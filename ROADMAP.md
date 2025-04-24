@@ -20,7 +20,7 @@ HN launch:
 - [ ] context summarization
 - [x] code robustness and refactoring
 - [x] hygiene and marketing (readme, license, acknowledgements)
-- [ ] marketing videos
+- [x] marketing videos
 - [ ] llm adaptors (config in options, show active LLM)
 - [ ] add sessions (similar to Cline tasks) with persistence in local DB
 - [ ] max llm calls: allow user to configure, ask for user permission to exceed
