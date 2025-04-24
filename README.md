@@ -77,7 +77,7 @@ You'll need to provide your own Anthropic API key in the extension options page.
 
 ## License
 
-[MIT](LICENSE)
+[Apache 2.0](LICENSE)
 
 ## Acknowledgements
 
