@@ -36,28 +36,15 @@ If you're interested in contributing to build any of these features or to improv
 
 ## Architecture
 
-The extension is built with a modular architecture:
+BrowserBee uses a modular agent architecture with three key modules:
 
-### Agent Module
-- **agent/agent.ts**: Core agent implementation using Claude 3 Sonnet
-- **agent/tools/**: Browser automation tools organized by functionality
-  - **navigationTools.ts**: Browser navigation functions
-  - **interactionTools.ts**: User interaction functions (click, type)
-  - **observationTools.ts**: Page observation functions (screenshot, DOM access)
-  - **mouseTools.ts**: Mouse movement and interaction
-  - **keyboardTools.ts**: Keyboard input functions
-  - **tabTools.ts**: Tab management functions
+- **Agent Module** – Processes your instructions and maps them to browser actions
+- **Background Module** – Manages tab control, messaging, and task streaming
+- **UI Module** – Provides a clean sidebar interface for interaction and configuration
 
-### Background Module
-- **background/index.ts**: Entry point for the background script
-- **background/tabManager.ts**: Tab attachment and management
-- **background/agentController.ts**: Agent initialization and execution
-- **background/streamingManager.ts**: Streaming functionality
-- **background/messageHandler.ts**: Message routing and handling
+Each module is designed with separation of concerns in mind, making the codebase maintainable and extensible.
 
-### UI Components
-- **sidepanel/SidePanel.tsx**: Side panel UI for interacting with the extension
-- **options/Options.tsx**: Options page for configuring the extension
+For detailed information about the architecture, component structure, and code organization, please see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Installation
 
