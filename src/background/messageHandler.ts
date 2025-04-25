@@ -3,7 +3,7 @@ import { logWithTimestamp, handleError } from './utils';
 import { executePrompt } from './agentController';
 import { cancelExecution } from './agentController';
 import { clearMessageHistory } from './agentController';
-import { attachToTab } from './tabManager';
+import { attachToTab, getTabState } from './tabManager';
 import { initializeAgent } from './agentController';
 
 /**
@@ -135,8 +135,34 @@ function handleInitializeTab(
     // Use setTimeout to make this asynchronous and return the response immediately
     setTimeout(async () => {
       try {
+        // Get the tab title before attaching
+        let tabTitle = "Unknown Tab";
+        try {
+          const tab = await chrome.tabs.get(message.tabId);
+          if (tab && tab.title) {
+            tabTitle = tab.title;
+          }
+        } catch (titleError) {
+          handleError(titleError, 'getting tab title');
+        }
+        
         await attachToTab(message.tabId, message.windowId);
         await initializeAgent(message.tabId);
+        
+        // Get the tab state to check if attachment was successful
+        const tabState = getTabState(message.tabId);
+        if (tabState) {
+          // Send a message back to the side panel with the tab title
+          chrome.runtime.sendMessage({
+            action: 'updateOutput',
+            content: {
+              type: 'system',
+              content: `Connected to tab: ${tabState.title || tabTitle}`
+            },
+            tabId: message.tabId
+          });
+        }
+        
         logWithTimestamp(`Tab ${message.tabId} in window ${message.windowId || 'unknown'} initialized from side panel`);
       } catch (error) {
         handleError(error, 'initializing tab from side panel');

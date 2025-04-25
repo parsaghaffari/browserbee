@@ -147,9 +147,10 @@ export function SidePanel() {
   const [currentSegmentId, setCurrentSegmentId] = useState<number>(0);
   const [isStreaming, setIsStreaming] = useState(false);
   const [tabId, setTabId] = useState<number | null>(null);
+  const [tabTitle, setTabTitle] = useState<string>('');
   const outputRef = useRef<HTMLDivElement>(null);
   
-  // Get the current tab ID when the component mounts
+  // Get the current tab ID and title when the component mounts
   useEffect(() => {
     const getCurrentTab = async () => {
       try {
@@ -158,8 +159,12 @@ export function SidePanel() {
         if (tabs && tabs[0] && tabs[0].id) {
           const activeTabId = tabs[0].id;
           const windowId = tabs[0].windowId;
+          const activeTabTitle = tabs[0].title || 'Unknown Tab';
+          
           setTabId(activeTabId);
+          setTabTitle(activeTabTitle);
           console.log(`Using tab ID ${activeTabId} in window ${windowId} from last focused window`);
+          console.log(`Tab title: ${activeTabTitle}`);
           
           // Initialize tab attachment early, including the window ID
           chrome.runtime.sendMessage({ 
@@ -181,6 +186,27 @@ export function SidePanel() {
     
     getCurrentTab();
   }, []);
+  
+  // Listen for tab updates to update the tab title in real-time
+  useEffect(() => {
+    if (!tabId) return;
+    
+    const handleTabUpdated = (updatedTabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
+      // Only update if this is our tab and the title has changed
+      if (updatedTabId === tabId && changeInfo.title) {
+        console.log(`Tab ${updatedTabId} title updated to: ${changeInfo.title}`);
+        setTabTitle(changeInfo.title);
+      }
+    };
+    
+    // Add listener for tab updates
+    chrome.tabs.onUpdated.addListener(handleTabUpdated);
+    
+    // Clean up listener when component unmounts or tabId changes
+    return () => {
+      chrome.tabs.onUpdated.removeListener(handleTabUpdated);
+    };
+  }, [tabId]);
 
   // Filter messages based on showSystemMessages toggle
   const filteredMessages = showSystemMessages 
@@ -264,6 +290,17 @@ export function SidePanel() {
           ...message.content, 
           isComplete: true 
         }]);
+        
+        // Check if this is a system message about tab connection
+        if (message.content.type === 'system' && 
+            typeof message.content.content === 'string' && 
+            message.content.content.startsWith('Connected to tab:')) {
+          // Extract the tab title from the message
+          const titleMatch = message.content.content.match(/Connected to tab: (.+)/);
+          if (titleMatch && titleMatch[1]) {
+            setTabTitle(titleMatch[1]);
+          }
+        }
       } else if (message.action === 'updateStreamingChunk') {
         // For streaming chunks
         setIsStreaming(true);
@@ -346,7 +383,7 @@ export function SidePanel() {
     <div className="flex flex-col h-screen p-4 bg-base-200">
       <header className="mb-4">
         <h1 className="text-2xl font-bold text-primary">BrowserBee 🐝</h1>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 mt-2">
           What can I do for you today?
         </p>
       </header>
@@ -463,6 +500,15 @@ export function SidePanel() {
           </div>
         </div>
       </div>
+      {tabId && (
+        <div className="text-sm mt-1 p-2 bg-base-300 rounded-md border border-base-content border-opacity-10 flex items-center">
+          <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+          <div className="flex-1">
+            <span className="font-semibold">Controlling:</span> 
+            <span className="font-light"> {tabTitle} (tab ID: {tabId})</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

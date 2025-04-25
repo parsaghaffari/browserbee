@@ -261,9 +261,22 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
   try {
     logWithTimestamp(`Initializing for tab ${tabId} in window ${windowId || 'unknown'}`);
     
-    // First, check if the tab is valid
-    if (!await isTabValid(tabId)) {
-      logWithTimestamp(`Tab ${tabId} is not valid for attachment, creating new page instead`, 'warn');
+    // First, check if the tab is valid and get its title
+    let tabTitle = "Unknown Tab";
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab && tab.title) {
+        tabTitle = tab.title;
+        logWithTimestamp(`Tab ${tabId} title: ${tabTitle}`);
+      }
+      
+      // Check if the tab is valid for attachment
+      if (!tab || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+        logWithTimestamp(`Tab ${tabId} is not valid for attachment, creating new page instead`, 'warn');
+        return await createNewPageAsFallback(tabId, windowId);
+      }
+    } catch (error) {
+      logWithTimestamp(`Error getting tab info: ${error}`, 'warn');
       return await createNewPageAsFallback(tabId, windowId);
     }
     
@@ -277,6 +290,12 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
       const tabState = getTabState(tabId);
       if (tabState && tabState.page && await isConnectionHealthy(tabState.page)) {
         logWithTimestamp(`Tab ${tabId} already attached and connection is healthy`);
+        // Update the tab title in case it changed
+        if (tabState.title !== tabTitle) {
+          tabState.title = tabTitle;
+          setTabState(tabId, tabState);
+          logWithTimestamp(`Updated tab title to: ${tabTitle}`);
+        }
         setCurrentTabId(tabId);
         return true;
       } else {
@@ -317,13 +336,13 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
               logWithTimestamp(`Found tab ${tabId} in window ${storedWindowId}`);
               const page = await crxApp.attach(tabId);
               setCurrentTabId(tabId);
-              setTabState(tabId, { page, agent: null, windowId: storedWindowId });
+              setTabState(tabId, { page, agent: null, windowId: storedWindowId, title: tabTitle });
               logWithTimestamp(`Successfully attached to tab ${tabId} in window ${storedWindowId} on attempt ${attempt + 1}`);
             } else {
               logWithTimestamp(`Tab ${tabId} not found in window ${storedWindowId}, trying direct attachment`);
               const page = await crxApp.attach(tabId);
               setCurrentTabId(tabId);
-              setTabState(tabId, { page, agent: null });
+              setTabState(tabId, { page, agent: null, title: tabTitle });
               logWithTimestamp(`Successfully attached to tab ${tabId} on attempt ${attempt + 1}`);
             }
           } catch (windowError) {
@@ -339,7 +358,7 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
             try {
               const page = await crxApp.attach(tabId);
               setCurrentTabId(tabId);
-              setTabState(tabId, { page, agent: null });
+              setTabState(tabId, { page, agent: null, title: tabTitle });
               logWithTimestamp(`Successfully attached to tab ${tabId} on attempt ${attempt + 1} (fallback)`);
             } catch (directError) {
               // If direct attachment also fails, throw to trigger retry
@@ -350,7 +369,7 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
           // No window ID stored, use direct attachment
           const page = await crxApp.attach(tabId);
           setCurrentTabId(tabId);
-          setTabState(tabId, { page, agent: null });
+          setTabState(tabId, { page, agent: null, title: tabTitle });
           logWithTimestamp(`Successfully attached to tab ${tabId} on attempt ${attempt + 1}`);
         }
         
@@ -414,9 +433,13 @@ async function createNewPageAsFallback(tabId: number, windowId?: number): Promis
     const page = await crxApp.newPage();
     logWithTimestamp(`Created new page instead`);
     
-    // Try to navigate to the same URL
+    // Try to navigate to the same URL and get tab title
+    let tabTitle = "New Page";
     try {
       const tabInfo = await chrome.tabs.get(tabId);
+      if (tabInfo.title) {
+        tabTitle = tabInfo.title;
+      }
       if (tabInfo.url && !tabInfo.url.startsWith('chrome://') && !tabInfo.url.startsWith('chrome-extension://')) {
         await page.goto(tabInfo.url);
         logWithTimestamp(`Navigated new page to ${tabInfo.url}`);
@@ -426,12 +449,12 @@ async function createNewPageAsFallback(tabId: number, windowId?: number): Promis
     }
     
     setCurrentTabId(tabId);
-    setTabState(tabId, { page, agent: null, windowId });
+    setTabState(tabId, { page, agent: null, windowId, title: tabTitle });
   } catch (error) {
     handleError(error, 'creating fallback page');
     // Even if creating the fallback page fails, we still want to update the state
     setCurrentTabId(tabId);
-    setTabState(tabId, { page: null, agent: null, windowId });
+    setTabState(tabId, { page: null, agent: null, windowId, title: "Error Page" });
   }
   
   return false;

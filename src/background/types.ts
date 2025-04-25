@@ -136,4 +136,5 @@ export interface TabState {
   agent: BrowserAgent | null;
   page: any;
   windowId?: number;
+  title?: string;
 }
