@@ -37,7 +37,24 @@ function setupEventListeners(): void {
   
   // Clean up when the extension is unloaded
   chrome.runtime.onSuspend.addListener(async () => {
-    await cleanupOnUnload();
+    logWithTimestamp('Extension is being suspended, cleaning up resources');
+    try {
+      await cleanupOnUnload();
+      logWithTimestamp('Cleanup completed successfully');
+    } catch (error) {
+      logWithTimestamp(`Error during cleanup: ${String(error)}`, 'error');
+    }
+  });
+  
+  // Additional cleanup on update or uninstall
+  chrome.runtime.onUpdateAvailable.addListener(async (details) => {
+    logWithTimestamp(`Extension update available: ${details.version}, cleaning up resources`);
+    try {
+      await cleanupOnUnload();
+      logWithTimestamp('Cleanup before update completed successfully');
+    } catch (error) {
+      logWithTimestamp(`Error during pre-update cleanup: ${String(error)}`, 'error');
+    }
   });
   
   // Try to listen for side panel events if available

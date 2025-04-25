@@ -102,29 +102,59 @@ export async function getCrxApp(forceNew = false) {
   if (forceNew || !crxAppPromise) {
     logWithTimestamp(forceNew ? 'Forcing new Playwright instance' : 'Initializing shared Playwright instance');
     
-    // If we're forcing a new instance, close the old one first
-    if (forceNew && crxAppPromise) {
-      try {
-        const oldApp = await crxAppPromise;
-        await oldApp.close().catch(err => handleError(err, 'closing old Playwright instance'));
-      } catch (error) {
-        handleError(error, 'accessing old Playwright instance');
+    // Always set crxAppPromise to null first when forcing a new instance
+    // This prevents "crxApplication is already started" errors
+    if (forceNew) {
+      // Store the old promise to close it later
+      const oldPromise = crxAppPromise;
+      // Immediately set to null to avoid race conditions
+      crxAppPromise = null;
+      
+      // Close the old instance if it exists
+      if (oldPromise) {
+        try {
+          const oldApp = await oldPromise;
+          await oldApp.close().catch(err => {
+            // Just log the error but don't throw - we're creating a new instance anyway
+            handleError(err, 'closing old Playwright instance');
+          });
+        } catch (error) {
+          // Just log the error but don't throw - we're creating a new instance anyway
+          handleError(error, 'accessing old Playwright instance');
+        }
       }
     }
     
-    // Create a new instance
-    crxAppPromise = crx.start().then(app => {
-      // Set up event listeners
-      app.addListener('attached', ({ tabId }) => {
-        addAttachedTab(tabId);
-      });
-      
-      app.addListener('detached', (tabId) => {
-        removeAttachedTab(tabId);
-      });
-      
-      return app;
-    });
+    // Only create a new instance if crxAppPromise is null
+    // This additional check prevents race conditions where multiple calls
+    // might try to create instances simultaneously
+    if (!crxAppPromise) {
+      try {
+        // Create a new instance with proper error handling
+        crxAppPromise = crx.start().then(app => {
+          // Set up event listeners
+          app.addListener('attached', ({ tabId }) => {
+            addAttachedTab(tabId);
+          });
+          
+          app.addListener('detached', (tabId) => {
+            removeAttachedTab(tabId);
+          });
+          
+          return app;
+        }).catch(error => {
+          // If start fails, set crxAppPromise to null so we can try again
+          logWithTimestamp(`Failed to start Playwright instance: ${error}`, 'error');
+          crxAppPromise = null;
+          throw error;
+        });
+      } catch (error) {
+        // This catch block handles synchronous errors in the try block
+        logWithTimestamp(`Error creating Playwright instance: ${error}`, 'error');
+        crxAppPromise = null;
+        throw error;
+      }
+    }
   }
   
   return await crxAppPromise;
@@ -161,10 +191,63 @@ export async function resetAfterDebugSessionCancellation(): Promise<boolean> {
   
   // Don't clear tabStates or tabToWindowMap as they might be needed later
   
-  // Force a new Playwright instance
-  await getCrxApp(true);
-  
-  return true;
+  try {
+    // Store the old promise
+    const oldPromise = crxAppPromise;
+    
+    // Immediately set to null to avoid race conditions
+    crxAppPromise = null;
+    
+    // Close the old instance if it exists
+    if (oldPromise) {
+      try {
+        const oldApp = await oldPromise;
+        await oldApp.close().catch(err => {
+          // Just log the error but don't throw
+          handleError(err, 'closing old Playwright instance during reset');
+        });
+      } catch (error) {
+        // Just log the error but don't throw
+        handleError(error, 'accessing old Playwright instance during reset');
+      }
+    }
+    
+    // Wait a short time to ensure cleanup
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Create a new instance
+    await getCrxApp(false); // false because we've already cleaned up
+    
+    return true;
+  } catch (error) {
+    handleError(error, 'resetting after debug session cancellation');
+    // Even if there's an error, we've reset the state
+    return true;
+  }
+}
+
+/**
+ * Check if a tab is valid and available for attachment
+ * @param tabId The tab ID to check
+ * @returns Promise resolving to true if the tab is valid, false otherwise
+ */
+async function isTabValid(tabId: number): Promise<boolean> {
+  try {
+    // Try to get the tab info from Chrome
+    const tab = await chrome.tabs.get(tabId);
+    
+    // Check if the tab exists and is in a valid state for attachment
+    // Avoid attaching to chrome:// URLs, extension pages, etc.
+    if (!tab || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    // If we can't get the tab info, it's not valid
+    logWithTimestamp(`Tab ${tabId} is not valid: ${error}`, 'warn');
+    return false;
+  }
 }
 
 /**
@@ -177,6 +260,12 @@ export async function resetAfterDebugSessionCancellation(): Promise<boolean> {
 export async function attachToTab(tabId: number, windowId?: number, maxRetries = 3): Promise<boolean> {
   try {
     logWithTimestamp(`Initializing for tab ${tabId} in window ${windowId || 'unknown'}`);
+    
+    // First, check if the tab is valid
+    if (!await isTabValid(tabId)) {
+      logWithTimestamp(`Tab ${tabId} is not valid for attachment, creating new page instead`, 'warn');
+      return await createNewPageAsFallback(tabId, windowId);
+    }
     
     // Store the window ID for this tab if provided
     if (windowId) {
@@ -202,6 +291,12 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         logWithTimestamp(`Attachment attempt ${attempt + 1} for tab ${tabId}`);
+        
+        // Check if the tab is still valid before each attempt
+        if (!await isTabValid(tabId)) {
+          logWithTimestamp(`Tab ${tabId} is no longer valid, aborting attachment attempt ${attempt + 1}`, 'warn');
+          break;
+        }
         
         // Get the shared Playwright instance
         const crxApp = await getCrxApp();
@@ -232,12 +327,24 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
               logWithTimestamp(`Successfully attached to tab ${tabId} on attempt ${attempt + 1}`);
             }
           } catch (windowError) {
+            // Check if the error is about detached frames
+            const errorStr = String(windowError);
+            if (errorStr.includes('detached') || errorStr.includes('closed')) {
+              logWithTimestamp(`Frame detached error during window-specific attachment, will retry with delay`, 'warn');
+              throw windowError; // Re-throw to trigger the retry with delay
+            }
+            
             handleError(windowError, 'finding tab in window');
             // Fall back to direct attachment
-            const page = await crxApp.attach(tabId);
-            setCurrentTabId(tabId);
-            setTabState(tabId, { page, agent: null });
-            logWithTimestamp(`Successfully attached to tab ${tabId} on attempt ${attempt + 1} (fallback)`);
+            try {
+              const page = await crxApp.attach(tabId);
+              setCurrentTabId(tabId);
+              setTabState(tabId, { page, agent: null });
+              logWithTimestamp(`Successfully attached to tab ${tabId} on attempt ${attempt + 1} (fallback)`);
+            } catch (directError) {
+              // If direct attachment also fails, throw to trigger retry
+              throw directError;
+            }
           }
         } else {
           // No window ID stored, use direct attachment
@@ -259,7 +366,15 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
           await resetAfterDebugSessionCancellation();
         }
       } catch (error) {
+        const errorStr = String(error);
         handleError(error, `attachment attempt ${attempt + 1} for tab ${tabId}`);
+        
+        // If the error indicates the crxApplication is already started,
+        // we need to reset the Playwright instance
+        if (errorStr.includes('already started')) {
+          logWithTimestamp(`crxApplication is already started, resetting Playwright instance...`, 'warn');
+          await resetAfterDebugSessionCancellation();
+        }
         
         // If this is the last attempt, don't wait
         if (attempt < maxRetries - 1) {
@@ -272,10 +387,28 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
     }
     
     // If we get here, all attachment attempts failed
-    logWithTimestamp(`All attachment attempts failed for tab ${tabId}, creating new page`, 'warn');
+    return await createNewPageAsFallback(tabId, windowId);
+  } catch (error) {
+    handleError(error, 'attachToTab');
+    return await createNewPageAsFallback(tabId, windowId);
+  }
+}
+
+/**
+ * Create a new page as a fallback when attachment fails
+ * @param tabId The tab ID that failed to attach
+ * @param windowId Optional window ID
+ * @returns Promise resolving to false (indicating attachment failed but fallback was created)
+ */
+async function createNewPageAsFallback(tabId: number, windowId?: number): Promise<false> {
+  logWithTimestamp(`All attachment attempts failed for tab ${tabId}, creating new page`, 'warn');
+  
+  try {
+    // Reset the Playwright instance first
+    await resetAfterDebugSessionCancellation();
     
     // Get a fresh Playwright instance
-    const crxApp = await getCrxApp(true);
+    const crxApp = await getCrxApp();
     
     // Create a new page as fallback
     const page = await crxApp.newPage();
@@ -284,7 +417,7 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
     // Try to navigate to the same URL
     try {
       const tabInfo = await chrome.tabs.get(tabId);
-      if (tabInfo.url && !tabInfo.url.startsWith('chrome://')) {
+      if (tabInfo.url && !tabInfo.url.startsWith('chrome://') && !tabInfo.url.startsWith('chrome-extension://')) {
         await page.goto(tabInfo.url);
         logWithTimestamp(`Navigated new page to ${tabInfo.url}`);
       }
@@ -293,24 +426,45 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
     }
     
     setCurrentTabId(tabId);
-    setTabState(tabId, { page, agent: null });
-    return false;
+    setTabState(tabId, { page, agent: null, windowId });
   } catch (error) {
-    handleError(error, 'attachToTab');
-    return false;
+    handleError(error, 'creating fallback page');
+    // Even if creating the fallback page fails, we still want to update the state
+    setCurrentTabId(tabId);
+    setTabState(tabId, { page: null, agent: null, windowId });
   }
+  
+  return false;
 }
 
 /**
  * Clean up when the extension is unloaded
  */
 export async function cleanupOnUnload(): Promise<void> {
-  const crxApp = await getCrxApp().catch(() => null);
-  if (crxApp) {
-    await crxApp.close();
-    crxAppPromise = null;
-    currentTabId = null;
-    attachedTabIds.clear();
-    // Don't clear tabStates or tabToWindowMap as they might be needed if the extension is reloaded
+  logWithTimestamp('Cleaning up on extension unload');
+  
+  // Store the old promise
+  const oldPromise = crxAppPromise;
+  
+  // Immediately set to null to avoid race conditions
+  crxAppPromise = null;
+  currentTabId = null;
+  attachedTabIds.clear();
+  
+  // Don't clear tabStates or tabToWindowMap as they might be needed if the extension is reloaded
+  
+  // Close the old instance if it exists
+  if (oldPromise) {
+    try {
+      const oldApp = await oldPromise;
+      await oldApp.close().catch(err => {
+        // Just log the error but don't throw
+        handleError(err, 'closing Playwright instance during cleanup');
+      });
+      logWithTimestamp('Successfully closed Playwright instance during cleanup');
+    } catch (error) {
+      // Just log the error but don't throw
+      handleError(error, 'accessing Playwright instance during cleanup');
+    }
   }
 }
