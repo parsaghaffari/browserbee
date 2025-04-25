@@ -206,10 +206,12 @@ export async function executePrompt(prompt: string, tabId?: number): Promise<voi
         }, targetTabId);
         
         // Always add page context to message history, even if it's empty
+        // Note: Using "user" role for system instructions since Anthropic SDK doesn't support "system" role
+        // This is a workaround - ideally these would be system messages as they're instructions, not user input
         const messageHistory = getMessageHistory(targetTabId);
         messageHistory.push({
           role: "user",
-          content: `[System: You are currently on ${currentUrl} (${currentTitle}). 
+          content: `[SYSTEM INSTRUCTION: You are currently on ${currentUrl} (${currentTitle}). 
           
 If the user's request seems to continue a previous task (like asking to "summarize options" after a search), interpret it in the context of what you've just been doing.
 
