@@ -230,8 +230,8 @@ Use your judgment to determine whether the request is meant to be performed on t
       content: `Executing prompt: "${prompt}"`
     }, targetTabId);
     
-    // Get user preferences (default to streaming enabled)
-    const { useStreaming = true } = await chrome.storage.local.get(['useStreaming']);
+    // Always enable streaming
+    const useStreaming = true;
     
     // Reset streaming buffer and segment ID
     resetStreamingState();
