@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import TextareaAutosize from 'react-textarea-autosize';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faTrash } from '@fortawesome/free-solid-svg-icons';
 
 // Component to handle LLM content with tool calls
 const LlmContent = ({ content }: { content: string }) => {
@@ -411,7 +413,7 @@ export function SidePanel() {
                   }}
                   className="btn btn-sm btn-outline"
                 >
-                  Clear History
+                  <FontAwesomeIcon icon={faTrash} />
                 </button>
               </div>
               <div className="form-control">
