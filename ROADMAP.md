@@ -26,5 +26,5 @@ HN launch:
 
 later:
 - [ ] session replay feature
-- [ ] memory using indexedDB (<website, task, steps, outcome>)
-- [ ] scheduler using chrome.alarms
+- [ ] task emory using indexedDB (<website, task, steps, outcome>)
+- [ ] scheduler for recurring tasks using chrome.alarms
