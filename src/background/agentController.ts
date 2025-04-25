@@ -61,7 +61,7 @@ export async function initializeAgent(tabId: number): Promise<boolean> {
   
   if (tabState?.page && !tabState.agent) {
     try {
-      const { anthropicApiKey } = await chrome.storage.sync.get(['anthropicApiKey']);
+      const { anthropicApiKey } = await chrome.storage.local.get(['anthropicApiKey']);
       if (anthropicApiKey) {
         logWithTimestamp('Creating LLM agent...');
         const agent = await createBrowserAgent(tabState.page, anthropicApiKey);
@@ -119,7 +119,7 @@ export function cancelExecution(tabId?: number): void {
 export async function executePrompt(prompt: string, tabId?: number): Promise<void> {
   try {
     // Get the API key from storage
-    const { anthropicApiKey } = await chrome.storage.sync.get(['anthropicApiKey']);
+    const { anthropicApiKey } = await chrome.storage.local.get(['anthropicApiKey']);
     
     if (!anthropicApiKey) {
       sendUIMessage('updateOutput', {
@@ -229,7 +229,7 @@ Use your judgment to determine whether the request is meant to be performed on t
     }, targetTabId);
     
     // Get user preferences (default to streaming enabled)
-    const { useStreaming = true } = await chrome.storage.sync.get(['useStreaming']);
+    const { useStreaming = true } = await chrome.storage.local.get(['useStreaming']);
     
     // Reset streaming buffer and segment ID
     resetStreamingState();

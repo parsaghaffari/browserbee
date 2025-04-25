@@ -7,7 +7,7 @@ export function Options() {
 
   // Load saved API key when component mounts
   useEffect(() => {
-    chrome.storage.sync.get(['anthropicApiKey'], (result) => {
+    chrome.storage.local.get(['anthropicApiKey'], (result) => {
       if (result.anthropicApiKey) {
         setApiKey(result.anthropicApiKey);
       }
@@ -18,7 +18,7 @@ export function Options() {
     setIsSaving(true);
     setSaveStatus('');
 
-    chrome.storage.sync.set({ anthropicApiKey: apiKey }, () => {
+    chrome.storage.local.set({ anthropicApiKey: apiKey }, () => {
       setIsSaving(false);
       setSaveStatus('API key saved successfully!');
       
@@ -38,7 +38,7 @@ export function Options() {
           <h2 className="card-title text-xl">API Configuration</h2>
           <p className="mb-4">
             Enter your Anthropic API key to use Claude 3 Sonnet (claude-3-7-sonnet-20250219).
-            Your API key is stored securely in your browser's sync storage.
+            Your API key is stored securely in your browser's local storage.
           </p>
           
           <div className="form-control mb-4">
