@@ -24,11 +24,18 @@ export interface InitializeTabMessage {
   windowId?: number;
 }
 
+export interface SwitchToTabMessage {
+  action: 'switchToTab';
+  tabId: number;
+  windowId?: number;
+}
+
 export type BackgroundMessage = 
   | ExecutePromptMessage
   | CancelExecutionMessage
   | ClearHistoryMessage
-  | InitializeTabMessage;
+  | InitializeTabMessage
+  | SwitchToTabMessage;
 
 // UI Message types
 export interface UpdateOutputMessage {

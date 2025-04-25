@@ -3,7 +3,7 @@ import { logWithTimestamp, handleError } from './utils';
 import { executePrompt } from './agentController';
 import { cancelExecution } from './agentController';
 import { clearMessageHistory } from './agentController';
-import { attachToTab, getTabState } from './tabManager';
+import { attachToTab, getTabState, getWindowForTab } from './tabManager';
 import { initializeAgent } from './agentController';
 
 /**
@@ -43,6 +43,10 @@ export function handleMessage(
       case 'initializeTab':
         handleInitializeTab(message, sendResponse);
         return true;
+        
+      case 'switchToTab':
+        handleSwitchToTab(message, sendResponse);
+        return true;
 
       default:
         // This should never happen due to the type guard, but TypeScript requires it
@@ -72,7 +76,8 @@ function isBackgroundMessage(message: any): message is BackgroundMessage {
       message.action === 'executePrompt' ||
       message.action === 'cancelExecution' ||
       message.action === 'clearHistory' ||
-      message.action === 'initializeTab'
+      message.action === 'initializeTab' ||
+      message.action === 'switchToTab'
     )
   );
 }
@@ -168,6 +173,32 @@ function handleInitializeTab(
         handleError(error, 'initializing tab from side panel');
       }
     }, 0);
+  }
+  sendResponse({ success: true });
+}
+
+/**
+ * Handle the switchToTab message
+ * @param message The message to handle
+ * @param sendResponse The function to send a response
+ */
+function handleSwitchToTab(
+  message: Extract<BackgroundMessage, { action: 'switchToTab' }>,
+  sendResponse: (response?: any) => void
+): void {
+  if (message.tabId) {
+    // Get the window ID for this tab if available
+    const windowId = getWindowForTab(message.tabId);
+    
+    // Focus the window first if we have a window ID
+    if (windowId) {
+      chrome.windows.update(windowId, { focused: true });
+    }
+    
+    // Then focus the tab
+    chrome.tabs.update(message.tabId, { active: true });
+    
+    logWithTimestamp(`Switched to tab ${message.tabId} in window ${windowId || 'unknown'}`);
   }
   sendResponse({ success: true });
 }
