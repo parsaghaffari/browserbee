@@ -34,18 +34,6 @@ Please refer to [ROADMAP.md](ROADMAP.md) for an up to date list of features we'r
 
 If you're interested in contributing to build any of these features or to improve BrowserBee in any way, please head over to [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Architecture
-
-BrowserBee uses a modular agent architecture with three key modules:
-
-- **Agent Module** – Processes your instructions and maps them to browser actions
-- **Background Module** – Manages tab control, messaging, and task streaming
-- **UI Module** – Provides a clean sidebar interface for interaction and configuration
-
-Each module is designed with separation of concerns in mind, making the codebase maintainable and extensible.
-
-For detailed information about the architecture, component structure, and code organization, please see [ARCHITECTURE.md](ARCHITECTURE.md).
-
 ## Installation
 
 1. Clone this repository
@@ -55,6 +43,7 @@ For detailed information about the architecture, component structure, and code o
    - Go to `chrome://extensions/`
    - Enable "Developer mode"
    - Click "Load unpacked" and select the `dist` directory
+   - Set your Anthropic API key in the options page that pops up
 
 ## Usage
 
@@ -67,9 +56,17 @@ For detailed information about the architecture, component structure, and code o
 - `npm run dev`: Start the development server
 - `npm run build`: Build the extension for production
 
-## Configuration
+## Architecture
 
-You'll need to provide your own Anthropic API key in the extension options page.
+BrowserBee uses a modular agent architecture with three key modules:
+
+- **Agent Module** – Processes your instructions and maps them to browser actions
+- **Background Module** – Manages tab control, messaging, and task streaming
+- **UI Module** – Provides a clean sidebar interface for interaction and configuration
+
+Each module is designed with separation of concerns in mind, making the codebase maintainable and extensible.
+
+For detailed information about the architecture, component structure, and code organization, please see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Limitations
 
