@@ -20,18 +20,15 @@ export const TabStatusBar: React.FC<TabStatusBarProps> = ({
   };
   
   return (
-    <div className="text-sm mt-1 p-2 bg-base-300 rounded-md border border-base-content border-opacity-10 flex items-center">
-      <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-      <div className="flex-1">
-        <span className="font-semibold">Controlling: </span> 
-        <span 
-          className="font-light cursor-pointer hover:underline hover:text-primary" 
-          onClick={handleTabClick}
-          title="Click to switch to this tab"
-        > 
-          {tabTitle} (tab ID: {tabId})
-        </span>
-      </div>
+    <div className="text-sm bg-base-300 rounded-md px-2 py-1 border border-base-content border-opacity-10 flex items-center max-w-[200px]">
+      <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse flex-shrink-0"></div>
+      <span 
+        className="cursor-pointer hover:underline hover:text-primary truncate"
+        onClick={handleTabClick}
+        title={tabTitle}
+      > 
+        {tabTitle}
+      </span>
     </div>
   );
 };

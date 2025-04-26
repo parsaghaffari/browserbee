@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPaperPlane, faXmark } from '@fortawesome/free-solid-svg-icons';
 
 interface PromptFormProps {
   onSubmit: (prompt: string) => void;
@@ -22,10 +24,10 @@ export const PromptForm: React.FC<PromptFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col mb-4">
-      <div className="w-full mb-2">
+    <form onSubmit={handleSubmit} className="mt-4 relative">
+      <div className="w-full">
         <TextareaAutosize
-          className="textarea textarea-bordered w-full"
+          className="textarea textarea-bordered w-full pr-12"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
@@ -36,35 +38,39 @@ export const PromptForm: React.FC<PromptFormProps> = ({
             }
             // Allow Shift+Enter to create a new line (default behavior)
           }}
-          placeholder="Enter your prompt (e.g., 'go to google.com, search for Cicero, and click on the first result')"
+          placeholder="Type a message..."
+          autoFocus
           disabled={isProcessing}
           minRows={1}
           maxRows={10}
           style={{ 
             resize: 'none',
-            minHeight: '38px',
+            minHeight: '40px',
             maxHeight: '300px',
             overflow: 'auto'
           } as any}
         />
-      </div>
-      <div className="flex justify-end gap-2">
-        {isProcessing && (
+        {isProcessing ? (
           <button 
             type="button" 
             onClick={onCancel}
-            className="btn btn-error"
+            className="btn btn-sm btn-circle btn-error absolute"
+            style={{ bottom: '5px', right: '5px' }}
+            title="Cancel"
           >
-            Cancel
+            <FontAwesomeIcon icon={faXmark} />
+          </button>
+        ) : (
+          <button 
+            type="submit" 
+            className="btn btn-sm btn-circle btn-primary absolute"
+            style={{ bottom: '5px', right: '5px' }}
+            disabled={!prompt.trim()}
+            title="Execute"
+          >
+            <FontAwesomeIcon icon={faPaperPlane} />
           </button>
         )}
-        <button 
-          type="submit" 
-          className="btn btn-primary"
-          disabled={isProcessing || !prompt.trim()}
-        >
-          {isProcessing ? 'Processing...' : 'Execute'}
-        </button>
       </div>
     </form>
   );

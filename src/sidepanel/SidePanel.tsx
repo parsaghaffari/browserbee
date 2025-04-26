@@ -100,17 +100,17 @@ export function SidePanel() {
   return (
     <div className="flex flex-col h-screen p-4 bg-base-200">
       <header className="mb-4">
-        <h1 className="text-2xl font-bold text-primary">BrowserBee 🐝</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-primary">BrowserBee 🐝</h1>
+          <TabStatusBar 
+            tabId={tabId}
+            tabTitle={tabTitle}
+          />
+        </div>
         <p className="text-sm text-gray-600 mt-2">
           What can I do for you today?
         </p>
       </header>
-
-      <PromptForm 
-        onSubmit={handleSubmit}
-        onCancel={cancelExecution}
-        isProcessing={isProcessing}
-      />
 
       <div className="flex flex-col flex-grow gap-4 overflow-hidden md:flex-row">
         <div className="card bg-base-100 shadow-md flex-1 flex flex-col overflow-hidden">
@@ -133,9 +133,10 @@ export function SidePanel() {
         </div>
       </div>
       
-      <TabStatusBar 
-        tabId={tabId}
-        tabTitle={tabTitle}
+      <PromptForm 
+        onSubmit={handleSubmit}
+        onCancel={cancelExecution}
+        isProcessing={isProcessing}
       />
     </div>
   );
