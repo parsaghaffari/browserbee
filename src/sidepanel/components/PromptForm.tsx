@@ -18,7 +18,7 @@ export const PromptForm: React.FC<PromptFormProps> = ({
     e.preventDefault();
     if (!prompt.trim() || isProcessing) return;
     onSubmit(prompt);
-    // Don't clear the prompt here to maintain it during processing
+    setPrompt(''); // Clear the prompt after submission
   };
 
   return (
