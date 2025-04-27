@@ -16,7 +16,7 @@ HN launch:
 - [ ] write tests 
 - [ ] add "requires approval" flag to irreversible tools, and seek explicit approval from user
 - [ ] better handling of multiple Chrome windows
-- [ ] add token counter
+- [x] add token counter
 - [ ] context summarization
 - [x] code robustness and refactoring
 - [x] hygiene and marketing (readme, license, acknowledgements)
