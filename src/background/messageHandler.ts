@@ -5,6 +5,7 @@ import { cancelExecution } from './agentController';
 import { clearMessageHistory } from './agentController';
 import { attachToTab, getTabState, getWindowForTab } from './tabManager';
 import { initializeAgent } from './agentController';
+import { TokenTrackingService } from '../tracking/tokenTrackingService';
 
 /**
  * Handle messages from the UI
@@ -47,6 +48,10 @@ export function handleMessage(
       case 'switchToTab':
         handleSwitchToTab(message, sendResponse);
         return true;
+        
+      case 'getTokenUsage':
+        handleGetTokenUsage(message, sendResponse);
+        return true;
 
       default:
         // This should never happen due to the type guard, but TypeScript requires it
@@ -77,7 +82,8 @@ function isBackgroundMessage(message: any): message is BackgroundMessage {
       message.action === 'cancelExecution' ||
       message.action === 'clearHistory' ||
       message.action === 'initializeTab' ||
-      message.action === 'switchToTab'
+      message.action === 'switchToTab' ||
+      message.action === 'getTokenUsage'
     )
   );
 }
@@ -123,6 +129,21 @@ function handleClearHistory(
   sendResponse: (response?: any) => void
 ): void {
   clearMessageHistory(message.tabId);
+  
+  // Reset token tracking
+  try {
+    const tokenTracker = TokenTrackingService.getInstance();
+    tokenTracker.reset();
+    
+    // Notify UI of reset
+    chrome.runtime.sendMessage({
+      action: 'tokenUsageUpdated',
+      content: tokenTracker.getUsage()
+    });
+  } catch (error) {
+    logWithTimestamp(`Error resetting token tracking: ${String(error)}`, 'warn');
+  }
+  
   sendResponse({ success: true });
 }
 
@@ -201,6 +222,38 @@ function handleSwitchToTab(
     logWithTimestamp(`Switched to tab ${message.tabId} in window ${windowId || 'unknown'}`);
   }
   sendResponse({ success: true });
+}
+
+/**
+ * Handle the getTokenUsage message
+ * @param message The message to handle
+ * @param sendResponse The function to send a response
+ */
+function handleGetTokenUsage(
+  message: Extract<BackgroundMessage, { action: 'getTokenUsage' }>,
+  sendResponse: (response?: any) => void
+): void {
+  try {
+    const tokenTracker = TokenTrackingService.getInstance();
+    const usage = tokenTracker.getUsage();
+    
+    
+    // Send the usage directly in the response
+    sendResponse({ 
+      success: true, 
+      usage 
+    });
+    
+    // Also broadcast it to all clients
+    chrome.runtime.sendMessage({
+      action: 'tokenUsageUpdated',
+      content: usage
+    });
+  } catch (error) {
+    const errorMessage = handleError(error, 'getting token usage');
+    logWithTimestamp(`Error getting token usage: ${errorMessage}`, 'error');
+    sendResponse({ success: false, error: errorMessage });
+  }
 }
 
 /**

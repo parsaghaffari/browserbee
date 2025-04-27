@@ -30,12 +30,17 @@ export interface SwitchToTabMessage {
   windowId?: number;
 }
 
+export interface GetTokenUsageMessage {
+  action: 'getTokenUsage';
+}
+
 export type BackgroundMessage = 
   | ExecutePromptMessage
   | CancelExecutionMessage
   | ClearHistoryMessage
   | InitializeTabMessage
-  | SwitchToTabMessage;
+  | SwitchToTabMessage
+  | GetTokenUsageMessage;
 
 // UI Message types
 export interface UpdateOutputMessage {
@@ -114,6 +119,16 @@ export interface UpdateScreenshotMessage {
   tabId?: number;
 }
 
+export interface TokenUsageUpdatedMessage {
+  action: 'tokenUsageUpdated';
+  content: {
+    inputTokens: number;
+    outputTokens: number;
+    cost: number;
+  };
+  tabId?: number;
+}
+
 export type UIMessage =
   | UpdateOutputMessage
   | UpdateStreamingChunkMessage
@@ -123,7 +138,8 @@ export type UIMessage =
   | ProcessingCompleteMessage
   | RateLimitMessage
   | FallbackStartedMessage
-  | UpdateScreenshotMessage;
+  | UpdateScreenshotMessage
+  | TokenUsageUpdatedMessage;
 
 // Callback types
 export interface ExecutePromptCallbacks {

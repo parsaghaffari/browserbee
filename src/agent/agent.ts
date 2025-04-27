@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Page } from "playwright-crx/test";
 import { getAllTools } from "./tools/index";
+import { TokenTrackingService } from "../tracking/tokenTrackingService";
 
 /**──── Quick‑win guardrails ───────────────────────────────────────────────────*/
 const MAX_STEPS = 50;            // prevent infinite loops
@@ -288,8 +289,31 @@ Think step‑by‑step; summarise your work when finished.`;
             messages,
           });
 
+          // Track token usage
+          let inputTokens = 0;
+          let outputTokens = 0;
+          const tokenTracker = TokenTrackingService.getInstance();
+          
           for await (const chunk of stream) {
             if (this.isCancelled) break;
+            
+            // Track token usage from message_start event
+            if (chunk.type === 'message_start' && chunk.message && chunk.message.usage) {
+              inputTokens = chunk.message.usage.input_tokens || 0;
+              tokenTracker.trackInputTokens(inputTokens);
+            }
+            
+            // Track token usage from message_delta event
+            if (chunk.type === 'message_delta' && chunk.usage && chunk.usage.output_tokens) {
+              const newOutputTokens = chunk.usage.output_tokens;
+              
+              // Only track the delta (new tokens)
+              if (newOutputTokens > outputTokens) {
+                const delta = newOutputTokens - outputTokens;
+                tokenTracker.trackOutputTokens(delta);
+                outputTokens = newOutputTokens;
+              }
+            }
             
             // Handle content block deltas (text chunks)
             if (chunk.type === 'content_block_delta' && 
@@ -514,6 +538,9 @@ Think step‑by‑step; summarise your work when finished.`;
           if (this.isCancelled) break;
 
           // ── 1. Call LLM ───────────────────────────────────────────────────────
+          // Track token usage
+          const tokenTracker = TokenTrackingService.getInstance();
+          
           const responsePromise = this.anthropic.messages.create({
             model: "claude-3-7-sonnet-20250219",
             system: this.getSystemPrompt(),
@@ -540,6 +567,15 @@ Think step‑by‑step; summarise your work when finished.`;
           // If cancelled during LLM call
           if (this.isCancelled || !response) {
             break;
+          }
+
+          // Track token usage from response
+          if (response.usage) {
+            const inputTokens = response.usage.input_tokens || 0;
+            const outputTokens = response.usage.output_tokens || 0;
+            
+            tokenTracker.trackInputTokens(inputTokens);
+            tokenTracker.trackOutputTokens(outputTokens);
           }
 
           const firstChunk = response.content[0];

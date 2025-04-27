@@ -6,6 +6,8 @@ import { MessageDisplay } from './components/MessageDisplay';
 import { PromptForm } from './components/PromptForm';
 import { OutputHeader } from './components/OutputHeader';
 import { TabStatusBar } from './components/TabStatusBar';
+import { TokenUsageDisplay } from './components/TokenUsageDisplay';
+import { TokenTrackingService } from '../tracking/tokenTrackingService';
 
 export function SidePanel() {
   // Use custom hooks to manage state and functionality
@@ -95,6 +97,10 @@ export function SidePanel() {
   const handleClearHistory = () => {
     clearMessages();
     clearHistory();
+    
+    // Reset token tracking
+    const tokenTracker = TokenTrackingService.getInstance();
+    tokenTracker.reset();
   };
 
   return (
@@ -132,6 +138,9 @@ export function SidePanel() {
           </div>
         </div>
       </div>
+      
+      {/* Add Token Usage Display */}
+      <TokenUsageDisplay />
       
       <PromptForm 
         onSubmit={handleSubmit}
