@@ -150,7 +150,7 @@ export function SidePanel() {
         </p>
       </header>
 
-      <div className="flex flex-col flex-grow gap-4 overflow-hidden md:flex-row">
+      <div className="flex flex-col flex-grow gap-4 overflow-hidden md:flex-row shadow-sm">
         <div className="card bg-base-100 shadow-md flex-1 flex flex-col overflow-hidden">
           <OutputHeader 
             showSystemMessages={showSystemMessages}
