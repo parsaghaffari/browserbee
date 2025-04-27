@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createBrowserAgent, executePromptWithFallback, BrowserAgent } from "../agent/agent";
+import { createBrowserAgent, executePromptWithFallback, BrowserAgent, contextTokenCount } from "../agent/agent";
+import { ScreenshotManager } from "../tracking/screenshotManager";
 import { ExecutePromptCallbacks } from "./types";
 import { sendUIMessage, logWithTimestamp, handleError } from "./utils";
 import { getCurrentTabId, getTabState, setTabState } from "./tabManager";
@@ -16,40 +17,110 @@ import {
   signalStreamingComplete
 } from "./streamingManager";
 
+// Interface for structured message history
+interface MessageHistory {
+  originalRequest: Anthropic.MessageParam | null;
+  conversationHistory: Anthropic.MessageParam[];
+}
+
+// Define a maximum token budget for conversation history
+const MAX_CONVERSATION_TOKENS = 100000; // 100K tokens for conversation history
+
 // Message histories for conversation context (one per tab)
-const messageHistories = new Map<number, Anthropic.MessageParam[]>();
+const messageHistories = new Map<number, MessageHistory>();
 
 /**
  * Clear message history for a specific tab
  * @param tabId The tab ID to clear history for
  */
 export function clearMessageHistory(tabId?: number): void {
+  // Get the screenshot manager
+  const screenshotManager = ScreenshotManager.getInstance();
+  
   if (tabId) {
     // Clear message history for a specific tab
-    messageHistories.set(tabId, []);
-    logWithTimestamp(`Message history cleared for tab ${tabId}`);
+    messageHistories.set(tabId, { originalRequest: null, conversationHistory: [] });
+    // Clear screenshots
+    screenshotManager.clear();
+    logWithTimestamp(`Message history and screenshots cleared for tab ${tabId}`);
   } else if (getCurrentTabId()) {
     // Clear message history for the current tab
-    messageHistories.set(getCurrentTabId()!, []);
-    logWithTimestamp(`Message history cleared for current tab ${getCurrentTabId()}`);
+    messageHistories.set(getCurrentTabId()!, { originalRequest: null, conversationHistory: [] });
+    // Clear screenshots
+    screenshotManager.clear();
+    logWithTimestamp(`Message history and screenshots cleared for current tab ${getCurrentTabId()}`);
   } else {
     // Clear all message histories if no tab ID is specified
     messageHistories.clear();
-    logWithTimestamp("All message histories cleared");
+    // Clear screenshots
+    screenshotManager.clear();
+    logWithTimestamp("All message histories and screenshots cleared");
   }
 }
 
 /**
  * Get message history for a specific tab
  * @param tabId The tab ID to get history for
- * @returns The message history for the tab
+ * @returns The combined message history for the tab (original request + conversation)
  */
 export function getMessageHistory(tabId: number): Anthropic.MessageParam[] {
   if (!messageHistories.has(tabId)) {
-    messageHistories.set(tabId, []);
+    messageHistories.set(tabId, { originalRequest: null, conversationHistory: [] });
+  }
+  
+  const history = messageHistories.get(tabId)!;
+  
+  // Combine original request with conversation history if it exists
+  if (history.originalRequest) {
+    // Add a prefix to the original request content to make it clear to the LLM
+    const originalRequestWithPrefix = {
+      ...history.originalRequest,
+      content: typeof history.originalRequest.content === 'string' 
+        ? `[ORIGINAL REQUEST]: ${history.originalRequest.content}` 
+        : history.originalRequest.content
+    };
+    
+    return [originalRequestWithPrefix, ...history.conversationHistory];
+  } else {
+    return [...history.conversationHistory];
+  }
+}
+
+/**
+ * Get the structured message history object for a specific tab
+ * @param tabId The tab ID to get history for
+ * @returns The structured message history object
+ */
+export function getStructuredMessageHistory(tabId: number): MessageHistory {
+  if (!messageHistories.has(tabId)) {
+    messageHistories.set(tabId, { originalRequest: null, conversationHistory: [] });
   }
   return messageHistories.get(tabId)!;
 }
+
+/**
+ * Set the original request for a specific tab
+ * @param tabId The tab ID to set the original request for
+ * @param request The original request message
+ */
+export function setOriginalRequest(tabId: number, request: Anthropic.MessageParam): void {
+  const history = getStructuredMessageHistory(tabId);
+  history.originalRequest = request;
+  messageHistories.set(tabId, history);
+}
+
+/**
+ * Add a message to the conversation history for a specific tab
+ * @param tabId The tab ID to add the message to
+ * @param message The message to add
+ */
+export function addToConversationHistory(tabId: number, message: Anthropic.MessageParam): void {
+  const history = getStructuredMessageHistory(tabId);
+  history.conversationHistory.push(message);
+  messageHistories.set(tabId, history);
+}
+
+// No replacement - removing the isNewTaskRequest function
 
 /**
  * Initialize the agent if we have a page and API key
@@ -236,16 +307,29 @@ Use your judgment to determine whether the request is meant to be performed on t
     // Reset streaming buffer and segment ID
     resetStreamingState();
     
-    // Add the new prompt to message history
-    const messageHistory = getMessageHistory(targetTabId);
-    if (messageHistory.length === 0) {
-      // If history is empty, just add the prompt
-      messageHistory.push({ role: "user", content: prompt });
-    } else {
-      // If there's existing history, add a separator and the new prompt
-      messageHistory.push({ 
+    // Get the structured message history
+    const history = getStructuredMessageHistory(targetTabId);
+    
+    // Check if this is the first prompt (no original request yet)
+    if (!history.originalRequest) {
+      // Store this as the original request without adding any special tag
+      setOriginalRequest(targetTabId, { 
         role: "user", 
-        content: `New prompt: ${prompt}` 
+        content: prompt 
+      });
+      
+      // Also add it to the conversation history to maintain the flow
+      addToConversationHistory(targetTabId, { 
+        role: "user", 
+        content: prompt 
+      });
+      
+      logWithTimestamp(`Set original request for tab ${targetTabId}: "${prompt}"`);
+    } else {
+      // This is a follow-up prompt, add it to conversation history
+      addToConversationHistory(targetTabId, { 
+        role: "user", 
+        content: prompt 
       });
     }
     
@@ -270,14 +354,30 @@ Use your judgment to determine whether the request is meant to be performed on t
           setStreamingBuffer(content);
         }
         
-        // Add the assistant's response to message history
-        const messageHistory = getMessageHistory(targetTabId);
-        messageHistory.push({ role: "assistant", content: content });
+        // Add the assistant's response to conversation history
+        addToConversationHistory(targetTabId, { role: "assistant", content: content });
         
-        // Trim history if it gets too long
-        if (messageHistory.length > 20) {
-          // Replace the message history with the trimmed version
-          messageHistories.set(targetTabId, messageHistory.slice(messageHistory.length - 20));
+        // Trim conversation history if it exceeds the token budget
+        const history = getStructuredMessageHistory(targetTabId);
+        
+        // Calculate the current token count of the conversation history
+        const conversationTokens = contextTokenCount(history.conversationHistory);
+        
+        // If we're over budget, trim from the oldest messages until we're under budget
+        if (conversationTokens > MAX_CONVERSATION_TOKENS) {
+          logWithTimestamp(`Conversation history exceeds token budget (${conversationTokens}/${MAX_CONVERSATION_TOKENS}), trimming oldest messages`);
+          
+          // Remove oldest messages until we're under the token budget
+          while (contextTokenCount(history.conversationHistory) > MAX_CONVERSATION_TOKENS && 
+                 history.conversationHistory.length > 1) {
+            // Remove the oldest message
+            history.conversationHistory.shift();
+          }
+          
+          // Update the message history
+          messageHistories.set(targetTabId, history);
+          
+          logWithTimestamp(`Trimmed conversation history to ${history.conversationHistory.length} messages (${contextTokenCount(history.conversationHistory)} tokens)`);
         }
       },
       onToolOutput: (content) => {

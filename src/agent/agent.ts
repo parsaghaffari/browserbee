@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Page } from "playwright-crx/test";
 import { getAllTools } from "./tools/index";
 import { TokenTrackingService } from "../tracking/tokenTrackingService";
+import { ScreenshotManager } from "../tracking/screenshotManager";
 
 /**──── Quick‑win guardrails ───────────────────────────────────────────────────*/
 const MAX_STEPS = 50;            // prevent infinite loops
@@ -10,21 +11,75 @@ const MAX_OUTPUT_TOKENS = 1024;  // max tokens for LLM response
 
 /** Very cheap "char/4" token estimator. */
 const approxTokens = (text: string) => Math.ceil(text.length / 4);
-const contextTokenCount = (msgs: Anthropic.MessageParam[]) =>
+export const contextTokenCount = (msgs: Anthropic.MessageParam[]) =>
   msgs.reduce((sum, m) => {
     const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
     return sum + approxTokens(content);
   }, 0);
 
-/** Trim oldest messages until we're under the limit. */
+/**
+ * Intelligently trim message history while preserving all user messages.
+ * 
+ * This function prioritizes keeping user messages (especially the original request)
+ * while trimming assistant responses when needed to stay under the token limit.
+ */
 function trimHistory(
   msgs: Anthropic.MessageParam[],
   maxTokens = MAX_CONTEXT_TOKENS
 ) {
-  while (contextTokenCount(msgs) > maxTokens && msgs.length > 2) {
-    msgs.splice(0, 2); // drop oldest user + assistant pair
+  // If we're under the limit or have very few messages, no need to trim
+  if (contextTokenCount(msgs) <= maxTokens || msgs.length <= 2) {
+    return msgs;
   }
-  return msgs;
+  
+  // Track which indices we want to keep
+  const indicesToKeep = new Set<number>();
+  
+  // Always keep the first message (original request)
+  if (msgs.length > 0) {
+    indicesToKeep.add(0);
+  }
+  
+  // First pass: mark all user messages to keep
+  for (let i = 1; i < msgs.length; i++) {
+    if (msgs[i].role === "user") {
+      indicesToKeep.add(i);
+    }
+  }
+  
+  // Calculate token count for all messages we're definitely keeping
+  const keptMessages = Array.from(indicesToKeep).map(i => msgs[i]);
+  const keptTokenCount = contextTokenCount(keptMessages);
+  let remainingTokens = maxTokens - keptTokenCount;
+  
+  // Second pass: add assistant messages from newest to oldest until we hit the token limit
+  const assistantIndices: number[] = [];
+  for (let i = msgs.length - 1; i >= 1; i--) {
+    if (msgs[i].role === "assistant" && !indicesToKeep.has(i)) {
+      assistantIndices.push(i);
+    }
+  }
+  
+  // Try to add each assistant message if it fits in our token budget
+  for (const idx of assistantIndices) {
+    const msg = msgs[idx];
+    const msgTokens = contextTokenCount([msg]);
+    
+    if (msgTokens <= remainingTokens) {
+      indicesToKeep.add(idx);
+      remainingTokens -= msgTokens;
+    }
+  }
+  
+  // Build the final trimmed array in the original order
+  const trimmedMsgs: Anthropic.MessageParam[] = [];
+  for (let i = 0; i < msgs.length; i++) {
+    if (indicesToKeep.has(i)) {
+      trimmedMsgs.push(msgs[i]);
+    }
+  }
+  
+  return trimmedMsgs;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -427,25 +482,30 @@ Think step‑by‑step; summarise your work when finished.`;
                   screenshotData.source.media_type === "image/jpeg" &&
                   screenshotData.source.data) {
                 
-                // Create a content array with both text and image, including the original prompt
+                // Store the screenshot in the ScreenshotManager
+                const screenshotManager = ScreenshotManager.getInstance();
+                const screenshotId = screenshotManager.storeScreenshot(screenshotData);
+                
+                // Log the screenshot storage
+                console.log(`Stored screenshot as ${screenshotId} (saved ${screenshotData.source.data.length} characters)`);
+                
+                // Add a reference to the screenshot instead of the full data
                 messages.push({
                   role: "user",
-                  content: [
-                    { type: "text", text: `Tool result: Screenshot captured. Based on this image, please answer the user's original question: "${prompt}". Don't just describe the image - focus on answering the specific question or completing the task the user asked for.` },
-                    screenshotData // This is already in the correct format for Claude
-                  ]
+                  content: `Tool result: Screenshot captured (${screenshotId}). Based on this image, please answer the user's original question: "${prompt}". Don't just describe the image - focus on answering the specific question or completing the task the user asked for.`
                 });
                 
-                // Screenshot sent to Claude as a proper image content block
+                // Note: The actual screenshot is still sent to the UI via the onToolEnd callback,
+                // but we're not including it in the message history to save tokens
               } else {
                 // Fallback if the structure isn't as expected
                 messages.push({ role: "user", content: `Tool result: ${result}` });
-                // Fallback to sending as text when structure isn't as expected
+                console.log("Screenshot data didn't have the expected structure, sending as text");
               }
             } catch (error) {
               // Fallback if parsing fails
               messages.push({ role: "user", content: `Tool result: ${result}` });
-              // Failed to parse screenshot result as JSON, sending as text
+              console.error("Failed to parse screenshot result as JSON:", error);
             }
           } else {
             // Normal handling for other tools
@@ -646,16 +706,21 @@ Think step‑by‑step; summarise your work when finished.`;
                   screenshotData.source.media_type === "image/jpeg" &&
                   screenshotData.source.data) {
                 
-                // Create a content array with both text and image, including the original prompt
+                // Store the screenshot in the ScreenshotManager
+                const screenshotManager = ScreenshotManager.getInstance();
+                const screenshotId = screenshotManager.storeScreenshot(screenshotData);
+                
+                // Log the screenshot storage
+                console.log(`Stored screenshot as ${screenshotId} (saved ${screenshotData.source.data.length} characters)`);
+                
+                // Add a reference to the screenshot instead of the full data
                 messages.push({
                   role: "user",
-                  content: [
-                    { type: "text", text: `Tool result: Screenshot captured. Based on this image, please answer the user's original question: "${prompt}". Don't just describe the image - focus on answering the specific question or completing the task the user asked for.` },
-                    screenshotData // This is already in the correct format for Claude
-                  ]
+                  content: `Tool result: Screenshot captured (${screenshotId}). Based on this image, please answer the user's original question: "${prompt}". Don't just describe the image - focus on answering the specific question or completing the task the user asked for.`
                 });
                 
-                console.log("Sending screenshot to Claude as a proper image content block");
+                // Note: The actual screenshot is still sent to the UI via the onToolEnd callback,
+                // but we're not including it in the message history to save tokens
               } else {
                 // Fallback if the structure isn't as expected
                 messages.push({ role: "user", content: `Tool result: ${result}` });
