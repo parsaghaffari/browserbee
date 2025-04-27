@@ -13,6 +13,7 @@ interface UseChromeMessagingProps {
   onFallbackStarted: (message: string) => void;
   onUpdateScreenshot: (content: any) => void;
   onProcessingComplete: () => void;
+  onRequestApproval?: (request: { requestId: string, toolName: string, toolInput: string, reason: string }) => void;
   setTabTitle: (title: string) => void;
 }
 
@@ -28,6 +29,7 @@ export const useChromeMessaging = ({
   onFallbackStarted,
   onUpdateScreenshot,
   onProcessingComplete,
+  onRequestApproval,
   setTabTitle
 }: UseChromeMessagingProps) => {
   
@@ -83,6 +85,16 @@ export const useChromeMessaging = ({
         onUpdateScreenshot(message.content);
       } else if (message.action === 'processingComplete') {
         onProcessingComplete();
+      } else if (message.action === 'requestApproval' && onRequestApproval) {
+        // Handle approval requests
+        if (message.requestId && message.toolName && message.toolInput) {
+          onRequestApproval({
+            requestId: message.requestId,
+            toolName: message.toolName,
+            toolInput: message.toolInput,
+            reason: message.reason || 'This action requires approval.'
+          });
+        }
       }
     };
 
@@ -100,6 +112,7 @@ export const useChromeMessaging = ({
     onFallbackStarted,
     onUpdateScreenshot,
     onProcessingComplete,
+    onRequestApproval,
     setTabTitle
   ]);
 
@@ -145,9 +158,37 @@ export const useChromeMessaging = ({
     });
   };
 
+  const approveRequest = (requestId: string) => {
+    chrome.runtime.sendMessage({ 
+      action: 'approvalResponse',
+      requestId,
+      approved: true,
+      tabId 
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error(chrome.runtime.lastError);
+      }
+    });
+  };
+
+  const rejectRequest = (requestId: string) => {
+    chrome.runtime.sendMessage({ 
+      action: 'approvalResponse',
+      requestId,
+      approved: false,
+      tabId 
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error(chrome.runtime.lastError);
+      }
+    });
+  };
+
   return {
     executePrompt,
     cancelExecution,
-    clearHistory
+    clearHistory,
+    approveRequest,
+    rejectRequest
   };
 };

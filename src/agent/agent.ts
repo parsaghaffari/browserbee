@@ -3,6 +3,8 @@ import type { Page } from "playwright-crx/test";
 import { getAllTools } from "./tools/index";
 import { TokenTrackingService } from "../tracking/tokenTrackingService";
 import { ScreenshotManager } from "../tracking/screenshotManager";
+import { requestApproval } from "./approvalManager";
+import { ToolExecutionContext } from "./tools/types";
 
 /**──── Quick‑win guardrails ───────────────────────────────────────────────────*/
 const MAX_STEPS = 50;            // prevent infinite loops
@@ -208,9 +210,23 @@ IMPORTANT CONTEXT RULES:
 7. When a user refers to content without being specific (e.g., "summarize the options", "create a table"), assume they're referring to the content currently visible on the page, not to your available tools or capabilities
 8. Review the conversation history to understand the context of the current request - if the user just performed a search or viewed specific content, subsequent requests likely refer to those results
 
-To use a tool, reply exactly as:
+TOOL USAGE FORMAT:
+To use a tool, you MUST ALWAYS reply with this EXACT format:
 <tool>tool_name</tool>
 <input>arguments here</input>
+<requires_approval>true or false</requires_approval>
+
+IMPORTANT: NEVER output a <tool> tag without its corresponding <input> and <requires_approval> tags. Always complete all 3 tags.
+
+APPROVAL GUIDELINES:
+Set <requires_approval>true</requires_approval> for actions that:
+1. Make purchases or financial transactions (e.g., clicking "Buy Now", "Add to Cart")
+2. Delete or modify important data (e.g., deleting content, changing settings)
+3. Send messages or post content visible to others (e.g., social media posts, emails)
+4. Submit forms with sensitive information (e.g., login forms, personal details)
+5. Perform potentially risky operations (e.g., accepting terms, granting permissions)
+
+If unsure, err on the side of caution and set <requires_approval>true</requires_approval>.
 
 Wait for each tool result before the next step.
 Think step‑by‑step; summarise your work when finished.`;
@@ -378,13 +394,15 @@ Think step‑by‑step; summarise your work when finished.`;
               streamBuffer += textChunk;
               
               // Check if we've detected a complete tool call in the buffer
-              const toolCallMatch = streamBuffer.match(/<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/);
+              // Include the optional requires_approval tag in the pattern
+              const toolCallMatch = streamBuffer.match(/<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)/);
               
               if (toolCallMatch && !toolCallDetected) {
                 toolCallDetected = true;
+                console.log("Tool call detected:", toolCallMatch);
                 
-                // Extract the tool call
-                const [fullMatch, toolName, toolInput] = toolCallMatch;
+                // Extract the tool call, including the optional requires_approval value
+                const [fullMatch, toolName, toolInput, requiresApprovalRaw] = toolCallMatch;
                 const matchIndex = streamBuffer.indexOf(fullMatch);
                 
                 // Get text before the tool call
@@ -422,8 +440,23 @@ Think step‑by‑step; summarise your work when finished.`;
 
           // ── 2. Parse for tool invocation ─────────────────────────────────────
           const toolMatch = accumulatedText.match(
-            /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/
+            /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)?/
           );
+
+          // Check for incomplete tool calls (tool tag without input tag)
+          const incompleteToolMatch = accumulatedText.match(/<tool>(.*?)<\/tool>(?!\s*<input>)/);
+          if (incompleteToolMatch && !toolMatch) {
+            // Handle incomplete tool call
+            const toolName = incompleteToolMatch[1].trim();
+            callbacks.onToolOutput(`⚠️ Incomplete tool call detected: ${toolName} (missing input)`);
+            
+            // Add a message to prompt the LLM to complete the tool call
+            messages.push(
+              { role: "assistant", content: accumulatedText },
+              { role: "user", content: `Error: Incomplete tool call. You provided <tool>${toolName}</tool> but no <input> tag. Please provide the complete tool call with both tags.` }
+            );
+            continue; // Continue to the next iteration
+          }
 
           if (!toolMatch) {
             // no tool tag ⇒ task complete
@@ -431,10 +464,15 @@ Think step‑by‑step; summarise your work when finished.`;
             break;
           }
 
-          const [, toolNameRaw, toolInputRaw] = toolMatch;
+          const [, toolNameRaw, toolInputRaw, requiresApprovalRaw] = toolMatch;
           const toolName = toolNameRaw.trim();
           const toolInput = toolInputRaw.trim();
+          const llmRequiresApproval = requiresApprovalRaw ? requiresApprovalRaw.trim().toLowerCase() === 'true' : false;
           const tool = this.tools.find((t) => t.name === toolName);
+          
+          // Check if the LLM has marked this as requiring approval
+          const requiresApproval = llmRequiresApproval;
+          const reason = llmRequiresApproval ? "The AI assistant has determined this action requires your approval." : "";
 
           if (!tool) {
             messages.push(
@@ -454,7 +492,41 @@ Think step‑by‑step; summarise your work when finished.`;
 
           // ── 3. Execute tool ──────────────────────────────────────────────────
           callbacks.onToolOutput(`🕹️ tool: ${toolName} | args: ${toolInput}`);
-          const result = await tool.func(toolInput);
+          
+          let result: string;
+          
+          if (requiresApproval) {
+            // Notify the user that approval is required
+            callbacks.onToolOutput(`⚠️ This action requires approval: ${reason}`);
+            
+            // Get the current tab ID from chrome.tabs API
+            const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            const tabId = tabs[0]?.id || 0;
+            
+            // Request approval from the user
+            const approved = await requestApproval(tabId, toolName, toolInput, reason);
+            
+            if (approved) {
+              // User approved, execute the tool
+              callbacks.onToolOutput(`✅ Action approved by user. Executing...`);
+              
+              // Create a context object to pass to the tool
+              const context: ToolExecutionContext = {
+                requiresApproval: true,
+                approvalReason: reason
+              };
+              
+              // Execute the tool with the context
+              result = await tool.func(toolInput, context);
+            } else {
+              // User rejected, skip execution
+              result = "Action cancelled by user.";
+              callbacks.onToolOutput(`❌ Action rejected by user.`);
+            }
+          } else {
+            // No approval required, execute the tool normally
+            result = await tool.func(toolInput);
+          }
           
           // Signal that tool execution is complete
           if (callbacks.onToolEnd) {
@@ -651,8 +723,23 @@ Think step‑by‑step; summarise your work when finished.`;
 
           // ── 2. Parse for tool invocation ─────────────────────────────────────
           const toolMatch = assistantText.match(
-            /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/
+            /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)/
           );
+
+          // Check for incomplete tool calls (tool tag without input tag)
+          const incompleteToolMatch = assistantText.match(/<tool>(.*?)<\/tool>(?!\s*<input>)/);
+          if (incompleteToolMatch && !toolMatch) {
+            // Handle incomplete tool call
+            const toolName = incompleteToolMatch[1].trim();
+            callbacks.onToolOutput(`⚠️ Incomplete tool call detected: ${toolName} (missing input)`);
+            
+            // Add a message to prompt the LLM to complete the tool call
+            messages.push(
+              { role: "assistant", content: assistantText },
+              { role: "user", content: `Error: Incomplete tool call. You provided <tool>${toolName}</tool> but no <input> tag. Please provide the complete tool call with both tags.` }
+            );
+            continue; // Continue to the next iteration
+          }
 
           if (!toolMatch) {
             // no tool tag ⇒ task complete
@@ -660,9 +747,10 @@ Think step‑by‑step; summarise your work when finished.`;
             break;
           }
 
-          const [, toolNameRaw, toolInputRaw] = toolMatch;
+          const [, toolNameRaw, toolInputRaw, requiresApprovalRaw] = toolMatch;
           const toolName = toolNameRaw.trim();
           const toolInput = toolInputRaw.trim();
+          const llmRequiresApproval = requiresApprovalRaw ? requiresApprovalRaw.trim().toLowerCase() === 'true' : false;
           const tool = this.tools.find((t) => t.name === toolName);
 
           if (!tool) {
@@ -683,7 +771,42 @@ Think step‑by‑step; summarise your work when finished.`;
 
           // ── 3. Execute tool ──────────────────────────────────────────────────
           callbacks.onToolOutput(`🕹️ tool: ${toolName} | args: ${toolInput}`);
-          const result = await tool.func(toolInput);
+          
+          let result: string;
+          
+          if (llmRequiresApproval) {
+            const reason = "The AI assistant has determined this action requires your approval.";
+            // Notify the user that approval is required
+            callbacks.onToolOutput(`⚠️ This action requires approval: ${reason}`);
+            
+            // Get the current tab ID from chrome.tabs API
+            const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            const tabId = tabs[0]?.id || 0;
+            
+            // Request approval from the user
+            const approved = await requestApproval(tabId, toolName, toolInput, reason);
+            
+            if (approved) {
+              // User approved, execute the tool
+              callbacks.onToolOutput(`✅ Action approved by user. Executing...`);
+              
+              // Create a context object to pass to the tool
+              const context: ToolExecutionContext = {
+                requiresApproval: true,
+                approvalReason: reason
+              };
+              
+              // Execute the tool with the context
+              result = await tool.func(toolInput, context);
+            } else {
+              // User rejected, skip execution
+              result = "Action cancelled by user.";
+              callbacks.onToolOutput(`❌ Action rejected by user.`);
+            }
+          } else {
+            // No approval required, execute the tool normally
+            result = await tool.func(toolInput);
+          }
 
           // Check for cancellation after tool execution
           if (this.isCancelled) break;

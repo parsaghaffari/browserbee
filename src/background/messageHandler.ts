@@ -6,6 +6,7 @@ import { clearMessageHistory } from './agentController';
 import { attachToTab, getTabState, getWindowForTab } from './tabManager';
 import { initializeAgent } from './agentController';
 import { TokenTrackingService } from '../tracking/tokenTrackingService';
+import { handleApprovalResponse } from '../agent/approvalManager';
 
 /**
  * Handle messages from the UI
@@ -52,6 +53,11 @@ export function handleMessage(
       case 'getTokenUsage':
         handleGetTokenUsage(message, sendResponse);
         return true;
+        
+      case 'approvalResponse':
+        handleApprovalResponse(message.requestId, message.approved);
+        sendResponse({ success: true });
+        return true;
 
       default:
         // This should never happen due to the type guard, but TypeScript requires it
@@ -83,7 +89,8 @@ function isBackgroundMessage(message: any): message is BackgroundMessage {
       message.action === 'clearHistory' ||
       message.action === 'initializeTab' ||
       message.action === 'switchToTab' ||
-      message.action === 'getTokenUsage'
+      message.action === 'getTokenUsage' ||
+      message.action === 'approvalResponse'
     )
   );
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTabManagement } from './hooks/useTabManagement';
 import { useMessageManagement } from './hooks/useMessageManagement';
 import { useChromeMessaging } from './hooks/useChromeMessaging';
@@ -8,8 +8,17 @@ import { OutputHeader } from './components/OutputHeader';
 import { TabStatusBar } from './components/TabStatusBar';
 import { TokenUsageDisplay } from './components/TokenUsageDisplay';
 import { TokenTrackingService } from '../tracking/tokenTrackingService';
+import { ApprovalRequest } from './components/ApprovalRequest';
 
 export function SidePanel() {
+  // State for approval requests
+  const [approvalRequests, setApprovalRequests] = useState<Array<{
+    requestId: string;
+    toolName: string;
+    toolInput: string;
+    reason: string;
+  }>>([]);
+
   // Use custom hooks to manage state and functionality
   const { 
     tabId, 
@@ -36,11 +45,30 @@ export function SidePanel() {
     currentSegmentId
   } = useMessageManagement();
 
+  // Handlers for approval requests
+  const handleApprove = (requestId: string) => {
+    // Send approval to the background script
+    approveRequest(requestId);
+    // Remove the request from the list
+    setApprovalRequests(prev => prev.filter(req => req.requestId !== requestId));
+    // No need to add a system message - agent.ts will handle this
+  };
+
+  const handleReject = (requestId: string) => {
+    // Send rejection to the background script
+    rejectRequest(requestId);
+    // Remove the request from the list
+    setApprovalRequests(prev => prev.filter(req => req.requestId !== requestId));
+    // No need to add a system message - agent.ts will handle this
+  };
+
   // Set up Chrome messaging with callbacks
   const { 
     executePrompt, 
     cancelExecution, 
-    clearHistory 
+    clearHistory,
+    approveRequest,
+    rejectRequest
   } = useChromeMessaging({
     tabId,
     onUpdateOutput: (content) => {
@@ -73,6 +101,10 @@ export function SidePanel() {
     onProcessingComplete: () => {
       setIsProcessing(false);
       completeStreaming();
+    },
+    onRequestApproval: (request) => {
+      // Add the request to the list
+      setApprovalRequests(prev => [...prev, request]);
     },
     setTabTitle
   });
@@ -141,6 +173,19 @@ export function SidePanel() {
       
       {/* Add Token Usage Display */}
       <TokenUsageDisplay />
+      
+      {/* Display approval requests */}
+      {approvalRequests.map(req => (
+        <ApprovalRequest
+          key={req.requestId}
+          requestId={req.requestId}
+          toolName={req.toolName}
+          toolInput={req.toolInput}
+          reason={req.reason}
+          onApprove={handleApprove}
+          onReject={handleReject}
+        />
+      ))}
       
       <PromptForm 
         onSubmit={handleSubmit}

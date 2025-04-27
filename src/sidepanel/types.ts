@@ -16,4 +16,9 @@ export interface ChromeMessage {
   action: string;
   content?: any;
   tabId?: number;
+  // Approval request properties
+  requestId?: string;
+  toolName?: string;
+  toolInput?: string;
+  reason?: string;
 }

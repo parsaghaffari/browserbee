@@ -34,13 +34,20 @@ export interface GetTokenUsageMessage {
   action: 'getTokenUsage';
 }
 
+export interface ApprovalResponseMessage {
+  action: 'approvalResponse';
+  requestId: string;
+  approved: boolean;
+}
+
 export type BackgroundMessage = 
   | ExecutePromptMessage
   | CancelExecutionMessage
   | ClearHistoryMessage
   | InitializeTabMessage
   | SwitchToTabMessage
-  | GetTokenUsageMessage;
+  | GetTokenUsageMessage
+  | ApprovalResponseMessage;
 
 // UI Message types
 export interface UpdateOutputMessage {
@@ -129,6 +136,15 @@ export interface TokenUsageUpdatedMessage {
   tabId?: number;
 }
 
+export interface RequestApprovalMessage {
+  action: 'requestApproval';
+  requestId: string;
+  toolName: string;
+  toolInput: string;
+  reason: string;
+  tabId?: number;
+}
+
 export type UIMessage =
   | UpdateOutputMessage
   | UpdateStreamingChunkMessage
@@ -139,7 +155,8 @@ export type UIMessage =
   | RateLimitMessage
   | FallbackStartedMessage
   | UpdateScreenshotMessage
-  | TokenUsageUpdatedMessage;
+  | TokenUsageUpdatedMessage
+  | RequestApprovalMessage;
 
 // Callback types
 export interface ExecutePromptCallbacks {
