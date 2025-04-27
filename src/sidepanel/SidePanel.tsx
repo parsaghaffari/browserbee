@@ -101,7 +101,7 @@ export function SidePanel() {
     <div className="flex flex-col h-screen p-4 bg-base-200">
       <header className="mb-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-primary">BrowserBee 🐝</h1>
+          <h1 className="text-xl font-bold text-primary">BrowserBee 🐝</h1>
           <TabStatusBar 
             tabId={tabId}
             tabTitle={tabTitle}
