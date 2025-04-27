@@ -14,7 +14,7 @@ friends launch:
 
 HN launch:
 - [ ] write tests 
-- [ ] add "requires approval" flag to irreversible tools, and seek explicit approval from user
+- [x] add "requires approval" flag to irreversible tools, and seek explicit approval from user
 - [ ] better handling of multiple Chrome windows
 - [x] add token counter
 - [x] context summarization
