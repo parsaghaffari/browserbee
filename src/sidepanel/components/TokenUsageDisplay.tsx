@@ -3,6 +3,14 @@ import { TokenTrackingService, TokenUsage } from '../../tracking/tokenTrackingSe
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowUp, faArrowDown } from '@fortawesome/free-solid-svg-icons';
 
+// Helper function to format token counts
+const formatTokenCount = (count: number): string => {
+  if (count < 1000) {
+    return count.toString();
+  }
+  return (count / 1000).toFixed(1) + 'k';
+};
+
 export function TokenUsageDisplay() {
   const [usage, setUsage] = useState<TokenUsage>({ inputTokens: 0, outputTokens: 0, cost: 0 });
   
@@ -36,11 +44,13 @@ export function TokenUsageDisplay() {
     };
   }, []);
   
+  const totalTokens = usage.inputTokens + usage.outputTokens;
+  
   return (
     <div className="card bg-base-100 shadow-sm p-3 mt-2 text-xs">
       <div className="flex justify-between items-center">
         <span className="font-medium">Token Usage:</span>
-        <span><FontAwesomeIcon icon={faArrowUp} /> {usage.inputTokens} <FontAwesomeIcon icon={faArrowDown} /> {usage.outputTokens}</span>
+        <span><FontAwesomeIcon icon={faArrowUp} /> {formatTokenCount(usage.inputTokens)} <FontAwesomeIcon icon={faArrowDown} /> {formatTokenCount(usage.outputTokens)}</span>
       </div>
       <div className="flex justify-between mt-1">
         <span className="font-medium">Estimated Cost:</span>
