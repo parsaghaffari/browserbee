@@ -28,8 +28,6 @@ export function SidePanel() {
   
   const {
     messages,
-    showSystemMessages,
-    setShowSystemMessages,
     streamingSegments,
     isStreaming,
     isProcessing,
@@ -153,8 +151,6 @@ export function SidePanel() {
       <div className="flex flex-col flex-grow gap-4 overflow-hidden md:flex-row shadow-sm">
         <div className="card bg-base-100 shadow-md flex-1 flex flex-col overflow-hidden">
           <OutputHeader 
-            showSystemMessages={showSystemMessages}
-            setShowSystemMessages={setShowSystemMessages}
             onClearHistory={handleClearHistory}
           />
           <div 
@@ -165,7 +161,6 @@ export function SidePanel() {
               messages={messages}
               streamingSegments={streamingSegments}
               isStreaming={isStreaming}
-              showSystemMessages={showSystemMessages}
             />
           </div>
         </div>

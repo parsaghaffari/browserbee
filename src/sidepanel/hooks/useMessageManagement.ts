@@ -3,7 +3,6 @@ import { Message } from '../types';
 
 export const useMessageManagement = () => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [showSystemMessages, setShowSystemMessages] = useState(true);
   const [streamingSegments, setStreamingSegments] = useState<Record<number, string>>({});
   const [currentSegmentId, setCurrentSegmentId] = useState<number>(0);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -15,7 +14,7 @@ export const useMessageManagement = () => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
-  }, [messages, streamingSegments, showSystemMessages]);
+  }, [messages, streamingSegments]);
 
   const addMessage = (message: Message) => {
     setMessages(prev => [...prev, { ...message, isComplete: true }]);
@@ -65,8 +64,6 @@ export const useMessageManagement = () => {
 
   return {
     messages,
-    showSystemMessages,
-    setShowSystemMessages,
     streamingSegments,
     isStreaming,
     isProcessing,

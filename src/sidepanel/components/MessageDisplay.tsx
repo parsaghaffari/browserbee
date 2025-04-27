@@ -7,19 +7,15 @@ interface MessageDisplayProps {
   messages: Message[];
   streamingSegments: Record<number, string>;
   isStreaming: boolean;
-  showSystemMessages: boolean;
 }
 
 export const MessageDisplay: React.FC<MessageDisplayProps> = ({
   messages,
   streamingSegments,
-  isStreaming,
-  showSystemMessages
+  isStreaming
 }) => {
-  // Filter messages based on showSystemMessages toggle
-  const filteredMessages = showSystemMessages 
-    ? messages 
-    : messages.filter(msg => msg.type === 'llm' || msg.type === 'screenshot');
+  // Always show all messages
+  const filteredMessages = messages;
 
   if (filteredMessages.length === 0 && Object.keys(streamingSegments).length === 0) {
     return <p className="text-gray-500">No output yet</p>;

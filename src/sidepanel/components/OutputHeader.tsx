@@ -3,14 +3,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTrash } from '@fortawesome/free-solid-svg-icons';
 
 interface OutputHeaderProps {
-  showSystemMessages: boolean;
-  setShowSystemMessages: (show: boolean) => void;
   onClearHistory: () => void;
 }
 
 export const OutputHeader: React.FC<OutputHeaderProps> = ({
-  showSystemMessages,
-  setShowSystemMessages,
   onClearHistory
 }) => {
   return (
@@ -26,17 +22,6 @@ export const OutputHeader: React.FC<OutputHeaderProps> = ({
           >
             <FontAwesomeIcon icon={faTrash} />
           </button>
-        </div>
-        <div className="form-control">
-          <label className="label cursor-pointer">
-            <span className="label-text mr-2">System messages</span> 
-            <input 
-              type="checkbox" 
-              className="toggle toggle-primary toggle-sm" 
-              checked={showSystemMessages}
-              onChange={() => setShowSystemMessages(!showSystemMessages)}
-            />
-          </label>
         </div>
       </div>
     </div>
