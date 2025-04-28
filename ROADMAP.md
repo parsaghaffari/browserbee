@@ -16,6 +16,7 @@ HN launch:
 - [ ] write tests 
 - [x] add "requires approval" flag to irreversible tools, and seek explicit approval from user
 - [ ] better handling of multiple Chrome windows
+-- [ ] fix "frame detatched" error when a user reloads the extension without properly closing it/debug session first
 - [x] add token counter
 - [x] context summarization
 - [x] code robustness and refactoring
@@ -27,5 +28,6 @@ HN launch:
 
 later:
 - [ ] session replay feature
-- [ ] task emory using indexedDB (<website, task, steps, outcome>)
+- [x] task emory using indexedDB (<website, task, steps, outcome>)
+-- [ ] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
 - [ ] scheduler for recurring tasks using chrome.alarms
