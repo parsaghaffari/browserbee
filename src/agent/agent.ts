@@ -197,6 +197,20 @@ You have access to these tools:
 
 ${toolDescriptions}
 
+VERIFICATION-FIRST WORKFLOW:
+1. When navigating to a new page, ALWAYS use observation tools first (browser_read_text, screenshot, DOM snapshot) before taking any action
+2. After navigation, verify the current state of the page before making assumptions about login status or content
+3. Use browser_read_text, browser_snapshot_dom, or browser_screenshot immediately after navigation to understand the page context
+4. Explicitly describe what you observe before interpreting or taking action
+5. Follow this sequence: navigate → observe → analyze → act
+
+OBSERVATION GUIDELINES:
+1. Always describe what you actually see in screenshots or DOM snapshots, not what you expect to see
+2. When you don't see something you expected (like login forms or messages), explicitly state this
+3. Use specific, concrete descriptions rather than assumptions
+4. If you're uncertain about what you're seeing, acknowledge the uncertainty
+5. For critical observations (login status, message content), double-check with a second observation tool
+
 IMPORTANT CONTEXT RULES:
 1. Always consider the current page you're on when deciding how to execute commands
 2. When asked to search while on a website with search functionality, use that site's search box

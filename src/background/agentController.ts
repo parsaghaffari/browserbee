@@ -288,7 +288,9 @@ If the user's request seems to continue a previous task (like asking to "summari
 
 If the request seems to start a new task that requires going to a different website, you should navigate there.
 
-Use your judgment to determine whether the request is meant to be performed on the current page or requires navigation elsewhere.]`
+Use your judgment to determine whether the request is meant to be performed on the current page or requires navigation elsewhere.
+
+Remember to follow the verification-first workflow: navigate → observe → analyze → act]`
         });
       } catch (error) {
         logWithTimestamp("Could not get current page info: " + String(error), 'warn');
