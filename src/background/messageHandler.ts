@@ -7,6 +7,7 @@ import { attachToTab, getTabState, getWindowForTab } from './tabManager';
 import { initializeAgent } from './agentController';
 import { TokenTrackingService } from '../tracking/tokenTrackingService';
 import { handleApprovalResponse } from '../agent/approvalManager';
+import { triggerReflection } from './reflectionController';
 
 /**
  * Handle messages from the UI
@@ -58,6 +59,10 @@ export function handleMessage(
         handleApprovalResponse(message.requestId, message.approved);
         sendResponse({ success: true });
         return true;
+        
+      case 'reflectAndLearn':
+        handleReflectAndLearn(message, sendResponse);
+        return true;
 
       default:
         // This should never happen due to the type guard, but TypeScript requires it
@@ -90,7 +95,8 @@ function isBackgroundMessage(message: any): message is BackgroundMessage {
       message.action === 'initializeTab' ||
       message.action === 'switchToTab' ||
       message.action === 'getTokenUsage' ||
-      message.action === 'approvalResponse'
+      message.action === 'approvalResponse' ||
+      message.action === 'reflectAndLearn'
     )
   );
 }
@@ -259,6 +265,31 @@ function handleGetTokenUsage(
   } catch (error) {
     const errorMessage = handleError(error, 'getting token usage');
     logWithTimestamp(`Error getting token usage: ${errorMessage}`, 'error');
+    sendResponse({ success: false, error: errorMessage });
+  }
+}
+
+/**
+ * Handle the reflectAndLearn message
+ * @param message The message to handle
+ * @param sendResponse The function to send a response
+ */
+function handleReflectAndLearn(
+  message: Extract<BackgroundMessage, { action: 'reflectAndLearn' }>,
+  sendResponse: (response?: any) => void
+): void {
+  try {
+    console.log("MEMORY DEBUG: handleReflectAndLearn called", { tabId: message.tabId });
+    
+    // Trigger the reflection process
+    triggerReflection(message.tabId);
+    
+    console.log("MEMORY DEBUG: triggerReflection called successfully");
+    sendResponse({ success: true });
+  } catch (error) {
+    console.error("MEMORY DEBUG: Error in handleReflectAndLearn", error);
+    const errorMessage = handleError(error, 'triggering reflection');
+    logWithTimestamp(`Error triggering reflection: ${errorMessage}`, 'error');
     sendResponse({ success: false, error: errorMessage });
   }
 }

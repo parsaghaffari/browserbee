@@ -40,6 +40,11 @@ export interface ApprovalResponseMessage {
   approved: boolean;
 }
 
+export interface ReflectAndLearnMessage {
+  action: 'reflectAndLearn';
+  tabId?: number;
+}
+
 export type BackgroundMessage = 
   | ExecutePromptMessage
   | CancelExecutionMessage
@@ -47,7 +52,8 @@ export type BackgroundMessage =
   | InitializeTabMessage
   | SwitchToTabMessage
   | GetTokenUsageMessage
-  | ApprovalResponseMessage;
+  | ApprovalResponseMessage
+  | ReflectAndLearnMessage;
 
 // UI Message types
 export interface UpdateOutputMessage {

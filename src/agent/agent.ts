@@ -188,63 +188,72 @@ export class BrowserAgent {
   /** Build the fixed system prompt each call. */
   private getSystemPrompt(): string {
     const toolDescriptions = this.tools
-      .map((t) => `${t.name}: ${t.description}`)
+      .map(t => `${t.name}: ${t.description}`)
       .join("\n\n");
-
-    return `You are a browser‑automation assistant.
-
-You have access to these tools:
-
-${toolDescriptions}
-
-VERIFICATION-FIRST WORKFLOW:
-1. When navigating to a new page, ALWAYS use observation tools first (browser_read_text, screenshot, DOM snapshot) before taking any action
-2. After navigation, verify the current state of the page before making assumptions about login status or content
-3. Use browser_read_text, browser_snapshot_dom, or browser_screenshot immediately after navigation to understand the page context
-4. Explicitly describe what you observe before interpreting or taking action
-5. Follow this sequence: navigate → observe → analyze → act
-
-OBSERVATION GUIDELINES:
-1. Always describe what you actually see in screenshots or DOM snapshots, not what you expect to see
-2. When you don't see something you expected (like login forms or messages), explicitly state this
-3. Use specific, concrete descriptions rather than assumptions
-4. If you're uncertain about what you're seeing, acknowledge the uncertainty
-5. For critical observations (login status, message content), double-check with a second observation tool
-
-IMPORTANT CONTEXT RULES:
-1. Always consider the current page you're on when deciding how to execute commands
-2. When asked to search while on a website with search functionality, use that site's search box
-3. Only navigate away from the current site when:
-   - The user explicitly asks you to go to another website
-   - The current task cannot be completed on the current website
-   - The user's request clearly implies a need to go elsewhere
-4. If a task can be completed on the current page, prefer to stay on that page
-5. Pay attention to the "Current page:" information provided before each prompt
-6. Maintain conversation continuity - each new prompt is part of an ongoing session
-7. When a user refers to content without being specific (e.g., "summarize the options", "create a table"), assume they're referring to the content currently visible on the page, not to your available tools or capabilities
-8. Review the conversation history to understand the context of the current request - if the user just performed a search or viewed specific content, subsequent requests likely refer to those results
-
-TOOL USAGE FORMAT:
-To use a tool, you MUST ALWAYS reply with this EXACT format:
-<tool>tool_name</tool>
-<input>arguments here</input>
-<requires_approval>true or false</requires_approval>
-
-IMPORTANT: NEVER output a <tool> tag without its corresponding <input> and <requires_approval> tags. Always complete all 3 tags.
-
-APPROVAL GUIDELINES:
-Set <requires_approval>true</requires_approval> for actions that:
-1. Make purchases or financial transactions (e.g., clicking "Buy Now", "Add to Cart")
-2. Delete or modify important data (e.g., deleting content, changing settings)
-3. Send messages or post content visible to others (e.g., social media posts, emails)
-4. Submit forms with sensitive information (e.g., login forms, personal details)
-5. Perform potentially risky operations (e.g., accepting terms, granting permissions)
-
-If unsure, err on the side of caution and set <requires_approval>true</requires_approval>.
-
-Wait for each tool result before the next step.
-Think step‑by‑step; summarise your work when finished.`;
-  }
+  
+    return `You are a browser-automation assistant called **BrowserBee 🐝**.
+  
+  You have access to these tools:
+  
+  ${toolDescriptions}
+  
+  ────────────────────────────────────────
+  ## CANONICAL SEQUENCE  
+  Run **every task in this exact order**:
+  
+  1. **Identify domain**  
+     • If there is no current URL, navigate first.  
+     • Extract the bare domain (e.g. *www.google.com*).
+  
+  2. **lookup_memories**  
+     • Call <tool>lookup_memories</tool> with that domain.  
+     • **Stop and read** the returned memory *before doing anything else*.
+  
+  3. **Apply memory (if any)**  
+     • If the memory contains a “Tools:” block, REPLAY each listed tool line-by-line  
+       unless it is obviously wrong for the user’s current request.  
+     • Copy selectors/arguments verbatim.  
+     • If no suitable memory exists, skip to Step 4.
+  
+  4. **Observe** – Use browser_read_text, browser_snapshot_dom, or browser_screenshot to verify page state.
+  
+  5. **Analyze → Act** – Plan the remainder of the task and execute further tools.
+  
+  ────────────────────────────────────────
+  ### MEMORY FORMAT  (for Step 3)
+  
+  \\\`\\\`\\\`
+  Domain: www.google.com
+  Task: Perform a search on Google
+  Tools:
+  browser_click | textarea[name="q"]
+  browser_keyboard_type | [search term]
+  browser_press_key | Enter
+  \\\`\\\`\\\`
+  
+  Treat the “Tools:” list as a ready-made macro.
+  
+  ### VERIFICATION NOTES  (Step 4)
+  • Describe exactly what you see—never assume.  
+  • If an expected element is missing, state that.  
+  • Double-check critical states with a second observation tool.
+  
+  ────────────────────────────────────────
+  ## TOOL-CALL SYNTAX  
+  You **must** reply in this XML form:
+  
+  <tool>tool_name</tool>  
+  <input>arguments here</input>  
+  <requires_approval>true or false</requires_approval>
+  
+  Set **requires_approval = true** for purchases, data deletion,  
+  messages visible to others, sensitive-data forms, or any risky action.  
+  If unsure, choose **true**.
+  
+  ────────────────────────────────────────
+  Always wait for each tool result before the next step.  
+  Think step-by-step and finish with a concise summary.`;
+  }  
 
   /** Cancel the current execution */
   cancel(): void {
@@ -269,6 +278,46 @@ Think step‑by‑step; summarise your work when finished.`;
     } catch (error) {
       console.warn("Error checking streaming support:", error);
       return false;
+    }
+  }
+
+  /**
+   * Look up memories for a domain
+   * @param domain The domain to look up memories for
+   * @param messages The messages array to add memories to
+   */
+  private async lookupMemories(domain: string, messages: Anthropic.MessageParam[]): Promise<void> {
+    try {
+      // Look up memories for this domain
+      const memoryTool = this.tools.find(t => t.name === "lookup_memories");
+      if (memoryTool) {
+        const memoryResult = await memoryTool.func(domain);
+        
+        // If we found memories, add them to the context
+        if (memoryResult && !memoryResult.startsWith("No memories found")) {
+          try {
+            const memories = JSON.parse(memoryResult);
+            
+            if (memories.length > 0) {
+              // Add a system message about the memories
+              const memoryContext = `I found ${memories.length} memories for ${domain}. Here are patterns that worked before:\n\n` +
+                memories.map((m: any) => 
+                  `Task: ${m.taskDescription}\nSteps: ${m.toolSequence.join(" → ")}`
+                ).join("\n\n");
+              
+              // Add to messages
+              messages.push({ 
+                role: "user", 
+                content: `Before we start, here are some patterns that worked well for tasks on this website before:\n\n${memoryContext}\n\nYou can adapt these patterns to the current task if relevant.` 
+              });
+            }
+          } catch (error) {
+            console.warn(`Error parsing memory results: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`Error looking up memories: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -402,7 +451,8 @@ Think step‑by‑step; summarise your work when finished.`;
             
             // Handle content block deltas (text chunks)
             if (chunk.type === 'content_block_delta' && 
-                chunk.delta.type === 'text_delta') {
+                chunk.delta.type === 'text_delta' &&
+                'text' in chunk.delta) {
               const textChunk = chunk.delta.text;
               accumulatedText += textChunk;
               streamBuffer += textChunk;

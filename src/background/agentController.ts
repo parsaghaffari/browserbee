@@ -4,6 +4,7 @@ import { ScreenshotManager } from "../tracking/screenshotManager";
 import { ExecutePromptCallbacks } from "./types";
 import { sendUIMessage, logWithTimestamp, handleError } from "./utils";
 import { getCurrentTabId, getTabState, setTabState } from "./tabManager";
+import { saveReflectionMemory } from "./reflectionController";
 import { 
   resetStreamingState, 
   addToStreamingBuffer, 
@@ -186,8 +187,9 @@ export function cancelExecution(tabId?: number): void {
  * Execute a prompt using the LLM agent
  * @param prompt The prompt to execute
  * @param tabId Optional tab ID to execute the prompt for
+ * @param isReflectionPrompt Optional flag to indicate if this is a reflection prompt
  */
-export async function executePrompt(prompt: string, tabId?: number): Promise<void> {
+export async function executePrompt(prompt: string, tabId?: number, isReflectionPrompt: boolean = false): Promise<void> {
   try {
     // Get the API key from storage
     const { anthropicApiKey } = await chrome.storage.local.get(['anthropicApiKey']);
@@ -354,6 +356,25 @@ Remember to follow the verification-first workflow: navigate → observe → ana
           // For streaming mode, store the final content to ensure it's not lost
           // This will be used in onComplete if needed
           setStreamingBuffer(content);
+        }
+        
+        // If this is a reflection prompt, directly save the memory
+        if (isReflectionPrompt) {
+          // Get the domain from the current page
+          try {
+            updatedTabState.page.evaluate(() => window.location.href)
+              .then((url: string) => {
+                const domain = new URL(url).hostname;
+                
+                // Directly save the memory
+                saveReflectionMemory(content, domain, targetTabId);
+              })
+              .catch((error: any) => {
+                logWithTimestamp(`Error getting domain for reflection: ${error instanceof Error ? error.message : String(error)}`, 'error');
+              });
+          } catch (error) {
+            logWithTimestamp(`Error in domain extraction for reflection: ${error instanceof Error ? error.message : String(error)}`, 'error');
+          }
         }
         
         // Add the assistant's response to conversation history

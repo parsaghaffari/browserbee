@@ -132,6 +132,18 @@ export function SidePanel() {
     const tokenTracker = TokenTrackingService.getInstance();
     tokenTracker.reset();
   };
+  
+  // Handle reflect and learn
+  const handleReflectAndLearn = () => {
+    // Send message to background script to trigger reflection
+    chrome.runtime.sendMessage({
+      action: 'reflectAndLearn',
+      tabId
+    });
+    
+    // Add a system message to indicate reflection is happening
+    addSystemMessage("🧠 Reflecting on this session to learn useful patterns...");
+  };
 
   return (
     <div className="flex flex-col h-screen p-4 bg-base-200">
@@ -152,6 +164,7 @@ export function SidePanel() {
         <div className="card bg-base-100 shadow-md flex-1 flex flex-col overflow-hidden">
           <OutputHeader 
             onClearHistory={handleClearHistory}
+            onReflectAndLearn={handleReflectAndLearn}
           />
           <div 
             ref={outputRef}

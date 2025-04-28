@@ -3,6 +3,14 @@ import { ToolFactory } from "./types";
 
 // Import all tools from their respective modules
 import { 
+  saveMemory, 
+  lookupMemories, 
+  getAllMemories, 
+  deleteMemory, 
+  clearAllMemories 
+} from "./memoryTools";
+
+import { 
   browserNavigate, 
   browserWaitForNavigation, 
   browserNavigateBack, 
@@ -76,7 +84,14 @@ export {
   browserTabList,
   browserTabNew,
   browserTabSelect,
-  browserTabClose
+  browserTabClose,
+  
+  // Memory tools
+  saveMemory,
+  lookupMemories,
+  getAllMemories,
+  deleteMemory,
+  clearAllMemories
 };
 
 // Function to get all tools as an array
@@ -114,7 +129,14 @@ export function getAllTools(page: Page) {
     browserTabList(page),
     browserTabNew(page),
     browserTabSelect(page),
-    browserTabClose(page)
+    browserTabClose(page),
+    
+    // Memory tools
+    saveMemory(page),
+    lookupMemories(page),
+    getAllMemories(page),
+    deleteMemory(page),
+    clearAllMemories(page)
   ];
   
   return tools;

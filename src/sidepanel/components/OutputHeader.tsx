@@ -1,13 +1,15 @@
 import React from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faTrash, faBrain } from '@fortawesome/free-solid-svg-icons';
 
 interface OutputHeaderProps {
   onClearHistory: () => void;
+  onReflectAndLearn: () => void;
 }
 
 export const OutputHeader: React.FC<OutputHeaderProps> = ({
-  onClearHistory
+  onClearHistory,
+  onReflectAndLearn
 }) => {
   return (
     <div className="flex justify-between items-center bg-base-300 p-3">
@@ -15,6 +17,14 @@ export const OutputHeader: React.FC<OutputHeaderProps> = ({
         Output
       </div>
       <div className="flex items-center gap-2">
+        <div className="tooltip tooltip-bottom" data-tip="Reflect and learn from this session">
+          <button 
+            onClick={onReflectAndLearn}
+            className="btn btn-sm btn-outline btn-primary"
+          >
+            <FontAwesomeIcon icon={faBrain} />
+          </button>
+        </div>
         <div className="tooltip tooltip-bottom" data-tip="Clear conversation history and LLM context">
           <button 
             onClick={onClearHistory}

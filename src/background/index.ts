@@ -13,6 +13,7 @@ function initializeExtension(): void {
   
   // Set up event listeners
   setupEventListeners();
+  
 }
 
 /**
