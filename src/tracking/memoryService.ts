@@ -13,7 +13,7 @@ export class MemoryService {
   private db: IDBDatabase | null = null;
   private readonly DB_NAME = 'browserbee-memories';
   private readonly STORE_NAME = 'memories';
-  private readonly DB_VERSION = 1;
+  private DB_VERSION = 1; // Not readonly so we can increment it if needed
   private isInitialized = false;
   
   // Singleton pattern
@@ -26,6 +26,45 @@ export class MemoryService {
   
   private constructor() {
     // Private constructor to enforce singleton pattern
+  }
+  
+  /**
+   * Check if the object store exists and create it if it doesn't
+   */
+  private async ensureObjectStoreExists(): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+    
+    // Check if the object store exists
+    if (!Array.from(this.db.objectStoreNames).includes(this.STORE_NAME)) {
+      logWithTimestamp(`Object store ${this.STORE_NAME} does not exist, recreating database`, 'warn');
+      
+      // Close the current database
+      this.db.close();
+      this.db = null;
+      this.isInitialized = false;
+      
+      // Delete and recreate the database with a higher version
+      return new Promise((resolve, reject) => {
+        const deleteRequest = indexedDB.deleteDatabase(this.DB_NAME);
+        
+        deleteRequest.onsuccess = () => {
+          logWithTimestamp(`Database ${this.DB_NAME} deleted successfully, recreating`);
+          
+          // Reinitialize with the same version
+          this.init().then(resolve).catch(reject);
+        };
+        
+        deleteRequest.onerror = (event) => {
+          const error = (event.target as IDBRequest).error;
+          logWithTimestamp(`Error deleting database: ${error?.message || 'Unknown error'}`, 'error');
+          reject(error);
+        };
+      });
+    }
+    
+    return Promise.resolve();
   }
   
   // Initialize the database
@@ -79,6 +118,37 @@ export class MemoryService {
           const storeNames = Array.from(this.db.objectStoreNames);
           logWithTimestamp(`Database contains object stores: ${storeNames.join(', ') || 'none'}`);
           
+          // Check if the object store exists, and if not, recreate the database
+          if (!storeNames.includes(this.STORE_NAME)) {
+            logWithTimestamp(`Object store ${this.STORE_NAME} not found, will recreate database`, 'warn');
+            
+            // Close the database
+            this.db.close();
+            this.db = null;
+            this.isInitialized = false;
+            
+            // Delete and recreate the database with a higher version
+            const deleteRequest = indexedDB.deleteDatabase(this.DB_NAME);
+            
+            deleteRequest.onsuccess = () => {
+              logWithTimestamp(`Database ${this.DB_NAME} deleted successfully, recreating`);
+              
+              // No need to increment version if we're deleting and recreating the database
+              // The database will be created with the current version
+              
+              // Reinitialize with the same version
+              this.init().then(resolve).catch(reject);
+            };
+            
+            deleteRequest.onerror = (event) => {
+              const error = (event.target as IDBRequest).error;
+              logWithTimestamp(`Error deleting database: ${error?.message || 'Unknown error'}`, 'error');
+              reject(error);
+            };
+            
+            return; // Don't resolve yet, wait for the recursive call to complete
+          }
+          
           resolve();
         };
         
@@ -103,6 +173,9 @@ export class MemoryService {
     if (!this.isInitialized) {
       await this.init();
     }
+    
+    // Make sure the object store exists
+    await this.ensureObjectStoreExists();
   }
   
   // Store a new memory

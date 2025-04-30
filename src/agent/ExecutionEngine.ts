@@ -1,343 +1,67 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { Page } from "playwright-crx/test";
-import { getAllTools } from "./tools/index";
-import { TokenTrackingService } from "../tracking/tokenTrackingService";
+import { BrowserTool } from "./tools/types";
+import { ToolManager } from "./ToolManager";
+import { PromptManager } from "./PromptManager";
+import { MemoryManager } from "./MemoryManager";
+import { ErrorHandler } from "./ErrorHandler";
+import { trimHistory } from "./TokenManager";
 import { ScreenshotManager } from "../tracking/screenshotManager";
+import { TokenTrackingService } from "../tracking/tokenTrackingService";
 import { requestApproval } from "./approvalManager";
-import { ToolExecutionContext } from "./tools/types";
 
-/**──── Quick‑win guardrails ───────────────────────────────────────────────────*/
+// Constants
 const MAX_STEPS = 50;            // prevent infinite loops
-const MAX_CONTEXT_TOKENS = 12_000; // rough cap for messages sent to the LLM
 const MAX_OUTPUT_TOKENS = 1024;  // max tokens for LLM response
 
-/** Very cheap "char/4" token estimator. */
-const approxTokens = (text: string) => Math.ceil(text.length / 4);
-export const contextTokenCount = (msgs: Anthropic.MessageParam[]) =>
-  msgs.reduce((sum, m) => {
-    const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-    return sum + approxTokens(content);
-  }, 0);
-
 /**
- * Intelligently trim message history while preserving all user messages.
- * 
- * This function prioritizes keeping user messages (especially the original request)
- * while trimming assistant responses when needed to stay under the token limit.
+ * Callback interface for execution
  */
-function trimHistory(
-  msgs: Anthropic.MessageParam[],
-  maxTokens = MAX_CONTEXT_TOKENS
-) {
-  // If we're under the limit or have very few messages, no need to trim
-  if (contextTokenCount(msgs) <= maxTokens || msgs.length <= 2) {
-    return msgs;
-  }
-  
-  // Track which indices we want to keep
-  const indicesToKeep = new Set<number>();
-  
-  // Always keep the first message (original request)
-  if (msgs.length > 0) {
-    indicesToKeep.add(0);
-  }
-  
-  // First pass: mark all user messages to keep
-  for (let i = 1; i < msgs.length; i++) {
-    if (msgs[i].role === "user") {
-      indicesToKeep.add(i);
-    }
-  }
-  
-  // Calculate token count for all messages we're definitely keeping
-  const keptMessages = Array.from(indicesToKeep).map(i => msgs[i]);
-  const keptTokenCount = contextTokenCount(keptMessages);
-  let remainingTokens = maxTokens - keptTokenCount;
-  
-  // Second pass: add assistant messages from newest to oldest until we hit the token limit
-  const assistantIndices: number[] = [];
-  for (let i = msgs.length - 1; i >= 1; i--) {
-    if (msgs[i].role === "assistant" && !indicesToKeep.has(i)) {
-      assistantIndices.push(i);
-    }
-  }
-  
-  // Try to add each assistant message if it fits in our token budget
-  for (const idx of assistantIndices) {
-    const msg = msgs[idx];
-    const msgTokens = contextTokenCount([msg]);
-    
-    if (msgTokens <= remainingTokens) {
-      indicesToKeep.add(idx);
-      remainingTokens -= msgTokens;
-    }
-  }
-  
-  // Build the final trimmed array in the original order
-  const trimmedMsgs: Anthropic.MessageParam[] = [];
-  for (let i = 0; i < msgs.length; i++) {
-    if (indicesToKeep.has(i)) {
-      trimmedMsgs.push(msgs[i]);
-    }
-  }
-  
-  return trimmedMsgs;
+export interface ExecutionCallbacks {
+  onLlmChunk?: (s: string) => void;
+  onLlmOutput: (s: string) => void;
+  onToolOutput: (s: string) => void;
+  onComplete: () => void;
+  onError?: (error: any) => void;
+  onToolStart?: (toolName: string, toolInput: string) => void;
+  onToolEnd?: (result: string) => void;
+  onSegmentComplete?: (segment: string) => void;
+  onFallbackStarted?: () => void;
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-
-export class BrowserAgent {
+/**
+ * ExecutionEngine handles streaming execution logic, non-streaming execution logic,
+ * and fallback mechanisms.
+ */
+export class ExecutionEngine {
   private anthropic: Anthropic;
-  private tools: any[];
-  private isCancelled: boolean = false;
-
-  private page: Page;
+  private toolManager: ToolManager;
+  private promptManager: PromptManager;
+  private memoryManager: MemoryManager;
+  private errorHandler: ErrorHandler;
   
-  constructor(page: Page, apiKey: string) {
-    this.anthropic = new Anthropic({
-      apiKey,
-      dangerouslyAllowBrowser: true,
-    });
-    
-    this.page = page;
-
-    // Get all tools from the tools module
-    const allTools = getAllTools(page);
-    
-    // Wrap non-tab tools with health check
-    this.tools = allTools.map(tool => {
-      // Tab tools don't need health check as they operate at browser context level
-      if (this.isTabTool(tool.name)) {
-        return tool;
-      }
-      return this.wrapToolWithHealthCheck(tool);
-    });
+  constructor(
+    anthropic: Anthropic,
+    toolManager: ToolManager,
+    promptManager: PromptManager,
+    memoryManager: MemoryManager,
+    errorHandler: ErrorHandler
+  ) {
+    this.anthropic = anthropic;
+    this.toolManager = toolManager;
+    this.promptManager = promptManager;
+    this.memoryManager = memoryManager;
+    this.errorHandler = errorHandler;
   }
   
-  // Flag to indicate if we should use tab tools exclusively
-  private useTabToolsOnly: boolean = false;
-  
-  // Check if the connection to the page is still healthy
-  private async isConnectionHealthy(): Promise<boolean> {
-    if (!this.page) return false;
-    
-    try {
-      // Try a simple operation that would fail if the connection is broken
-      await this.page.evaluate(() => true);
-      this.useTabToolsOnly = false; // Connection is healthy, use all tools
-      return true;
-    } catch (error) {
-      console.log("Agent connection health check failed:", error);
-      this.useTabToolsOnly = true; // Connection is broken, use tab tools only
-      return false;
-    }
-  }
-  
-  // Check if a tool is a tab tool
-  private isTabTool(toolName: string): boolean {
-    return toolName.startsWith('browser_tab_');
-  }
-  
-  // Wrap a tool's function with a health check
-  private wrapToolWithHealthCheck(tool: any): any {
-    const originalFunc = tool.func;
-    const toolName = tool.name;
-    const isTabTool = this.isTabTool(toolName);
-    
-    // Create a new function that checks health before executing
-    tool.func = async (input: string) => {
-      try {
-        // For non-tab tools, check connection health
-        if (!isTabTool && !await this.isConnectionHealthy()) {
-          // If this is a navigation tool, suggest using tab tools instead
-          if (toolName === 'browser_navigate') {
-            return `Error: Debug session was closed. Please use browser_tab_new instead with the URL as input. Example: browser_tab_new | ${input}`;
-          }
-          
-          // For screenshot or other observation tools, suggest creating a new tab
-          if (toolName.includes('screenshot') || toolName.includes('read') || toolName.includes('title')) {
-            return `Error: Debug session was closed. Please create a new tab first using browser_tab_new, then select it with browser_tab_select, and try again.`;
-          }
-          
-          // Generic message for other tools
-          return "Error: Debug session was closed. Please use tab tools (browser_tab_new, browser_tab_select, etc.) to create and work with a new tab.";
-        }
-        
-        // If connection is healthy or this is a tab tool, execute the original function
-        return await originalFunc(input);
-      } catch (error) {
-        // If this is a tab tool, provide a more helpful error message
-        if (isTabTool) {
-          return `Error executing ${toolName}: ${error instanceof Error ? error.message : String(error)}. Tab tools should still work even with a closed debug session. Try browser_tab_new to create a fresh tab.`;
-        }
-        
-        // For other tools, suggest using tab tools if the error might be related to a closed session
-        const errorStr = String(error);
-        if (errorStr.includes('closed') || errorStr.includes('detached') || errorStr.includes('destroyed')) {
-          this.useTabToolsOnly = true; // Set the flag to use tab tools only
-          return `Error: Debug session appears to be closed. Please use tab tools (browser_tab_new, browser_tab_select, etc.) to create and work with a new tab.`;
-        }
-        
-        return `Error executing tool: ${error instanceof Error ? error.message : String(error)}`;
-      }
-    };
-    
-    return tool;
-  }
-
-  /** Build the fixed system prompt each call. */
-  private getSystemPrompt(): string {
-    const toolDescriptions = this.tools
-      .map(t => `${t.name}: ${t.description}`)
-      .join("\n\n");
-  
-    return `You are a browser-automation assistant called **BrowserBee 🐝**.
-  
-  You have access to these tools:
-  
-  ${toolDescriptions}
-  
-  ────────────────────────────────────────
-  ## CANONICAL SEQUENCE  
-  Run **every task in this exact order**:
-  
-  1. **Identify domain**  
-     • If there is no current URL, navigate first.  
-     • Extract the bare domain (e.g. *www.google.com*).
-  
-  2. **lookup_memories**  
-     • Call <tool>lookup_memories</tool> with that domain.  
-     • **Stop and read** the returned memory *before doing anything else*.
-  
-  3. **Apply memory (if any)**  
-     • If the memory contains a “Tools:” block, REPLAY each listed tool line-by-line  
-       unless it is obviously wrong for the user’s current request.  
-     • Copy selectors/arguments verbatim.  
-     • If no suitable memory exists, skip to Step 4.
-  
-  4. **Observe** – Use browser_read_text, browser_snapshot_dom, or browser_screenshot to verify page state.
-  
-  5. **Analyze → Act** – Plan the remainder of the task and execute further tools.
-  
-  ────────────────────────────────────────
-  ### MEMORY FORMAT  (for Step 3)
-  
-  \\\`\\\`\\\`
-  Domain: www.google.com
-  Task: Perform a search on Google
-  Tools:
-  browser_click | textarea[name="q"]
-  browser_keyboard_type | [search term]
-  browser_press_key | Enter
-  \\\`\\\`\\\`
-  
-  Treat the “Tools:” list as a ready-made macro.
-  
-  ### VERIFICATION NOTES  (Step 4)
-  • Describe exactly what you see—never assume.  
-  • If an expected element is missing, state that.  
-  • Double-check critical states with a second observation tool.
-  
-  ────────────────────────────────────────
-  ## TOOL-CALL SYNTAX  
-  You **must** reply in this XML form:
-  
-  <tool>tool_name</tool>  
-  <input>arguments here</input>  
-  <requires_approval>true or false</requires_approval>
-  
-  Set **requires_approval = true** for purchases, data deletion,  
-  messages visible to others, sensitive-data forms, or any risky action.  
-  If unsure, choose **true**.
-  
-  ────────────────────────────────────────
-  Always wait for each tool result before the next step.  
-  Think step-by-step and finish with a concise summary.`;
-  }  
-
-  /** Cancel the current execution */
-  cancel(): void {
-    this.isCancelled = true;
-  }
-
-  /** Reset the cancel flag */
-  resetCancel(): void {
-    this.isCancelled = false;
-  }
-
-  /** Check if streaming is supported in the current environment */
-  async isStreamingSupported(): Promise<boolean> {
-    try {
-      // Check if the browser supports the necessary features for streaming
-      const supportsEventSource = typeof EventSource !== 'undefined';
-      
-      // We could also check for any browser-specific limitations
-      const isCompatibleBrowser = !navigator.userAgent.includes('problematic-browser');
-      
-      return supportsEventSource && isCompatibleBrowser;
-    } catch (error) {
-      console.warn("Error checking streaming support:", error);
-      return false;
-    }
-  }
-
   /**
-   * Look up memories for a domain
-   * @param domain The domain to look up memories for
-   * @param messages The messages array to add memories to
+   * Main execution method with fallback support
    */
-  private async lookupMemories(domain: string, messages: Anthropic.MessageParam[]): Promise<void> {
-    try {
-      // Look up memories for this domain
-      const memoryTool = this.tools.find(t => t.name === "lookup_memories");
-      if (memoryTool) {
-        const memoryResult = await memoryTool.func(domain);
-        
-        // If we found memories, add them to the context
-        if (memoryResult && !memoryResult.startsWith("No memories found")) {
-          try {
-            const memories = JSON.parse(memoryResult);
-            
-            if (memories.length > 0) {
-              // Add a system message about the memories
-              const memoryContext = `I found ${memories.length} memories for ${domain}. Here are patterns that worked before:\n\n` +
-                memories.map((m: any) => 
-                  `Task: ${m.taskDescription}\nSteps: ${m.toolSequence.join(" → ")}`
-                ).join("\n\n");
-              
-              // Add to messages
-              messages.push({ 
-                role: "user", 
-                content: `Before we start, here are some patterns that worked well for tasks on this website before:\n\n${memoryContext}\n\nYou can adapt these patterns to the current task if relevant.` 
-              });
-            }
-          } catch (error) {
-            console.warn(`Error parsing memory results: ${error instanceof Error ? error.message : String(error)}`);
-          }
-        }
-      }
-    } catch (error) {
-      console.warn(`Error looking up memories: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /** Main public runner with fallback support and optional initial messages. */
   async executePromptWithFallback(
     prompt: string,
-    callbacks: {
-      onLlmChunk?: (s: string) => void;
-      onLlmOutput: (s: string) => void;
-      onToolOutput: (s: string) => void;
-      onComplete: () => void;
-      onError?: (error: any) => void;
-      onToolStart?: (toolName: string, toolInput: string) => void;
-      onToolEnd?: (result: string) => void;
-      onSegmentComplete?: (segment: string) => void;
-      onFallbackStarted?: () => void; // New callback for fallback notification
-    },
+    callbacks: ExecutionCallbacks,
     initialMessages: Anthropic.MessageParam[] = []
   ): Promise<void> {
-    const streamingSupported = await this.isStreamingSupported();
+    const streamingSupported = await this.errorHandler.isStreamingSupported();
     
     if (streamingSupported && callbacks.onLlmChunk) {
       try {
@@ -351,13 +75,11 @@ export class BrowserAgent {
         }
         
         // Check if this is a rate limit error
-        // Use type assertion to handle the error object structure
-        const errorObj = error as any;
-        if (errorObj?.error?.type === 'rate_limit_error') {
-          console.log("Rate limit error detected in fallback handler:", errorObj);
+        if (this.errorHandler.isRateLimitError(error)) {
+          console.log("Rate limit error detected in fallback handler:", error);
           // Ensure the error callback is called even during fallback
           if (callbacks.onError) {
-            callbacks.onError(errorObj);
+            callbacks.onError(error);
           }
         }
         
@@ -369,25 +91,17 @@ export class BrowserAgent {
       await this.executePrompt(prompt, callbacks, initialMessages);
     }
   }
-
-  /** Streaming version of the prompt execution with optional initial messages */
+  
+  /**
+   * Streaming version of the prompt execution
+   */
   async executePromptWithStreaming(
     prompt: string,
-    callbacks: {
-      onLlmChunk?: (s: string) => void;
-      onLlmOutput: (s: string) => void;
-      onToolOutput: (s: string) => void;
-      onComplete: () => void;
-      onToolStart?: (toolName: string, toolInput: string) => void;
-      onToolEnd?: (result: string) => void;
-      onSegmentComplete?: (segment: string) => void;
-      onError?: (error: any) => void;
-      onFallbackStarted?: () => void; // Include the new callback
-    },
+    callbacks: ExecutionCallbacks,
     initialMessages: Anthropic.MessageParam[] = []
   ): Promise<void> {
     // Reset cancel flag at the start of execution
-    this.resetCancel();
+    this.errorHandler.resetCancel();
     try {
       // Use initial messages if provided, otherwise start with just the prompt
       let messages: Anthropic.MessageParam[] = initialMessages.length > 0 
@@ -405,10 +119,10 @@ export class BrowserAgent {
       let done = false;
       let step = 0;
 
-      while (!done && step++ < MAX_STEPS && !this.isCancelled) {
+      while (!done && step++ < MAX_STEPS && !this.errorHandler.isExecutionCancelled()) {
         try {
           // Check for cancellation before each major step
-          if (this.isCancelled) break;
+          if (this.errorHandler.isExecutionCancelled()) break;
 
           // ── 1. Call LLM with streaming ───────────────────────────────────────
           let accumulatedText = "";
@@ -417,7 +131,7 @@ export class BrowserAgent {
           
           const stream = await this.anthropic.messages.stream({
             model: "claude-3-7-sonnet-20250219",
-            system: this.getSystemPrompt(),
+            system: this.promptManager.getSystemPrompt(),
             temperature: 0,
             max_tokens: MAX_OUTPUT_TOKENS,
             messages,
@@ -429,7 +143,7 @@ export class BrowserAgent {
           const tokenTracker = TokenTrackingService.getInstance();
           
           for await (const chunk of stream) {
-            if (this.isCancelled) break;
+            if (this.errorHandler.isExecutionCancelled()) break;
             
             // Track token usage from message_start event
             if (chunk.type === 'message_start' && chunk.message && chunk.message.usage) {
@@ -500,7 +214,7 @@ export class BrowserAgent {
           callbacks.onLlmOutput(accumulatedText);
           
           // Check for cancellation after LLM response
-          if (this.isCancelled) break;
+          if (this.errorHandler.isExecutionCancelled()) break;
 
           // ── 2. Parse for tool invocation ─────────────────────────────────────
           const toolMatch = accumulatedText.match(
@@ -532,7 +246,7 @@ export class BrowserAgent {
           const toolName = toolNameRaw.trim();
           const toolInput = toolInputRaw.trim();
           const llmRequiresApproval = requiresApprovalRaw ? requiresApprovalRaw.trim().toLowerCase() === 'true' : false;
-          const tool = this.tools.find((t) => t.name === toolName);
+          const tool = this.toolManager.findTool(toolName);
           
           // Check if the LLM has marked this as requiring approval
           const requiresApproval = llmRequiresApproval;
@@ -543,7 +257,7 @@ export class BrowserAgent {
               { role: "assistant", content: accumulatedText },
               {
                 role: "user",
-                content: `Error: tool "${toolName}" not found. Available: ${this.tools
+                content: `Error: tool "${toolName}" not found. Available: ${this.toolManager.getTools()
                   .map((t) => t.name)
                   .join(", ")}`,
               }
@@ -552,7 +266,7 @@ export class BrowserAgent {
           }
 
           // Check for cancellation before tool execution
-          if (this.isCancelled) break;
+          if (this.errorHandler.isExecutionCancelled()) break;
 
           // ── 3. Execute tool ──────────────────────────────────────────────────
           callbacks.onToolOutput(`🕹️ tool: ${toolName} | args: ${toolInput}`);
@@ -575,7 +289,7 @@ export class BrowserAgent {
               callbacks.onToolOutput(`✅ Action approved by user. Executing...`);
               
               // Create a context object to pass to the tool
-              const context: ToolExecutionContext = {
+              const context = {
                 requiresApproval: true,
                 approvalReason: reason
               };
@@ -598,7 +312,7 @@ export class BrowserAgent {
           }
 
           // Check for cancellation after tool execution
-          if (this.isCancelled) break;
+          if (this.errorHandler.isExecutionCancelled()) break;
 
           // ── 4. Record turn & prune history ───────────────────────────────────
           messages.push(
@@ -651,12 +365,12 @@ export class BrowserAgent {
           messages = trimHistory(messages);
         } catch (error) {
           // If an error occurs during execution, check if it was due to cancellation
-          if (this.isCancelled) break;
+          if (this.errorHandler.isExecutionCancelled()) break;
           throw error; // Re-throw if it wasn't a cancellation
         }
       }
 
-      if (this.isCancelled) {
+      if (this.errorHandler.isExecutionCancelled()) {
         callbacks.onLlmOutput(
           `\n\nExecution cancelled by user.`
         );
@@ -668,7 +382,7 @@ export class BrowserAgent {
       callbacks.onComplete();
     } catch (err: any) {
       // Check if this is a rate limit error
-      if (err?.error?.type === 'rate_limit_error') {
+      if (this.errorHandler.isRateLimitError(err)) {
         console.log("Rate limit error detected in streaming mode:", err);
         // For rate limit errors, notify but don't complete processing
         // This allows the fallback mechanism to retry while maintaining UI state
@@ -692,25 +406,17 @@ export class BrowserAgent {
       throw err; // Re-throw to trigger fallback
     }
   }
-
-  /** Original non-streaming implementation with optional initial messages */
+  
+  /**
+   * Non-streaming version of the prompt execution
+   */
   async executePrompt(
     prompt: string,
-    callbacks: {
-      onLlmChunk?: (s: string) => void;
-      onLlmOutput: (s: string) => void;
-      onToolOutput: (s: string) => void;
-      onComplete: () => void;
-      onError?: (error: any) => void;
-      onToolStart?: (toolName: string, toolInput: string) => void;
-      onToolEnd?: (result: string) => void;
-      onSegmentComplete?: (segment: string) => void;
-      onFallbackStarted?: () => void; // Include the new callback
-    },
+    callbacks: ExecutionCallbacks,
     initialMessages: Anthropic.MessageParam[] = []
   ): Promise<void> {
     // Reset cancel flag at the start of execution
-    this.resetCancel();
+    this.errorHandler.resetCancel();
     try {
       // Use initial messages if provided, otherwise start with just the prompt
       let messages: Anthropic.MessageParam[] = initialMessages.length > 0 
@@ -728,10 +434,10 @@ export class BrowserAgent {
       let done = false;
       let step = 0;
 
-      while (!done && step++ < MAX_STEPS && !this.isCancelled) {
+      while (!done && step++ < MAX_STEPS && !this.errorHandler.isExecutionCancelled()) {
         try {
           // Check for cancellation before each major step
-          if (this.isCancelled) break;
+          if (this.errorHandler.isExecutionCancelled()) break;
 
           // ── 1. Call LLM ───────────────────────────────────────────────────────
           // Track token usage
@@ -739,7 +445,7 @@ export class BrowserAgent {
           
           const responsePromise = this.anthropic.messages.create({
             model: "claude-3-7-sonnet-20250219",
-            system: this.getSystemPrompt(),
+            system: this.promptManager.getSystemPrompt(),
             temperature: 0,
             max_tokens: MAX_OUTPUT_TOKENS,
             messages,
@@ -747,7 +453,7 @@ export class BrowserAgent {
 
           // Set up a check for cancellation during LLM call
           const checkCancellation = async () => {
-            while (!this.isCancelled) {
+            while (!this.errorHandler.isExecutionCancelled()) {
               await new Promise(resolve => setTimeout(resolve, 100)); // Check every 100ms
             }
             // If we get here, cancellation was requested
@@ -761,7 +467,7 @@ export class BrowserAgent {
           ]);
 
           // If cancelled during LLM call
-          if (this.isCancelled || !response) {
+          if (this.errorHandler.isExecutionCancelled() || !response) {
             break;
           }
 
@@ -783,7 +489,7 @@ export class BrowserAgent {
           callbacks.onLlmOutput(assistantText);
 
           // Check for cancellation after LLM response
-          if (this.isCancelled) break;
+          if (this.errorHandler.isExecutionCancelled()) break;
 
           // ── 2. Parse for tool invocation ─────────────────────────────────────
           const toolMatch = assistantText.match(
@@ -815,14 +521,14 @@ export class BrowserAgent {
           const toolName = toolNameRaw.trim();
           const toolInput = toolInputRaw.trim();
           const llmRequiresApproval = requiresApprovalRaw ? requiresApprovalRaw.trim().toLowerCase() === 'true' : false;
-          const tool = this.tools.find((t) => t.name === toolName);
+          const tool = this.toolManager.findTool(toolName);
 
           if (!tool) {
             messages.push(
               { role: "assistant", content: assistantText },
               {
                 role: "user",
-                content: `Error: tool "${toolName}" not found. Available: ${this.tools
+                content: `Error: tool "${toolName}" not found. Available: ${this.toolManager.getTools()
                   .map((t) => t.name)
                   .join(", ")}`,
               }
@@ -831,7 +537,7 @@ export class BrowserAgent {
           }
 
           // Check for cancellation before tool execution
-          if (this.isCancelled) break;
+          if (this.errorHandler.isExecutionCancelled()) break;
 
           // ── 3. Execute tool ──────────────────────────────────────────────────
           callbacks.onToolOutput(`🕹️ tool: ${toolName} | args: ${toolInput}`);
@@ -855,7 +561,7 @@ export class BrowserAgent {
               callbacks.onToolOutput(`✅ Action approved by user. Executing...`);
               
               // Create a context object to pass to the tool
-              const context: ToolExecutionContext = {
+              const context = {
                 requiresApproval: true,
                 approvalReason: reason
               };
@@ -873,7 +579,7 @@ export class BrowserAgent {
           }
 
           // Check for cancellation after tool execution
-          if (this.isCancelled) break;
+          if (this.errorHandler.isExecutionCancelled()) break;
 
           // ── 4. Record turn & prune history ───────────────────────────────────
           messages.push(
@@ -926,12 +632,12 @@ export class BrowserAgent {
           messages = trimHistory(messages);
         } catch (error) {
           // If an error occurs during execution, check if it was due to cancellation
-          if (this.isCancelled) break;
+          if (this.errorHandler.isExecutionCancelled()) break;
           throw error; // Re-throw if it wasn't a cancellation
         }
       }
 
-      if (this.isCancelled) {
+      if (this.errorHandler.isExecutionCancelled()) {
         callbacks.onLlmOutput(
           `\n\nExecution cancelled by user.`
         );
@@ -943,7 +649,7 @@ export class BrowserAgent {
       callbacks.onComplete();
     } catch (err: any) {
       // Check if this is a rate limit error
-      if (err?.error?.type === 'rate_limit_error') {
+      if (this.errorHandler.isRateLimitError(err)) {
         console.log("Rate limit error detected in non-streaming mode:", err);
         // For rate limit errors, notify but don't complete processing
         if (callbacks.onError) {
@@ -970,48 +676,4 @@ export class BrowserAgent {
       }
     }
   }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Factory helpers
-// ──────────────────────────────────────────────────────────────────────────────
-
-export async function createBrowserAgent(
-  page: Page,
-  apiKey: string
-): Promise<BrowserAgent> {
-  return new BrowserAgent(page, apiKey);
-}
-
-export async function executePrompt(
-  agent: BrowserAgent,
-  prompt: string,
-  callbacks: {
-    onLlmChunk?: (s: string) => void;
-    onLlmOutput: (s: string) => void;
-    onToolOutput: (s: string) => void;
-    onComplete: () => void;
-  },
-  initialMessages: Anthropic.MessageParam[] = []
-): Promise<void> {
-  return agent.executePrompt(prompt, callbacks, initialMessages);
-}
-
-export async function executePromptWithFallback(
-  agent: BrowserAgent,
-  prompt: string,
-  callbacks: {
-    onLlmChunk?: (s: string) => void;
-    onLlmOutput: (s: string) => void;
-    onToolOutput: (s: string) => void;
-    onComplete: () => void;
-    onToolStart?: (toolName: string, toolInput: string) => void;
-    onToolEnd?: (result: string) => void;
-    onSegmentComplete?: (segment: string) => void;
-    onError?: (error: any) => void;
-    onFallbackStarted?: () => void; // Add the new callback to the type definition
-  },
-  initialMessages: Anthropic.MessageParam[] = []
-): Promise<void> {
-  return agent.executePromptWithFallback(prompt, callbacks, initialMessages);
 }

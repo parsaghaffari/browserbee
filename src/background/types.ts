@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { BrowserAgent } from "../agent/agent";
+import { BrowserAgent } from "../agent/AgentCore";
 
 // Message types
 export interface ExecutePromptMessage {
@@ -163,19 +163,6 @@ export type UIMessage =
   | UpdateScreenshotMessage
   | TokenUsageUpdatedMessage
   | RequestApprovalMessage;
-
-// Callback types
-export interface ExecutePromptCallbacks {
-  onLlmChunk?: (s: string) => void;
-  onLlmOutput: (s: string) => void;
-  onToolOutput: (s: string) => void;
-  onComplete: () => void;
-  onError?: (error: any) => void;
-  onToolStart?: (toolName: string, toolInput: string) => void;
-  onToolEnd?: (result: string) => void;
-  onSegmentComplete?: (segment: string) => void;
-  onFallbackStarted?: () => void;
-}
 
 // State types
 export interface TabState {

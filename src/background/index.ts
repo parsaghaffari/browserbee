@@ -1,6 +1,7 @@
 import { setupMessageListeners } from './messageHandler';
 import { cleanupOnUnload } from './tabManager';
 import { logWithTimestamp } from './utils';
+import { MemoryService } from '../tracking/memoryService';
 
 /**
  * Initialize the extension
@@ -27,6 +28,17 @@ function setupEventListeners(): void {
     if (details.reason === 'install') {
       chrome.runtime.openOptionsPage();
     }
+    
+    // Initialize the memory database on install or update
+    if (details.reason === 'install' || details.reason === 'update') {
+      logWithTimestamp('Initializing memory database');
+      const memoryService = MemoryService.getInstance();
+      memoryService.init().then(() => {
+        logWithTimestamp('Memory database initialized successfully');
+      }).catch(error => {
+        logWithTimestamp(`Error initializing memory database: ${error}`, 'error');
+      });
+    }
   });
   
   // Open the side panel when the extension icon is clicked
@@ -42,6 +54,22 @@ function setupEventListeners(): void {
     try {
       await cleanupOnUnload();
       logWithTimestamp('Cleanup completed successfully');
+      
+      // Delete the memory database on uninstall/disable
+      try {
+        logWithTimestamp('Deleting memory database');
+        const request = indexedDB.deleteDatabase('browserbee-memories');
+        
+        request.onsuccess = () => {
+          logWithTimestamp('Memory database deleted successfully');
+        };
+        
+        request.onerror = (event) => {
+          logWithTimestamp(`Error deleting memory database: ${(event.target as IDBRequest).error}`, 'error');
+        };
+      } catch (error) {
+        logWithTimestamp(`Exception deleting memory database: ${error}`, 'error');
+      }
     } catch (error) {
       logWithTimestamp(`Error during cleanup: ${String(error)}`, 'error');
     }
@@ -53,6 +81,22 @@ function setupEventListeners(): void {
     try {
       await cleanupOnUnload();
       logWithTimestamp('Cleanup before update completed successfully');
+      
+      // Delete the memory database before update
+      try {
+        logWithTimestamp('Deleting memory database before update');
+        const request = indexedDB.deleteDatabase('browserbee-memories');
+        
+        request.onsuccess = () => {
+          logWithTimestamp('Memory database deleted successfully before update');
+        };
+        
+        request.onerror = (event) => {
+          logWithTimestamp(`Error deleting memory database before update: ${(event.target as IDBRequest).error}`, 'error');
+        };
+      } catch (error) {
+        logWithTimestamp(`Exception deleting memory database before update: ${error}`, 'error');
+      }
     } catch (error) {
       logWithTimestamp(`Error during pre-update cleanup: ${String(error)}`, 'error');
     }

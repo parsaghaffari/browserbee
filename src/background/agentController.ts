@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createBrowserAgent, executePromptWithFallback, BrowserAgent, contextTokenCount } from "../agent/agent";
+import { BrowserAgent, createBrowserAgent, executePromptWithFallback } from "../agent/AgentCore";
+import { contextTokenCount } from "../agent/TokenManager";
 import { ScreenshotManager } from "../tracking/screenshotManager";
-import { ExecutePromptCallbacks } from "./types";
+import { ExecutionCallbacks } from "../agent/ExecutionEngine";
 import { sendUIMessage, logWithTimestamp, handleError } from "./utils";
 import { getCurrentTabId, getTabState, setTabState } from "./tabManager";
 import { saveReflectionMemory } from "./reflectionController";
@@ -338,7 +339,7 @@ Remember to follow the verification-first workflow: navigate → observe → ana
     }
     
     // Create callbacks for the agent
-    const callbacks: ExecutePromptCallbacks = {
+    const callbacks: ExecutionCallbacks = {
       onLlmChunk: (chunk) => {
         if (useStreaming) {
           // Add chunk to buffer

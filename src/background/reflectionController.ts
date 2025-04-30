@@ -2,7 +2,7 @@ import { logWithTimestamp, handleError, sendUIMessage } from './utils';
 import { getTabState } from './tabManager';
 import { executePrompt } from './agentController';
 import { MemoryService, AgentMemory } from '../tracking/memoryService';
-import { ExecutePromptCallbacks } from './types';
+import { ExecutionCallbacks } from '../agent/ExecutionEngine';
 
 // Function to directly save a memory from the reflection process
 export async function saveReflectionMemory(content: string, domain: string, tabId: number): Promise<void> {
