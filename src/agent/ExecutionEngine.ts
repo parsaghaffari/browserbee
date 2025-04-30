@@ -74,9 +74,9 @@ export class ExecutionEngine {
           callbacks.onFallbackStarted();
         }
         
-        // Check if this is a rate limit error
-        if (this.errorHandler.isRateLimitError(error)) {
-          console.log("Rate limit error detected in fallback handler:", error);
+        // Check if this is a retryable error (rate limit or overloaded)
+        if (this.errorHandler.isRetryableError(error)) {
+          console.log("Retryable error detected in fallback handler:", error);
           // Ensure the error callback is called even during fallback
           if (callbacks.onError) {
             callbacks.onError(error);
@@ -381,15 +381,15 @@ export class ExecutionEngine {
       }
       callbacks.onComplete();
     } catch (err: any) {
-      // Check if this is a rate limit error
-      if (this.errorHandler.isRateLimitError(err)) {
-        console.log("Rate limit error detected in streaming mode:", err);
-        // For rate limit errors, notify but don't complete processing
+      // Check if this is a retryable error (rate limit or overloaded)
+      if (this.errorHandler.isRetryableError(err)) {
+        console.log("Retryable error detected in streaming mode:", err);
+        // For retryable errors, notify but don't complete processing
         // This allows the fallback mechanism to retry while maintaining UI state
         if (callbacks.onError) {
           callbacks.onError(err);
         } else {
-          callbacks.onLlmOutput(`Rate limit error: ${err.error.message}`);
+          callbacks.onLlmOutput(this.errorHandler.formatErrorMessage(err));
         }
         
         // Notify about fallback before re-throwing
@@ -648,25 +648,45 @@ export class ExecutionEngine {
       }
       callbacks.onComplete();
     } catch (err: any) {
-      // Check if this is a rate limit error
-      if (this.errorHandler.isRateLimitError(err)) {
-        console.log("Rate limit error detected in non-streaming mode:", err);
-        // For rate limit errors, notify but don't complete processing
+      // Check if this is a retryable error (rate limit or overloaded)
+      if (this.errorHandler.isRetryableError(err)) {
+        console.log("Retryable error detected in non-streaming mode:", err);
+        // For retryable errors, notify but don't complete processing
         if (callbacks.onError) {
           callbacks.onError(err);
         } else {
-          callbacks.onLlmOutput(`Rate limit error: ${err.error.message}`);
+          callbacks.onLlmOutput(this.errorHandler.formatErrorMessage(err));
         }
         
-        // Since this is already the fallback mode, we need to retry
-        // Wait a bit before retrying to avoid hitting rate limits again
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Get retry attempt from error if available, or default to 0
+        const retryAttempt = (err as any).retryAttempt || 0;
         
-        // Notify that we're retrying
-        callbacks.onToolOutput("Retrying after rate limit error...");
+        // Maximum number of retry attempts
+        const MAX_RETRY_ATTEMPTS = 5;
         
-        // Recursive retry with the same parameters
-        return this.executePrompt(prompt, callbacks, initialMessages);
+        if (retryAttempt < MAX_RETRY_ATTEMPTS) {
+          // Calculate backoff time using the ErrorHandler
+          const backoffTime = this.errorHandler.calculateBackoffTime(err, retryAttempt);
+          
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, backoffTime));
+          
+          // Notify that we're retrying
+          const errorType = this.errorHandler.isOverloadedError(err) ? 'server overload' : 'rate limit';
+          callbacks.onToolOutput(`Retrying after ${errorType} error (attempt ${retryAttempt + 1} of ${MAX_RETRY_ATTEMPTS})...`);
+          
+          // Increment retry attempt for the next try
+          (err as any).retryAttempt = retryAttempt + 1;
+          
+          // Recursive retry with the same parameters
+          return this.executePrompt(prompt, callbacks, initialMessages);
+        } else {
+          // We've exceeded the maximum number of retry attempts
+          callbacks.onLlmOutput(
+            `Maximum retry attempts (${MAX_RETRY_ATTEMPTS}) exceeded. Please try again later.`
+          );
+          callbacks.onComplete();
+        }
       } else {
         // For other errors, show error and complete processing
         callbacks.onLlmOutput(

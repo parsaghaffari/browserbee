@@ -37,6 +37,20 @@ export class ErrorHandler {
   }
   
   /**
+   * Check if an error is an overloaded error
+   */
+  isOverloadedError(error: any): boolean {
+    return error?.error?.type === 'overloaded_error';
+  }
+  
+  /**
+   * Check if an error is a retryable error (rate limit or overloaded)
+   */
+  isRetryableError(error: any): boolean {
+    return this.isRateLimitError(error) || this.isOverloadedError(error);
+  }
+  
+  /**
    * Format an error message for display
    */
   formatErrorMessage(error: any): string {
@@ -44,7 +58,34 @@ export class ErrorHandler {
       return `Rate limit error: ${error.error.message}`;
     }
     
+    if (this.isOverloadedError(error)) {
+      return `Anthropic servers overloaded: ${error.error.message}. Retrying...`;
+    }
+    
     return `Error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  
+  /**
+   * Calculate backoff time for retries based on error type and retry attempt
+   * @param error The error that occurred
+   * @param retryAttempt The current retry attempt (0-based)
+   * @returns Time to wait in milliseconds before retrying
+   */
+  calculateBackoffTime(error: any, retryAttempt: number = 0): number {
+    // Base backoff time
+    let baseBackoff = 1000; // 1 second
+    
+    // For overloaded errors, use a longer base backoff
+    if (this.isOverloadedError(error)) {
+      baseBackoff = 2000; // 2 seconds
+    }
+    
+    // Exponential backoff with jitter
+    // 2^retryAttempt * baseBackoff + random jitter (up to 25%)
+    const exponentialPart = Math.pow(2, Math.min(retryAttempt, 5)) * baseBackoff;
+    const jitter = Math.random() * 0.25 * exponentialPart;
+    
+    return Math.floor(exponentialPart + jitter);
   }
   
   /**

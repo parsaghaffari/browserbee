@@ -435,12 +435,14 @@ Remember to follow the verification-first workflow: navigate → observe → ana
         }
       },
       onError: (error) => {
-        // For rate limit errors, show a message but don't complete processing
-        if (error?.error?.type === 'rate_limit_error') {
-          logWithTimestamp("Rate limit error detected: " + JSON.stringify(error), 'warn');
+        // For retryable errors (rate limit or overloaded), show a message but don't complete processing
+        if (error?.error?.type === 'rate_limit_error' || error?.error?.type === 'overloaded_error') {
+          const errorType = error?.error?.type === 'overloaded_error' ? 'Anthropic servers overloaded' : 'Rate limit exceeded';
+          logWithTimestamp(`${errorType} error detected: ${JSON.stringify(error)}`, 'warn');
+          
           sendUIMessage('updateOutput', {
             type: 'system',
-            content: `⚠️ Rate limit exceeded. Retrying... (${error.error.message})`
+            content: `⚠️ ${errorType}. Retrying... (${error.error.message})`
           }, targetTabId);
           
           // Explicitly tell the UI to stay in processing mode
