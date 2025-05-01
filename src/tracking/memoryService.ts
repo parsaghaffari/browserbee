@@ -1,4 +1,5 @@
 import { logWithTimestamp } from '../background/utils';
+import { normalizeDomain } from './domainUtils';
 
 export interface AgentMemory {
   id?: number;
@@ -190,6 +191,9 @@ export class MemoryService {
       throw new Error('Database not initialized');
     }
     
+    // Normalize the domain
+    const normalizedDomain = normalizeDomain(memory.domain);
+    
     return new Promise((resolve, reject) => {
       try {
         const transaction = this.db!.transaction([this.STORE_NAME], 'readonly');
@@ -197,7 +201,7 @@ export class MemoryService {
         const index = store.index('domain');
         
         // Get all memories for this domain
-        const request = index.getAll(memory.domain);
+        const request = index.getAll(normalizedDomain);
         
         request.onsuccess = (event) => {
           const memories = (event.target as IDBRequest<AgentMemory[]>).result;
@@ -300,6 +304,9 @@ export class MemoryService {
       throw new Error('Database not initialized');
     }
     
+    // Normalize the domain before storing
+    memory.domain = normalizeDomain(memory.domain);
+    
     // Check if a similar memory already exists
     const existingId = await this.findSimilarMemory(memory);
     
@@ -361,13 +368,16 @@ export class MemoryService {
       throw new Error('Database not initialized');
     }
     
+    // Normalize the domain for consistent lookup
+    const normalizedDomain = normalizeDomain(domain);
+    
     return new Promise((resolve, reject) => {
       try {
         const transaction = this.db!.transaction([this.STORE_NAME], 'readonly');
         const store = transaction.objectStore(this.STORE_NAME);
         const index = store.index('domain');
         
-        const request = index.getAll(domain);
+        const request = index.getAll(normalizedDomain);
         
         request.onsuccess = (event) => {
           const memories = (event.target as IDBRequest<AgentMemory[]>).result;

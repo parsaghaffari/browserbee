@@ -3,11 +3,15 @@ import { getTabState } from './tabManager';
 import { executePrompt } from './agentController';
 import { MemoryService, AgentMemory } from '../tracking/memoryService';
 import { ExecutionCallbacks } from '../agent/ExecutionEngine';
+import { normalizeDomain } from '../tracking/domainUtils';
 
 // Function to directly save a memory from the reflection process
 export async function saveReflectionMemory(content: string, domain: string, tabId: number): Promise<void> {
   try {
-    await processReflectionOutput(content, domain, tabId);
+    // Normalize the domain to ensure consistency
+    const normalizedDomain = normalizeDomain(domain);
+    
+    await processReflectionOutput(content, normalizedDomain, tabId);
     // No UI message here - processReflectionOutput will handle notifications
   } catch (error) {
     // Send an error notification to the UI
@@ -62,7 +66,8 @@ export async function triggerReflection(tabId?: number): Promise<void> {
       const tab = await chrome.tabs.get(activeTabId);
       if (tab.url) {
         const url = new URL(tab.url);
-        domain = url.hostname;
+        // Normalize the domain to ensure consistency
+        domain = normalizeDomain(url.hostname);
       }
     } catch (error) {
       handleError(error, 'getting tab URL for reflection');
@@ -94,6 +99,8 @@ export async function triggerReflection(tabId?: number): Promise<void> {
       }
       
       Focus only on the most useful and reusable patterns. If multiple tasks were performed, create separate memory records for each distinct task. Only save memories that are new or significantly different from existing ones.
+      
+      NOTE: The domain will be normalized (e.g., "www.example.com" becomes "example.com") to ensure consistent memory retrieval regardless of whether the user includes "www." or not.
       
       IMPORTANT: Your response must be valid JSON or a code block containing valid JSON.
     `;
@@ -169,6 +176,9 @@ async function processReflectionOutput(output: string, domain: string, tabId: nu
           logWithTimestamp(`Invalid memory: missing required fields`, 'warn');
           continue;
         }
+        
+        // Normalize the domain of the memory
+        memory.domain = normalizeDomain(memory.domain);
         
         // Save the memory
         try {

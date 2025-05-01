@@ -1,6 +1,7 @@
 import type { Page } from "playwright-crx/test";
 import { MemoryService, AgentMemory } from '../../tracking/memoryService';
 import { logWithTimestamp } from '../../background/utils';
+import { normalizeDomain } from '../../tracking/domainUtils';
 
 export function saveMemory(page: Page) {
   return {
@@ -9,10 +10,17 @@ export function saveMemory(page: Page) {
     func: async (input: string): Promise<string> => {
       try {
         const inputObj = JSON.parse(input);
-        const { domain, taskDescription, toolSequence } = inputObj;
+        let { domain, taskDescription, toolSequence } = inputObj;
         
         if (!domain || !taskDescription || !toolSequence) {
           return "Error: Missing required fields. Please provide domain, taskDescription, and toolSequence.";
+        }
+        
+        // Normalize the domain
+        domain = normalizeDomain(domain);
+        
+        if (!domain) {
+          return "Error: Invalid domain provided.";
         }
         
         const memory: AgentMemory = {
@@ -40,27 +48,14 @@ export function lookupMemories(page: Page) {
     description: "Look up stored memories for a specific website domain. Use this as your FIRST step when starting a task on a website to check if there are any saved patterns you can reuse. Always call this with the current domain (e.g., 'www.google.com').",
     func: async (input: string): Promise<string> => {
       try {
-        // Extract domain from input, handling both direct domain input and URLs
+        // Extract and normalize domain from input
         let domain = input.trim();
         
-        // If it looks like a URL, extract the domain
-        if (domain.includes('://') || domain.includes('.')) {
-          try {
-            // If it's a full URL, parse it
-            if (domain.includes('://')) {
-              domain = new URL(domain).hostname;
-            } 
-            // If it's just a domain without protocol, ensure it's just the hostname
-            else if (domain.includes('.')) {
-              domain = domain.split('/')[0];
-            }
-          } catch (e) {
-            // If URL parsing fails, use the input as is
-          }
-        }
+        // Normalize the domain using the utility function
+        domain = normalizeDomain(domain);
         
         if (!domain) {
-          return "Error: Please provide a domain to lookup memories for.";
+          return "Error: Please provide a valid domain to lookup memories for.";
         }
         
         const memoryService = MemoryService.getInstance();
