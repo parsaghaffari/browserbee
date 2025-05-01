@@ -30,5 +30,6 @@ later:
 - [ ] session replay feature
 - [x] task memory using indexedDB (<website, task, steps, outcome>) 
 -- [x] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
--- [ ] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
+-- [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
+-- [ ] include pre-built memories for major websites
 - [ ] scheduler for recurring tasks using chrome.alarms
