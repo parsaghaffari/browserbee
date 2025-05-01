@@ -14,9 +14,17 @@ BrowserBee uses a modular agent architecture with three key modules:
 
 ### Agent Module
 
-The Agent Module is responsible for processing user instructions and executing browser automation tasks.
+The Agent Module is responsible for processing user instructions and executing browser automation tasks. It has been refactored into a modular component structure for improved maintainability:
 
-- **agent/agent.ts**: Core agent implementation using Claude 3 Sonnet
+- **agent/AgentCore.ts**: Main agent class that coordinates all components
+- **agent/TokenManager.ts**: Token estimation and message history trimming
+- **agent/ToolManager.ts**: Tool wrapping with health checks
+- **agent/PromptManager.ts**: System prompt generation
+- **agent/MemoryManager.ts**: Memory lookup and integration
+- **agent/ErrorHandler.ts**: Cancellation and error handling
+- **agent/ExecutionEngine.ts**: Streaming and non-streaming execution
+- **agent/approvalManager.ts**: Handles user approval for sensitive actions
+
 - **agent/tools/**: Browser automation tools organized by functionality
   - **navigationTools.ts**: Browser navigation functions (go to URL, back, forward, refresh)
   - **interactionTools.ts**: User interaction functions (click, type, scroll)
@@ -24,6 +32,7 @@ The Agent Module is responsible for processing user instructions and executing b
   - **mouseTools.ts**: Mouse movement and interaction (move, hover, drag)
   - **keyboardTools.ts**: Keyboard input functions (press keys, keyboard shortcuts)
   - **tabTools.ts**: Tab management functions (create, switch, close tabs)
+  - **memoryTools.ts**: Memory storage and retrieval functions
   - **types.ts**: Type definitions for tools
   - **utils.ts**: Utility functions for tools
   - **index.ts**: Tool exports and registration
@@ -116,12 +125,30 @@ The Side Panel is the main interface for interacting with BrowserBee. It has bee
 - **options/Options.css**: Styling for the options page
 - **options/index.tsx**: Entry point for the options page
 
+### Tracking Module
+
+The Tracking Module handles memory storage, token tracking, and other tracking-related functionality.
+
+- **tracking/memoryService.ts**: Manages storage and retrieval of agent memories
+  - Handles IndexedDB operations
+  - Provides memory storage and retrieval
+  - Includes self-healing database functionality
+- **tracking/tokenTrackingService.ts**: Tracks token usage for API calls
+- **tracking/screenshotManager.ts**: Manages screenshot storage and retrieval
+- **tracking/domainUtils.ts**: Utilities for working with domains
+
 ## Data Flow
 
 1. User enters a prompt in the Side Panel
 2. The prompt is sent to the Background Module
 3. The Background Module initializes the Agent
-4. The Agent processes the prompt and executes browser actions
+4. The Agent processes the prompt and executes browser actions:
+   - TokenManager handles token estimation and history trimming
+   - PromptManager generates the system prompt
+   - ExecutionEngine manages the execution flow
+   - ToolManager provides access to browser tools
+   - MemoryManager integrates relevant memories
+   - ErrorHandler manages error conditions
 5. Results are streamed back to the Side Panel
 6. The Side Panel displays the results to the user
 
@@ -129,7 +156,10 @@ The Side Panel is the main interface for interacting with BrowserBee. It has bee
 
 - The Side Panel communicates with the Background Module through Chrome messaging
 - The Background Module manages the Agent and coordinates its actions
+- The Agent Core coordinates the specialized components (TokenManager, ToolManager, etc.)
+- Each specialized component handles a specific aspect of the agent's functionality
 - The Agent uses tools to interact with the browser
+- The Tracking Module provides persistence and monitoring services
 - The Options Page configures the extension settings used by the Background Module
 
 ## File Organization
@@ -149,3 +179,5 @@ The project follows a modular structure with clear separation of concerns:
 3. **Reusability**: Common functionality is extracted into reusable components and hooks
 4. **Type Safety**: TypeScript is used throughout the project for type safety
 5. **Maintainability**: Code is organized to be easy to understand and maintain
+6. **Resilience**: Self-healing mechanisms are implemented for critical components
+7. **Lifecycle Management**: Extension installation, updates, and uninstallation are properly handled
