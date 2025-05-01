@@ -14,7 +14,7 @@ BrowserBee uses a modular agent architecture with three key modules:
 
 ### Agent Module
 
-The Agent Module is responsible for processing user instructions and executing browser automation tasks. It has been refactored into a modular component structure for improved maintainability:
+The Agent Module is responsible for processing user instructions and executing browser automation tasks. It consists of a few sub-modules:
 
 - **agent/AgentCore.ts**: Main agent class that coordinates all components
 - **agent/TokenManager.ts**: Token estimation and message history trimming
