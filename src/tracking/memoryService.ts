@@ -178,6 +178,119 @@ export class MemoryService {
     await this.ensureObjectStoreExists();
   }
   
+  /**
+   * Check if a similar memory already exists
+   * @param memory The memory to check for duplicates
+   * @returns The ID of the existing memory if found, null otherwise
+   */
+  public async findSimilarMemory(memory: AgentMemory): Promise<number | null> {
+    await this.ensureInitialized();
+    
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+    
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = this.db!.transaction([this.STORE_NAME], 'readonly');
+        const store = transaction.objectStore(this.STORE_NAME);
+        const index = store.index('domain');
+        
+        // Get all memories for this domain
+        const request = index.getAll(memory.domain);
+        
+        request.onsuccess = (event) => {
+          const memories = (event.target as IDBRequest<AgentMemory[]>).result;
+          
+          // Check if any existing memory has the same task description
+          const similarMemory = memories.find(m => 
+            m.taskDescription.toLowerCase() === memory.taskDescription.toLowerCase()
+          );
+          
+          if (similarMemory && similarMemory.id) {
+            logWithTimestamp(`Found similar memory with ID ${similarMemory.id} for task "${memory.taskDescription}"`);
+            resolve(similarMemory.id);
+          } else {
+            resolve(null);
+          }
+        };
+        
+        request.onerror = (event) => {
+          const error = (event.target as IDBRequest).error;
+          logWithTimestamp(`Error checking for similar memories: ${error?.message || 'Unknown error'}`, 'error');
+          reject(error);
+        };
+      } catch (error) {
+        logWithTimestamp(`Exception checking for similar memories: ${error instanceof Error ? error.message : String(error)}`, 'error');
+        reject(error);
+      }
+    });
+  }
+  
+  /**
+   * Update an existing memory
+   * @param id The ID of the memory to update
+   * @param memory The updated memory data
+   * @returns Promise resolving to the ID of the updated memory
+   */
+  public async updateMemory(id: number, memory: Partial<AgentMemory>): Promise<number> {
+    await this.ensureInitialized();
+    
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+    
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = this.db!.transaction([this.STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(this.STORE_NAME);
+        
+        // First get the existing memory
+        const getRequest = store.get(id);
+        
+        getRequest.onsuccess = (event) => {
+          const existingMemory = (event.target as IDBRequest<AgentMemory>).result;
+          
+          if (!existingMemory) {
+            reject(new Error(`Memory with ID ${id} not found`));
+            return;
+          }
+          
+          // Update the memory with new data
+          const updatedMemory = {
+            ...existingMemory,
+            ...memory,
+            // Always update the timestamp
+            createdAt: Date.now()
+          };
+          
+          // Put the updated memory back
+          const putRequest = store.put(updatedMemory);
+          
+          putRequest.onsuccess = () => {
+            logWithTimestamp(`Successfully updated memory with ID ${id}`);
+            resolve(id);
+          };
+          
+          putRequest.onerror = (event) => {
+            const error = (event.target as IDBRequest).error;
+            logWithTimestamp(`Error updating memory: ${error?.message || 'Unknown error'}`, 'error');
+            reject(error);
+          };
+        };
+        
+        getRequest.onerror = (event) => {
+          const error = (event.target as IDBRequest).error;
+          logWithTimestamp(`Error getting memory for update: ${error?.message || 'Unknown error'}`, 'error');
+          reject(error);
+        };
+      } catch (error) {
+        logWithTimestamp(`Exception updating memory: ${error instanceof Error ? error.message : String(error)}`, 'error');
+        reject(error);
+      }
+    });
+  }
+  
   // Store a new memory
   public async storeMemory(memory: AgentMemory): Promise<number> {
     await this.ensureInitialized();
@@ -187,7 +300,16 @@ export class MemoryService {
       throw new Error('Database not initialized');
     }
     
-    logWithTimestamp(`Storing memory for domain ${memory.domain}`);
+    // Check if a similar memory already exists
+    const existingId = await this.findSimilarMemory(memory);
+    
+    // If a similar memory exists, update it instead of creating a new one
+    if (existingId !== null) {
+      logWithTimestamp(`Similar memory found with ID ${existingId}, updating instead of creating duplicate`);
+      return this.updateMemory(existingId, memory);
+    }
+    
+    logWithTimestamp(`No similar memory found, storing new memory for domain ${memory.domain}`);
     
     return new Promise((resolve, reject) => {
       try {

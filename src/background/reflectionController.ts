@@ -93,7 +93,7 @@ export async function triggerReflection(tabId?: number): Promise<void> {
         "toolSequence": ["tool1 | input1", "tool2 | input2", ...]
       }
       
-      Focus only on the most useful and reusable patterns. If multiple tasks were performed, create separate memory records for each distinct task.
+      Focus only on the most useful and reusable patterns. If multiple tasks were performed, create separate memory records for each distinct task. Only save memories that are new or significantly different from existing ones.
       
       IMPORTANT: Your response must be valid JSON or a code block containing valid JSON.
     `;
