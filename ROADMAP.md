@@ -23,11 +23,12 @@ HN launch:
 - [x] hygiene and marketing (readme, license, acknowledgements)
 - [x] marketing videos
 - [ ] llm adaptors (config in options, show active LLM)
-- [ ] add sessions (similar to Cline tasks) with persistence in local DB
+- [ ] add saved prompts with persistence in local DB
 - [ ] max llm calls: allow user to configure, ask for user permission to exceed
 
 later:
 - [ ] session replay feature
-- [x] task emory using indexedDB (<website, task, steps, outcome>)
--- [ ] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
+- [x] task memory using indexedDB (<website, task, steps, outcome>) 
+-- [x] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
+-- [ ] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
 - [ ] scheduler for recurring tasks using chrome.alarms
