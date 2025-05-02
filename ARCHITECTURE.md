@@ -4,25 +4,52 @@ This document provides a detailed overview of BrowserBee's architecture, compone
 
 ## Overview
 
-BrowserBee uses a modular agent architecture with three key modules:
+BrowserBee uses a modular agent architecture with four key modules:
 
 - **Agent Module** – Processes user instructions and maps them to browser actions
 - **Background Module** – Manages tab control, messaging, and task streaming
 - **UI Module** – Provides a clean sidebar interface for interaction and configuration
+- **Models Module** – Provides a flexible interface for multiple LLM providers
 
 ## Detailed Architecture
+
+### Models Module
+
+The Models Module provides a flexible interface for multiple LLM providers:
+
+- **models/providers/types.ts**: Common interfaces for all providers
+  - `ModelInfo`: Information about a model (name, pricing, etc.)
+  - `ProviderOptions`: Configuration options for a provider
+  - `StreamChunk`: Common format for streaming responses
+  - `LLMProvider`: Interface that all providers must implement
+
+- **models/providers/factory.ts**: Factory function to create providers
+  - Creates the appropriate provider based on configuration
+
+- **models/providers/anthropic.ts**: Anthropic Claude provider implementation
+  - Handles Claude-specific streaming and features
+  - Supports Claude's thinking feature
+
+- **models/providers/openai.ts**: OpenAI GPT provider implementation
+  - Handles OpenAI-specific streaming and features
+
+- **models/providers/gemini.ts**: Google Gemini provider implementation
+  - Handles Gemini-specific streaming and features
 
 ### Agent Module
 
 The Agent Module is responsible for processing user instructions and executing browser automation tasks. It consists of a few sub-modules:
 
 - **agent/AgentCore.ts**: Main agent class that coordinates all components
+  - Uses the provider factory to create the appropriate LLM provider
+  - Configurable with different LLM providers
 - **agent/TokenManager.ts**: Token estimation and message history trimming
 - **agent/ToolManager.ts**: Tool wrapping with health checks
 - **agent/PromptManager.ts**: System prompt generation
 - **agent/MemoryManager.ts**: Memory lookup and integration
 - **agent/ErrorHandler.ts**: Cancellation and error handling
 - **agent/ExecutionEngine.ts**: Streaming and non-streaming execution
+  - Provider-agnostic implementation that works with any LLM provider
 - **agent/approvalManager.ts**: Handles user approval for sensitive actions
 
 - **agent/tools/**: Browser automation tools organized by functionality
@@ -58,6 +85,9 @@ The Background Module manages the extension's background processes, including ta
   - Processes messages between components
   - Routes messages to appropriate handlers
   - Manages message queue
+- **background/configManager.ts**: Provider configuration management
+  - Stores and retrieves provider configuration
+  - Provides a singleton instance for global access
 - **background/types.ts**: Type definitions for background processes
 - **background/utils.ts**: Utility functions for background processes
 
@@ -101,6 +131,10 @@ The Side Panel is the main interface for interacting with BrowserBee. It has bee
   - **TabStatusBar.tsx**: Displays the current tab information
     - Shows active tab ID and title
     - Indicates connection status
+  - **TokenUsageDisplay.tsx**: Displays token usage and provider information
+    - Shows current LLM provider and model
+    - Tracks input and output tokens
+    - Displays estimated cost
 
 - **sidepanel/hooks/**: Custom React hooks for state and functionality
   - **useTabManagement.ts**: Manages tab-related functionality
@@ -119,9 +153,10 @@ The Side Panel is the main interface for interacting with BrowserBee. It has bee
 #### Options Page
 
 - **options/Options.tsx**: Options page for configuring the extension
-  - API key management
-  - Extension settings
-  - Configuration options
+  - Provider selection (Anthropic, OpenAI, Gemini)
+  - API key management for each provider
+  - Model selection for each provider
+  - Advanced configuration options
 - **options/Options.css**: Styling for the options page
 - **options/index.tsx**: Entry point for the options page
 
@@ -141,7 +176,7 @@ The Tracking Module handles memory storage, token tracking, and other tracking-r
 
 1. User enters a prompt in the Side Panel
 2. The prompt is sent to the Background Module
-3. The Background Module initializes the Agent
+3. The Background Module initializes the Agent with the configured LLM provider
 4. The Agent processes the prompt and executes browser actions:
    - TokenManager handles token estimation and history trimming
    - PromptManager generates the system prompt
@@ -161,6 +196,17 @@ The Tracking Module handles memory storage, token tracking, and other tracking-r
 - The Agent uses tools to interact with the browser
 - The Tracking Module provides persistence and monitoring services
 - The Options Page configures the extension settings used by the Background Module
+- The Models Module provides a flexible interface for multiple LLM providers
+
+## Provider System
+
+The provider system follows these design patterns:
+
+1. **Interface Segregation**: Each provider implements a common interface
+2. **Factory Pattern**: A factory function creates the appropriate provider
+3. **Adapter Pattern**: Each provider adapts its specific API to the common interface
+4. **Strategy Pattern**: Different providers can be swapped at runtime
+5. **Singleton Pattern**: The ConfigManager provides a single point of access to configuration
 
 ## File Organization
 
@@ -181,3 +227,4 @@ The project follows a modular structure with clear separation of concerns:
 5. **Maintainability**: Code is organized to be easy to understand and maintain
 6. **Resilience**: Self-healing mechanisms are implemented for critical components
 7. **Lifecycle Management**: Extension installation, updates, and uninstallation are properly handled
+8. **Provider Abstraction**: LLM providers are abstracted behind a common interface

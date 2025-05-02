@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { BrowserTool } from "./tools/types";
 import { ToolManager } from "./ToolManager";
 import { PromptManager } from "./PromptManager";
@@ -8,6 +7,7 @@ import { trimHistory } from "./TokenManager";
 import { ScreenshotManager } from "../tracking/screenshotManager";
 import { TokenTrackingService } from "../tracking/tokenTrackingService";
 import { requestApproval } from "./approvalManager";
+import { LLMProvider, StreamChunk } from "../models/providers/types";
 
 // Constants
 const MAX_STEPS = 50;            // prevent infinite loops
@@ -33,20 +33,20 @@ export interface ExecutionCallbacks {
  * and fallback mechanisms.
  */
 export class ExecutionEngine {
-  private anthropic: Anthropic;
+  private llmProvider: LLMProvider;
   private toolManager: ToolManager;
   private promptManager: PromptManager;
   private memoryManager: MemoryManager;
   private errorHandler: ErrorHandler;
   
   constructor(
-    anthropic: Anthropic,
+    llmProvider: LLMProvider,
     toolManager: ToolManager,
     promptManager: PromptManager,
     memoryManager: MemoryManager,
     errorHandler: ErrorHandler
   ) {
-    this.anthropic = anthropic;
+    this.llmProvider = llmProvider;
     this.toolManager = toolManager;
     this.promptManager = promptManager;
     this.memoryManager = memoryManager;
@@ -59,7 +59,7 @@ export class ExecutionEngine {
   async executePromptWithFallback(
     prompt: string,
     callbacks: ExecutionCallbacks,
-    initialMessages: Anthropic.MessageParam[] = []
+    initialMessages: any[] = []
   ): Promise<void> {
     const streamingSupported = await this.errorHandler.isStreamingSupported();
     
@@ -98,13 +98,13 @@ export class ExecutionEngine {
   async executePromptWithStreaming(
     prompt: string,
     callbacks: ExecutionCallbacks,
-    initialMessages: Anthropic.MessageParam[] = []
+    initialMessages: any[] = []
   ): Promise<void> {
     // Reset cancel flag at the start of execution
     this.errorHandler.resetCancel();
     try {
       // Use initial messages if provided, otherwise start with just the prompt
-      let messages: Anthropic.MessageParam[] = initialMessages.length > 0 
+      let messages: any[] = initialMessages.length > 0 
         ? [...initialMessages] 
         : [{ role: "user", content: prompt }];
       
@@ -129,13 +129,15 @@ export class ExecutionEngine {
           let streamBuffer = "";
           let toolCallDetected = false;
           
-          const stream = await this.anthropic.messages.stream({
-            model: "claude-3-7-sonnet-20250219",
-            system: this.promptManager.getSystemPrompt(),
-            temperature: 0,
-            max_tokens: MAX_OUTPUT_TOKENS,
+          // Get tools from the ToolManager
+          const tools = this.toolManager.getTools();
+          
+          // Use provider interface instead of direct Anthropic API
+          const stream = this.llmProvider.createMessage(
+            this.promptManager.getSystemPrompt(),
             messages,
-          });
+            tools
+          );
 
           // Track token usage
           let inputTokens = 0;
@@ -145,29 +147,40 @@ export class ExecutionEngine {
           for await (const chunk of stream) {
             if (this.errorHandler.isExecutionCancelled()) break;
             
-            // Track token usage from message_start event
-            if (chunk.type === 'message_start' && chunk.message && chunk.message.usage) {
-              inputTokens = chunk.message.usage.input_tokens || 0;
-              tokenTracker.trackInputTokens(inputTokens);
-            }
-            
-            // Track token usage from message_delta event
-            if (chunk.type === 'message_delta' && chunk.usage && chunk.usage.output_tokens) {
-              const newOutputTokens = chunk.usage.output_tokens;
+            // Track token usage
+            if (chunk.type === 'usage') {
+              // Debug log to help diagnose token tracking issues
+              console.debug(`Token update: input=${chunk.inputTokens || 0}, output=${chunk.outputTokens || 0}, cacheWrite=${chunk.cacheWriteTokens || 0}, cacheRead=${chunk.cacheReadTokens || 0}`);
               
-              // Only track the delta (new tokens)
-              if (newOutputTokens > outputTokens) {
-                const delta = newOutputTokens - outputTokens;
-                tokenTracker.trackOutputTokens(delta);
-                outputTokens = newOutputTokens;
+              // Handle input tokens (only from message_start)
+              if (chunk.inputTokens) {
+                inputTokens = chunk.inputTokens;
+                // Track input tokens with cache tokens if available
+                tokenTracker.trackInputTokens(
+                  inputTokens,
+                  {
+                    write: chunk.cacheWriteTokens,
+                    read: chunk.cacheReadTokens
+                  }
+                );
+              }
+              
+              // Always track output tokens (from both message_start and message_delta)
+              if (chunk.outputTokens) {
+                const newOutputTokens = chunk.outputTokens;
+                
+                // Only track the delta (new tokens)
+                if (newOutputTokens > outputTokens) {
+                  const delta = newOutputTokens - outputTokens;
+                  tokenTracker.trackOutputTokens(delta);
+                  outputTokens = newOutputTokens;
+                }
               }
             }
             
-            // Handle content block deltas (text chunks)
-            if (chunk.type === 'content_block_delta' && 
-                chunk.delta.type === 'text_delta' &&
-                'text' in chunk.delta) {
-              const textChunk = chunk.delta.text;
+            // Handle text chunks
+            if (chunk.type === 'text' && chunk.text) {
+              const textChunk = chunk.text;
               accumulatedText += textChunk;
               streamBuffer += textChunk;
               
@@ -413,13 +426,13 @@ export class ExecutionEngine {
   async executePrompt(
     prompt: string,
     callbacks: ExecutionCallbacks,
-    initialMessages: Anthropic.MessageParam[] = []
+    initialMessages: any[] = []
   ): Promise<void> {
     // Reset cancel flag at the start of execution
     this.errorHandler.resetCancel();
     try {
       // Use initial messages if provided, otherwise start with just the prompt
-      let messages: Anthropic.MessageParam[] = initialMessages.length > 0 
+      let messages: any[] = initialMessages.length > 0 
         ? [...initialMessages] 
         : [{ role: "user", content: prompt }];
       
@@ -443,13 +456,44 @@ export class ExecutionEngine {
           // Track token usage
           const tokenTracker = TokenTrackingService.getInstance();
           
-          const responsePromise = this.anthropic.messages.create({
-            model: "claude-3-7-sonnet-20250219",
-            system: this.promptManager.getSystemPrompt(),
-            temperature: 0,
-            max_tokens: MAX_OUTPUT_TOKENS,
-            messages,
-          });
+          // Use provider interface for non-streaming request
+          // We'll collect all chunks and process them at once
+          const responsePromise = (async () => {
+            // Get tools from the ToolManager
+            const tools = this.toolManager.getTools();
+            
+            const stream = this.llmProvider.createMessage(
+              this.promptManager.getSystemPrompt(),
+              messages,
+              tools
+            );
+            
+            let fullText = "";
+            let inputTokenCount = 0;
+            let outputTokenCount = 0;
+            
+            for await (const chunk of stream) {
+              if (chunk.type === "text" && chunk.text) {
+                fullText += chunk.text;
+              } else if (chunk.type === "usage") {
+                if (chunk.inputTokens) {
+                  inputTokenCount = chunk.inputTokens;
+                }
+                if (chunk.outputTokens) {
+                  outputTokenCount = chunk.outputTokens;
+                }
+              }
+            }
+            
+            // Return a structure similar to Anthropic's response
+            return {
+              content: [{ type: "text", text: fullText }],
+              usage: {
+                input_tokens: inputTokenCount,
+                output_tokens: outputTokenCount
+              }
+            };
+          })();
 
           // Set up a check for cancellation during LLM call
           const checkCancellation = async () => {
@@ -476,7 +520,22 @@ export class ExecutionEngine {
             const inputTokens = response.usage.input_tokens || 0;
             const outputTokens = response.usage.output_tokens || 0;
             
-            tokenTracker.trackInputTokens(inputTokens);
+            // Handle cache tokens if available (need to use any type to access these properties)
+            const usage = response.usage as any;
+            const cacheWriteTokens = usage.cache_creation_input_tokens || 0;
+            const cacheReadTokens = usage.cache_read_input_tokens || 0;
+            
+            // Debug log to help diagnose token tracking issues
+            console.debug(`Non-streaming token update: input=${inputTokens}, output=${outputTokens}, cacheWrite=${cacheWriteTokens}, cacheRead=${cacheReadTokens}`);
+            
+            // Track input tokens with cache tokens if available
+            tokenTracker.trackInputTokens(
+              inputTokens,
+              {
+                write: cacheWriteTokens,
+                read: cacheReadTokens
+              }
+            );
             tokenTracker.trackOutputTokens(outputTokens);
           }
 

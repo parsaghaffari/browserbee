@@ -1,4 +1,5 @@
-import { MODEL_INFO } from "../models/models";
+import { anthropicModels, openaiModels, geminiModels } from "../models/models";
+import { ConfigManager } from "../background/configManager";
 
 export interface TokenUsage {
   inputTokens: number;
@@ -14,10 +15,18 @@ export class TokenTrackingService {
   private outputTokens: number = 0;
   private cost: number = 0;
   
+  // Provider and model tracking
+  private configManager: ConfigManager;
+  private currentProvider: string = 'anthropic';
+  private currentModelId: string = '';
+  
   // Subscribers for UI updates
   private subscribers: (() => void)[] = [];
 
-  private constructor() {}
+  private constructor() {
+    this.configManager = ConfigManager.getInstance();
+    this.initializeProviderConfig();
+  }
 
   public static getInstance(): TokenTrackingService {
     if (!TokenTrackingService.instance) {
@@ -26,8 +35,26 @@ export class TokenTrackingService {
     return TokenTrackingService.instance;
   }
 
-  public trackInputTokens(tokens: number): void {
+  private async initializeProviderConfig() {
+    try {
+      const config = await this.configManager.getProviderConfig();
+      this.currentProvider = config.provider;
+      this.currentModelId = config.apiModelId || '';
+      this.updateCost(); // Recalculate with new provider/model
+    } catch (error) {
+      console.error('Failed to get provider config:', error);
+    }
+  }
+
+  public trackInputTokens(tokens: number, cacheTokens?: { write?: number, read?: number }): void {
     this.inputTokens += tokens;
+    
+    // Add cache tokens to the total if provided
+    if (cacheTokens) {
+      if (cacheTokens.write) this.inputTokens += cacheTokens.write;
+      if (cacheTokens.read) this.inputTokens += cacheTokens.read;
+    }
+    
     this.updateCost();
     this.notifySubscribers();
   }
@@ -60,10 +87,46 @@ export class TokenTrackingService {
     };
   }
 
+  // Update provider and model information
+  public updateProviderAndModel(provider: string, modelId: string): void {
+    this.currentProvider = provider;
+    this.currentModelId = modelId;
+    this.updateCost();
+    this.notifySubscribers();
+  }
+
   private updateCost(): void {
+    let inputPrice = 0;
+    let outputPrice = 0;
+    
+    // Get pricing based on current provider and model
+    switch (this.currentProvider) {
+      case 'anthropic':
+        if (this.currentModelId && this.currentModelId in anthropicModels) {
+          const model = anthropicModels[this.currentModelId as keyof typeof anthropicModels];
+          inputPrice = model.inputPrice;
+          outputPrice = model.outputPrice;
+        }
+        break;
+      case 'openai':
+        if (this.currentModelId && this.currentModelId in openaiModels) {
+          const model = openaiModels[this.currentModelId as keyof typeof openaiModels];
+          inputPrice = model.inputPrice;
+          outputPrice = model.outputPrice;
+        }
+        break;
+      case 'gemini':
+        if (this.currentModelId && this.currentModelId in geminiModels) {
+          const model = geminiModels[this.currentModelId as keyof typeof geminiModels];
+          inputPrice = model.inputPrice;
+          outputPrice = model.outputPrice;
+        }
+        break;
+    }
+    
     // Calculate cost based on price per million tokens
-    const inputCost = (MODEL_INFO.inputPrice / 1_000_000) * this.inputTokens;
-    const outputCost = (MODEL_INFO.outputPrice / 1_000_000) * this.outputTokens;
+    const inputCost = (inputPrice / 1_000_000) * this.inputTokens;
+    const outputCost = (outputPrice / 1_000_000) * this.outputTokens;
     this.cost = inputCost + outputCost;
   }
 

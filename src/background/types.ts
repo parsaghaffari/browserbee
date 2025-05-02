@@ -1,6 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { BrowserAgent } from "../agent/AgentCore";
 
+// Provider types
+export type ProviderType = 'anthropic' | 'openai' | 'gemini';
+
 // Message types
 export interface ExecutePromptMessage {
   action: 'executePrompt';
@@ -44,16 +47,6 @@ export interface ReflectAndLearnMessage {
   action: 'reflectAndLearn';
   tabId?: number;
 }
-
-export type BackgroundMessage = 
-  | ExecutePromptMessage
-  | CancelExecutionMessage
-  | ClearHistoryMessage
-  | InitializeTabMessage
-  | SwitchToTabMessage
-  | GetTokenUsageMessage
-  | ApprovalResponseMessage
-  | ReflectAndLearnMessage;
 
 // UI Message types
 export interface UpdateOutputMessage {
@@ -150,6 +143,18 @@ export interface RequestApprovalMessage {
   reason: string;
   tabId?: number;
 }
+
+export type BackgroundMessage = 
+  | ExecutePromptMessage
+  | CancelExecutionMessage
+  | ClearHistoryMessage
+  | InitializeTabMessage
+  | SwitchToTabMessage
+  | GetTokenUsageMessage
+  | ApprovalResponseMessage
+  | ReflectAndLearnMessage
+  | TokenUsageUpdatedMessage
+  | UpdateOutputMessage;
 
 export type UIMessage =
   | UpdateOutputMessage

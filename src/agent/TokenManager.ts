@@ -1,5 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+// Generic message interface for token counting
+interface GenericMessage {
+  role: string;
+  content: string | any;
+}
+
 /**
  * TokenManager handles token estimation, message history trimming,
  * and context window management.
@@ -14,7 +20,7 @@ export const approxTokens = (text: string) => Math.ceil(text.length / 4);
 /**
  * Calculate the total token count for a list of messages
  */
-export const contextTokenCount = (msgs: Anthropic.MessageParam[]) =>
+export const contextTokenCount = (msgs: Anthropic.MessageParam[] | GenericMessage[]) =>
   msgs.reduce((sum, m) => {
     const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
     return sum + approxTokens(content);

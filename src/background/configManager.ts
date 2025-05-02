@@ -1,0 +1,136 @@
+import { AnthropicProvider } from '../models/providers/anthropic';
+import { OpenAIProvider } from '../models/providers/openai';
+import { GeminiProvider } from '../models/providers/gemini';
+
+export interface ProviderConfig {
+  provider: 'anthropic' | 'openai' | 'gemini';
+  apiKey: string;
+  apiModelId?: string;
+  baseUrl?: string;
+  thinkingBudgetTokens?: number;
+}
+
+export class ConfigManager {
+  private static instance: ConfigManager;
+  
+  private constructor() {}
+  
+  static getInstance(): ConfigManager {
+    if (!ConfigManager.instance) {
+      ConfigManager.instance = new ConfigManager();
+    }
+    return ConfigManager.instance;
+  }
+  
+  async getProviderConfig(): Promise<ProviderConfig> {
+    const result = await chrome.storage.sync.get({
+      provider: 'anthropic',
+      anthropicApiKey: '',
+      anthropicModelId: 'claude-3-7-sonnet-20250219',
+      anthropicBaseUrl: '',
+      openaiApiKey: '',
+      openaiModelId: 'gpt-4o',
+      openaiBaseUrl: '',
+      geminiApiKey: '',
+      geminiModelId: 'gemini-1.5-pro',
+      geminiBaseUrl: '',
+      thinkingBudgetTokens: 0,
+    });
+    
+    // Return provider-specific configuration
+    switch (result.provider) {
+      case 'anthropic':
+        return {
+          provider: 'anthropic',
+          apiKey: result.anthropicApiKey,
+          apiModelId: result.anthropicModelId,
+          baseUrl: result.anthropicBaseUrl,
+          thinkingBudgetTokens: result.thinkingBudgetTokens,
+        };
+      case 'openai':
+        return {
+          provider: 'openai',
+          apiKey: result.openaiApiKey,
+          apiModelId: result.openaiModelId,
+          baseUrl: result.openaiBaseUrl,
+        };
+      case 'gemini':
+        return {
+          provider: 'gemini',
+          apiKey: result.geminiApiKey,
+          apiModelId: result.geminiModelId,
+          baseUrl: result.geminiBaseUrl,
+        };
+      default:
+        throw new Error(`Provider ${result.provider} not supported`);
+    }
+  }
+  
+  async saveProviderConfig(config: Partial<ProviderConfig>): Promise<void> {
+    // Save provider-specific configuration
+    await chrome.storage.sync.set(config);
+  }
+  
+  /**
+   * Get all providers that have API keys configured
+   */
+  async getConfiguredProviders(): Promise<string[]> {
+    const result = await chrome.storage.sync.get({
+      anthropicApiKey: '',
+      openaiApiKey: '',
+      geminiApiKey: '',
+    });
+    
+    const providers = [];
+    if (result.anthropicApiKey) providers.push('anthropic');
+    if (result.openaiApiKey) providers.push('openai');
+    if (result.geminiApiKey) providers.push('gemini');
+    
+    return providers;
+  }
+  
+  /**
+   * Get available models for a specific provider
+   */
+  async getModelsForProvider(provider: string): Promise<{id: string, name: string}[]> {
+    switch (provider) {
+      case 'anthropic':
+        return AnthropicProvider.getAvailableModels();
+      case 'openai':
+        return OpenAIProvider.getAvailableModels();
+      case 'gemini':
+        return GeminiProvider.getAvailableModels();
+      default:
+        return [];
+    }
+  }
+  
+  /**
+   * Update the current provider and model
+   */
+  async updateProviderAndModel(provider: string, modelId: string): Promise<void> {
+    // Get current config
+    const result = await chrome.storage.sync.get({
+      provider: 'anthropic',
+      anthropicModelId: 'claude-3-7-sonnet-20250219',
+      openaiModelId: 'gpt-4o',
+      geminiModelId: 'gemini-1.5-pro',
+    });
+    
+    // Update provider
+    await chrome.storage.sync.set({ provider });
+    
+    // Update model ID for the specific provider
+    switch (provider) {
+      case 'anthropic':
+        await chrome.storage.sync.set({ anthropicModelId: modelId });
+        break;
+      case 'openai':
+        await chrome.storage.sync.set({ openaiModelId: modelId });
+        break;
+      case 'gemini':
+        await chrome.storage.sync.set({ geminiModelId: modelId });
+        break;
+    }
+  }
+}

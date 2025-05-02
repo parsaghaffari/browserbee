@@ -1,11 +1,15 @@
+// Import provider-specific types
 import Anthropic from "@anthropic-ai/sdk";
-import { BrowserAgent, createBrowserAgent, executePromptWithFallback } from "../agent/AgentCore";
+import { ProviderType } from "./types";
+import { BrowserAgent, createBrowserAgent, executePromptWithFallback, needsReinitialization } from "../agent/AgentCore";
 import { contextTokenCount } from "../agent/TokenManager";
 import { ScreenshotManager } from "../tracking/screenshotManager";
+import { TokenTrackingService } from "../tracking/tokenTrackingService";
 import { ExecutionCallbacks } from "../agent/ExecutionEngine";
 import { sendUIMessage, logWithTimestamp, handleError } from "./utils";
 import { getCurrentTabId, getTabState, setTabState } from "./tabManager";
 import { saveReflectionMemory } from "./reflectionController";
+import { ConfigManager } from "./configManager";
 import { 
   resetStreamingState, 
   addToStreamingBuffer, 
@@ -19,10 +23,17 @@ import {
   signalStreamingComplete
 } from "./streamingManager";
 
+// Generic message format that works with all providers
+interface GenericMessage {
+  role: string;
+  content: string | any;
+}
+
 // Interface for structured message history
 interface MessageHistory {
-  originalRequest: Anthropic.MessageParam | null;
-  conversationHistory: Anthropic.MessageParam[];
+  provider: ProviderType;
+  originalRequest: GenericMessage | null;
+  conversationHistory: GenericMessage[];
 }
 
 // Define a maximum token budget for conversation history
@@ -32,22 +43,34 @@ const MAX_CONVERSATION_TOKENS = 100000; // 100K tokens for conversation history
 const messageHistories = new Map<number, MessageHistory>();
 
 /**
+ * Get the current provider type from config
+ */
+async function getCurrentProvider(): Promise<ProviderType> {
+  const configManager = ConfigManager.getInstance();
+  const config = await configManager.getProviderConfig();
+  return config.provider;
+}
+
+/**
  * Clear message history for a specific tab
  * @param tabId The tab ID to clear history for
  */
-export function clearMessageHistory(tabId?: number): void {
+export async function clearMessageHistory(tabId?: number): Promise<void> {
   // Get the screenshot manager
   const screenshotManager = ScreenshotManager.getInstance();
   
+  // Get current provider
+  const provider = await getCurrentProvider();
+  
   if (tabId) {
     // Clear message history for a specific tab
-    messageHistories.set(tabId, { originalRequest: null, conversationHistory: [] });
+    messageHistories.set(tabId, { provider, originalRequest: null, conversationHistory: [] });
     // Clear screenshots
     screenshotManager.clear();
     logWithTimestamp(`Message history and screenshots cleared for tab ${tabId}`);
   } else if (getCurrentTabId()) {
     // Clear message history for the current tab
-    messageHistories.set(getCurrentTabId()!, { originalRequest: null, conversationHistory: [] });
+    messageHistories.set(getCurrentTabId()!, { provider, originalRequest: null, conversationHistory: [] });
     // Clear screenshots
     screenshotManager.clear();
     logWithTimestamp(`Message history and screenshots cleared for current tab ${getCurrentTabId()}`);
@@ -65,26 +88,89 @@ export function clearMessageHistory(tabId?: number): void {
  * @param tabId The tab ID to get history for
  * @returns The combined message history for the tab (original request + conversation)
  */
-export function getMessageHistory(tabId: number): Anthropic.MessageParam[] {
+export async function getMessageHistory(tabId: number): Promise<Anthropic.MessageParam[]> {
+  // Get current provider
+  const provider = await getCurrentProvider();
+  
   if (!messageHistories.has(tabId)) {
-    messageHistories.set(tabId, { originalRequest: null, conversationHistory: [] });
+    messageHistories.set(tabId, { provider, originalRequest: null, conversationHistory: [] });
   }
   
   const history = messageHistories.get(tabId)!;
   
-  // Combine original request with conversation history if it exists
-  if (history.originalRequest) {
-    // Add a prefix to the original request content to make it clear to the LLM
-    const originalRequestWithPrefix = {
-      ...history.originalRequest,
-      content: typeof history.originalRequest.content === 'string' 
-        ? `[ORIGINAL REQUEST]: ${history.originalRequest.content}` 
-        : history.originalRequest.content
-    };
-    
-    return [originalRequestWithPrefix, ...history.conversationHistory];
-  } else {
-    return [...history.conversationHistory];
+  // Update provider if it has changed
+  if (history.provider !== provider) {
+    history.provider = provider;
+    messageHistories.set(tabId, history);
+  }
+  
+  // Convert generic messages to provider-specific format
+  const convertedMessages = convertMessagesToProviderFormat(
+    history.originalRequest ? [history.originalRequest, ...history.conversationHistory] : history.conversationHistory,
+    provider
+  );
+  
+  return convertedMessages;
+}
+
+/**
+ * Convert generic messages to provider-specific format
+ * @param messages The generic messages to convert
+ * @param provider The provider to convert to
+ * @returns The provider-specific messages
+ */
+function convertMessagesToProviderFormat(messages: GenericMessage[], provider: ProviderType): Anthropic.MessageParam[] {
+  switch (provider) {
+    case 'anthropic':
+      // Convert to Anthropic format
+      return messages.map(msg => {
+        // Ensure role is either "user" or "assistant" for Anthropic
+        const role = msg.role === "user" || msg.role === "assistant" 
+          ? msg.role as "user" | "assistant"
+          : "user"; // Default to user for any other role
+        
+        return {
+          role,
+          content: msg.content
+        };
+      });
+      
+    case 'openai':
+      // Convert to OpenAI format (which is compatible with Anthropic's format for our purposes)
+      return messages.map(msg => {
+        // Map roles: system -> user, user -> user, assistant -> assistant
+        const role = msg.role === "assistant" ? "assistant" : "user";
+        
+        return {
+          role,
+          content: msg.content
+        };
+      });
+      
+    case 'gemini':
+      // Convert to Gemini format (which is compatible with Anthropic's format for our purposes)
+      return messages.map(msg => {
+        // Map roles: system -> user, user -> user, assistant -> assistant
+        const role = msg.role === "assistant" ? "assistant" : "user";
+        
+        return {
+          role,
+          content: msg.content
+        };
+      });
+      
+    default:
+      // Default to Anthropic format
+      return messages.map(msg => {
+        const role = msg.role === "user" || msg.role === "assistant" 
+          ? msg.role as "user" | "assistant"
+          : "user";
+        
+        return {
+          role,
+          content: msg.content
+        };
+      });
   }
 }
 
@@ -93,11 +179,23 @@ export function getMessageHistory(tabId: number): Anthropic.MessageParam[] {
  * @param tabId The tab ID to get history for
  * @returns The structured message history object
  */
-export function getStructuredMessageHistory(tabId: number): MessageHistory {
+export async function getStructuredMessageHistory(tabId: number): Promise<MessageHistory> {
+  // Get current provider
+  const provider = await getCurrentProvider();
+  
   if (!messageHistories.has(tabId)) {
-    messageHistories.set(tabId, { originalRequest: null, conversationHistory: [] });
+    messageHistories.set(tabId, { provider, originalRequest: null, conversationHistory: [] });
   }
-  return messageHistories.get(tabId)!;
+  
+  const history = messageHistories.get(tabId)!;
+  
+  // Update provider if it has changed
+  if (history.provider !== provider) {
+    history.provider = provider;
+    messageHistories.set(tabId, history);
+  }
+  
+  return history;
 }
 
 /**
@@ -105,8 +203,8 @@ export function getStructuredMessageHistory(tabId: number): MessageHistory {
  * @param tabId The tab ID to set the original request for
  * @param request The original request message
  */
-export function setOriginalRequest(tabId: number, request: Anthropic.MessageParam): void {
-  const history = getStructuredMessageHistory(tabId);
+export async function setOriginalRequest(tabId: number, request: Anthropic.MessageParam): Promise<void> {
+  const history = await getStructuredMessageHistory(tabId);
   history.originalRequest = request;
   messageHistories.set(tabId, history);
 }
@@ -116,8 +214,8 @@ export function setOriginalRequest(tabId: number, request: Anthropic.MessagePara
  * @param tabId The tab ID to add the message to
  * @param message The message to add
  */
-export function addToConversationHistory(tabId: number, message: Anthropic.MessageParam): void {
-  const history = getStructuredMessageHistory(tabId);
+export async function addToConversationHistory(tabId: number, message: Anthropic.MessageParam): Promise<void> {
+  const history = await getStructuredMessageHistory(tabId);
   history.conversationHistory.push(message);
   messageHistories.set(tabId, history);
 }
@@ -127,17 +225,33 @@ export function addToConversationHistory(tabId: number, message: Anthropic.Messa
 /**
  * Initialize the agent if we have a page and API key
  * @param tabId The tab ID to initialize the agent for
+ * @param forceReinit Optional flag to force reinitialization
  * @returns Promise resolving to true if initialization was successful, false otherwise
  */
-export async function initializeAgent(tabId: number): Promise<boolean> {
+export async function initializeAgent(tabId: number, forceReinit: boolean = false): Promise<boolean> {
   const tabState = getTabState(tabId);
   
-  if (tabState?.page && !tabState.agent) {
+  if (!tabState?.page) {
+    return false;
+  }
+  
+  // Get provider configuration
+  const configManager = ConfigManager.getInstance();
+  const providerConfig = await configManager.getProviderConfig();
+  
+  // Update token tracking service with current provider and model
+  const tokenTracker = TokenTrackingService.getInstance();
+  tokenTracker.updateProviderAndModel(providerConfig.provider, providerConfig.apiModelId || '');
+  
+  // Check if we need to initialize or reinitialize the agent
+  const needsInit = !tabState.agent || forceReinit;
+  const needsReinit = tabState.agent && await needsReinitialization(tabState.agent, providerConfig);
+  
+  if (needsInit || needsReinit) {
     try {
-      const { anthropicApiKey } = await chrome.storage.local.get(['anthropicApiKey']);
-      if (anthropicApiKey) {
-        logWithTimestamp('Creating LLM agent...');
-        const agent = await createBrowserAgent(tabState.page, anthropicApiKey);
+      if (providerConfig.apiKey) {
+        logWithTimestamp(`Creating LLM agent with ${providerConfig.provider} provider...`);
+        const agent = await createBrowserAgent(tabState.page, providerConfig.apiKey);
         
         // Update the tab state with the agent
         setTabState(tabId, { ...tabState, agent });
@@ -145,7 +259,7 @@ export async function initializeAgent(tabId: number): Promise<boolean> {
         logWithTimestamp('LLM agent created successfully');
         return true;
       } else {
-        logWithTimestamp('No API key found, skipping agent initialization', 'warn');
+        logWithTimestamp('No API key found for the selected provider, skipping agent initialization', 'warn');
         return false;
       }
     } catch (agentError) {
@@ -154,7 +268,7 @@ export async function initializeAgent(tabId: number): Promise<boolean> {
     }
   }
   
-  return !!tabState?.agent;
+  return !!tabState.agent;
 }
 
 /**
@@ -192,13 +306,14 @@ export function cancelExecution(tabId?: number): void {
  */
 export async function executePrompt(prompt: string, tabId?: number, isReflectionPrompt: boolean = false): Promise<void> {
   try {
-    // Get the API key from storage
-    const { anthropicApiKey } = await chrome.storage.local.get(['anthropicApiKey']);
+    // Get provider configuration from ConfigManager
+    const configManager = ConfigManager.getInstance();
+    const providerConfig = await configManager.getProviderConfig();
     
-    if (!anthropicApiKey) {
+    if (!providerConfig.apiKey) {
       sendUIMessage('updateOutput', {
         type: 'system',
-        content: 'Error: API key not found. Please set your Anthropic API key in the extension options.'
+        content: `Error: API key not found for ${providerConfig.provider}. Please set your API key in the extension options.`
       }, tabId);
       sendUIMessage('processingComplete', null, tabId);
       return;
@@ -282,8 +397,7 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         // Always add page context to message history, even if it's empty
         // Note: Using "user" role for system instructions since Anthropic SDK doesn't support "system" role
         // This is a workaround - ideally these would be system messages as they're instructions, not user input
-        const messageHistory = getMessageHistory(targetTabId);
-        messageHistory.push({
+        await addToConversationHistory(targetTabId, { 
           role: "user",
           content: `[SYSTEM INSTRUCTION: You are currently on ${currentUrl} (${currentTitle}). 
           
@@ -313,18 +427,18 @@ Remember to follow the verification-first workflow: navigate → observe → ana
     resetStreamingState();
     
     // Get the structured message history
-    const history = getStructuredMessageHistory(targetTabId);
+    const history = await getStructuredMessageHistory(targetTabId);
     
     // Check if this is the first prompt (no original request yet)
     if (!history.originalRequest) {
       // Store this as the original request without adding any special tag
-      setOriginalRequest(targetTabId, { 
+      await setOriginalRequest(targetTabId, { 
         role: "user", 
         content: prompt 
       });
       
       // Also add it to the conversation history to maintain the flow
-      addToConversationHistory(targetTabId, { 
+      await addToConversationHistory(targetTabId, { 
         role: "user", 
         content: prompt 
       });
@@ -332,7 +446,7 @@ Remember to follow the verification-first workflow: navigate → observe → ana
       logWithTimestamp(`Set original request for tab ${targetTabId}: "${prompt}"`);
     } else {
       // This is a follow-up prompt, add it to conversation history
-      addToConversationHistory(targetTabId, { 
+      await addToConversationHistory(targetTabId, { 
         role: "user", 
         content: prompt 
       });
@@ -346,7 +460,7 @@ Remember to follow the verification-first workflow: navigate → observe → ana
           addToStreamingBuffer(chunk, targetTabId);
         }
       },
-      onLlmOutput: (content) => {
+      onLlmOutput: async (content) => {
         // For non-streaming mode, send the complete output
         if (!useStreaming) {
           sendUIMessage('updateOutput', {
@@ -378,30 +492,34 @@ Remember to follow the verification-first workflow: navigate → observe → ana
           }
         }
         
-        // Add the assistant's response to conversation history
-        addToConversationHistory(targetTabId, { role: "assistant", content: content });
-        
-        // Trim conversation history if it exceeds the token budget
-        const history = getStructuredMessageHistory(targetTabId);
-        
-        // Calculate the current token count of the conversation history
-        const conversationTokens = contextTokenCount(history.conversationHistory);
-        
-        // If we're over budget, trim from the oldest messages until we're under budget
-        if (conversationTokens > MAX_CONVERSATION_TOKENS) {
-          logWithTimestamp(`Conversation history exceeds token budget (${conversationTokens}/${MAX_CONVERSATION_TOKENS}), trimming oldest messages`);
+        try {
+          // Add the assistant's response to conversation history
+          await addToConversationHistory(targetTabId, { role: "assistant", content: content });
           
-          // Remove oldest messages until we're under the token budget
-          while (contextTokenCount(history.conversationHistory) > MAX_CONVERSATION_TOKENS && 
-                 history.conversationHistory.length > 1) {
-            // Remove the oldest message
-            history.conversationHistory.shift();
+          // Trim conversation history if it exceeds the token budget
+          const history = await getStructuredMessageHistory(targetTabId);
+          
+          // Calculate the current token count of the conversation history
+          const conversationTokens = contextTokenCount(history.conversationHistory);
+          
+          // If we're over budget, trim from the oldest messages until we're under budget
+          if (conversationTokens > MAX_CONVERSATION_TOKENS) {
+            logWithTimestamp(`Conversation history exceeds token budget (${conversationTokens}/${MAX_CONVERSATION_TOKENS}), trimming oldest messages`);
+            
+            // Remove oldest messages until we're under the token budget
+            while (contextTokenCount(history.conversationHistory) > MAX_CONVERSATION_TOKENS && 
+                   history.conversationHistory.length > 1) {
+              // Remove the oldest message
+              history.conversationHistory.shift();
+            }
+            
+            // Update the message history
+            messageHistories.set(targetTabId, history);
+            
+            logWithTimestamp(`Trimmed conversation history to ${history.conversationHistory.length} messages (${contextTokenCount(history.conversationHistory)} tokens)`);
           }
-          
-          // Update the message history
-          messageHistories.set(targetTabId, history);
-          
-          logWithTimestamp(`Trimmed conversation history to ${history.conversationHistory.length} messages (${contextTokenCount(history.conversationHistory)} tokens)`);
+        } catch (error) {
+          logWithTimestamp(`Error updating conversation history: ${error instanceof Error ? error.message : String(error)}`, 'error');
         }
       },
       onToolOutput: (content) => {
@@ -498,11 +616,12 @@ Remember to follow the verification-first workflow: navigate → observe → ana
     };
     
     // Execute the prompt with the agent
+    const messageHistory = await getMessageHistory(targetTabId);
     await executePromptWithFallback(
       updatedTabState.agent, 
       prompt, 
       callbacks, 
-      getMessageHistory(targetTabId)
+      messageHistory
     );
   } catch (error) {
     const errorMessage = handleError(error, 'executing prompt');

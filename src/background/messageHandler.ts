@@ -63,6 +63,19 @@ export function handleMessage(
       case 'reflectAndLearn':
         handleReflectAndLearn(message, sendResponse);
         return true;
+        
+      case 'tokenUsageUpdated':
+        // Just pass through token usage updates
+        // This allows the TokenTrackingService to broadcast updates
+        // that will be received by all UI components
+        sendResponse({ success: true });
+        return true;
+        
+      case 'updateOutput':
+        // Just pass through output updates
+        // This allows components to send UI updates
+        sendResponse({ success: true });
+        return true;
 
       default:
         // This should never happen due to the type guard, but TypeScript requires it
@@ -96,7 +109,9 @@ function isBackgroundMessage(message: any): message is BackgroundMessage {
       message.action === 'switchToTab' ||
       message.action === 'getTokenUsage' ||
       message.action === 'approvalResponse' ||
-      message.action === 'reflectAndLearn'
+      message.action === 'reflectAndLearn' ||
+      message.action === 'tokenUsageUpdated' ||  // Add support for token usage updates
+      message.action === 'updateOutput'  // Add support for output updates
     )
   );
 }
@@ -137,11 +152,11 @@ function handleCancelExecution(
  * @param message The message to handle
  * @param sendResponse The function to send a response
  */
-function handleClearHistory(
+async function handleClearHistory(
   message: Extract<BackgroundMessage, { action: 'clearHistory' }>,
   sendResponse: (response?: any) => void
-): void {
-  clearMessageHistory(message.tabId);
+): Promise<void> {
+  await clearMessageHistory(message.tabId);
   
   // Reset token tracking
   try {

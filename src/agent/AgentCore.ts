@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { Page } from "playwright-crx/test";
 import { getAllTools } from "./tools/index";
 import { ToolManager } from "./ToolManager";
@@ -7,14 +6,34 @@ import { MemoryManager } from "./MemoryManager";
 import { ErrorHandler } from "./ErrorHandler";
 import { ExecutionEngine, ExecutionCallbacks } from "./ExecutionEngine";
 import { BrowserTool, ToolExecutionContext } from "./tools/types";
-import { DynamicTool } from "langchain/tools";
+// Define our own DynamicTool interface to avoid import issues
+interface DynamicTool {
+  name: string;
+  description: string;
+  func: (input: string) => Promise<string>;
+}
+
+// Type guard function to check if an object is a DynamicTool
+function isDynamicTool(obj: any): obj is DynamicTool {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'name' in obj &&
+    'description' in obj &&
+    'func' in obj &&
+    typeof obj.func === 'function'
+  );
+}
+import { LLMProvider } from "../models/providers/types";
+import { createProvider } from "../models/providers/factory";
+import { ConfigManager, ProviderConfig } from "../background/configManager";
 
 /**
  * BrowserAgent is the main class for the browser automation agent.
  * It coordinates all the components needed for execution.
  */
 export class BrowserAgent {
-  private anthropic: Anthropic;
+  private llmProvider: LLMProvider;
   private toolManager: ToolManager;
   private promptManager: PromptManager;
   private memoryManager: MemoryManager;
@@ -24,10 +43,13 @@ export class BrowserAgent {
   /**
    * Create a new BrowserAgent
    */
-  constructor(page: Page, apiKey: string) {
-    // Initialize Anthropic client
-    this.anthropic = new Anthropic({
-      apiKey,
+  constructor(page: Page, config: ProviderConfig) {
+    // Initialize LLM provider with the provided configuration
+    this.llmProvider = createProvider(config.provider, {
+      apiKey: config.apiKey,
+      apiModelId: config.apiModelId,
+      baseUrl: config.baseUrl,
+      thinkingBudgetTokens: config.thinkingBudgetTokens,
       dangerouslyAllowBrowser: true,
     });
     
@@ -43,7 +65,7 @@ export class BrowserAgent {
     
     // Initialize the execution engine with all the components
     this.executionEngine = new ExecutionEngine(
-      this.anthropic,
+      this.llmProvider,
       this.toolManager,
       this.promptManager,
       this.memoryManager,
@@ -58,7 +80,7 @@ export class BrowserAgent {
    */
   private convertToBrowserTools(tools: any[]): BrowserTool[] {
     return tools.map(tool => {
-      if (tool instanceof DynamicTool) {
+      if (isDynamicTool(tool)) {
         // Convert DynamicTool to BrowserTool
         return {
           name: tool.name,
@@ -119,7 +141,7 @@ export class BrowserAgent {
   async executePromptWithFallback(
     prompt: string,
     callbacks: ExecutionCallbacks,
-    initialMessages: Anthropic.MessageParam[] = []
+    initialMessages: any[] = []
   ): Promise<void> {
     return this.executionEngine.executePromptWithFallback(
       prompt,
@@ -134,7 +156,7 @@ export class BrowserAgent {
   async executePrompt(
     prompt: string,
     callbacks: ExecutionCallbacks,
-    initialMessages: Anthropic.MessageParam[] = []
+    initialMessages: any[] = []
   ): Promise<void> {
     return this.executionEngine.executePrompt(
       prompt,
@@ -155,7 +177,52 @@ export async function createBrowserAgent(
   page: Page,
   apiKey: string
 ): Promise<BrowserAgent> {
-  return new BrowserAgent(page, apiKey);
+  // Get provider configuration
+  const configManager = ConfigManager.getInstance();
+  let providerConfig: ProviderConfig;
+  
+  try {
+    providerConfig = await configManager.getProviderConfig();
+  } catch (error) {
+    console.warn('Failed to get provider configuration, using default:', error);
+    providerConfig = {
+      provider: 'anthropic',
+      apiKey,
+      apiModelId: 'claude-3-7-sonnet-20250219',
+    };
+  }
+  
+  // Use the provided API key as a fallback if the stored one is empty
+  if (!providerConfig.apiKey) {
+    providerConfig.apiKey = apiKey;
+  }
+  
+  // Create the agent with the provider configuration
+  return new BrowserAgent(page, providerConfig);
+}
+
+/**
+ * Check if the agent needs to be reinitialized due to provider change
+ * @param agent The current agent
+ * @param currentProvider The current provider configuration
+ * @returns True if the agent needs to be reinitialized, false otherwise
+ */
+export async function needsReinitialization(
+  agent: BrowserAgent,
+  currentProvider?: ProviderConfig
+): Promise<boolean> {
+  if (!agent) return true;
+  
+  // Get current provider configuration if not provided
+  if (!currentProvider) {
+    const configManager = ConfigManager.getInstance();
+    currentProvider = await configManager.getProviderConfig();
+  }
+  
+  // Check if the provider has changed
+  // We can't directly access the agent's provider, so we'll need to reinitialize
+  // if the provider has changed in the config
+  return true; // For now, always reinitialize to be safe
 }
 
 /**
@@ -165,7 +232,7 @@ export async function executePrompt(
   agent: BrowserAgent,
   prompt: string,
   callbacks: ExecutionCallbacks,
-  initialMessages: Anthropic.MessageParam[] = []
+  initialMessages: any[] = []
 ): Promise<void> {
   return agent.executePrompt(prompt, callbacks, initialMessages);
 }
@@ -177,7 +244,7 @@ export async function executePromptWithFallback(
   agent: BrowserAgent,
   prompt: string,
   callbacks: ExecutionCallbacks,
-  initialMessages: Anthropic.MessageParam[] = []
+  initialMessages: any[] = []
 ): Promise<void> {
   return agent.executePromptWithFallback(prompt, callbacks, initialMessages);
 }

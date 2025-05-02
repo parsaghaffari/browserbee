@@ -9,6 +9,7 @@ import { TabStatusBar } from './components/TabStatusBar';
 import { TokenUsageDisplay } from './components/TokenUsageDisplay';
 import { TokenTrackingService } from '../tracking/tokenTrackingService';
 import { ApprovalRequest } from './components/ApprovalRequest';
+import { ProviderSelector } from './components/ProviderSelector';
 
 export function SidePanel() {
   // State for approval requests
@@ -155,6 +156,7 @@ export function SidePanel() {
             tabTitle={tabTitle}
           />
         </div>
+        <ProviderSelector />
         <p className="text-sm text-gray-600 mt-2">
           What can I do for you today?
         </p>
