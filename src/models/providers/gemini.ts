@@ -58,36 +58,78 @@ export class GeminiProvider implements LLMProvider {
     }
     // --- End Cache Handling Logic ---
     
-    // Convert messages to Gemini format
-    const contents: Content[] = [];
-    
-    // Add system prompt as first user message if not empty and not using cache
-    if (systemPrompt && !useCache) {
-      contents.push({
-        role: "user",
-        parts: [{ text: systemPrompt }],
-      });
+      // Process messages to ensure clean alternating pattern
+      let processedMessages: any[] = [];
+      let previousRole: string | null = null;
       
-      // Add a placeholder assistant response after system prompt
-      contents.push({
-        role: "model",
-        parts: [{ text: "I'll follow these instructions." }],
-      });
-    }
-    
-    // Add the rest of the messages
-    for (const msg of messages) {
-      contents.push({
-        role: msg.role === "assistant" ? "model" : "user",
-        parts: [{ text: msg.content }],
-      });
-    }
+      // Process messages to combine consecutive messages of the same role
+      for (const msg of messages) {
+        // Skip empty messages
+        if (!msg.content || msg.content === "") {
+          console.log("Skipping empty message in conversation history");
+          continue;
+        }
+        
+        // Skip system instructions embedded in user messages
+        if (msg.role === "user" && typeof msg.content === "string" && 
+            msg.content.startsWith("[SYSTEM INSTRUCTION:")) {
+          console.log("Skipping system instruction embedded in user message");
+          continue;
+        }
+        
+        const role = msg.role === "assistant" ? "model" : "user";
+        
+        // If this message has the same role as the previous one, combine them
+        if (role === previousRole && processedMessages.length > 0) {
+          const lastMsg = processedMessages[processedMessages.length - 1];
+          // Combine the content with a newline separator
+          const combinedText = lastMsg.parts[0].text + "\n\n" + msg.content;
+          lastMsg.parts[0].text = combinedText;
+        } else {
+          // Add as a new message
+          processedMessages.push({
+            role: role,
+            parts: [{ text: msg.content }]
+          });
+          previousRole = role;
+        }
+      }
+      
+      // Ensure we have alternating user-model messages
+      // If we have two consecutive messages of the same role, add a placeholder message in between
+      for (let i = 1; i < processedMessages.length; i++) {
+        if (processedMessages[i].role === processedMessages[i-1].role) {
+          // Insert a placeholder message
+          const placeholderRole = processedMessages[i].role === "user" ? "model" : "user";
+          const placeholderText = placeholderRole === "model" ? "I understand." : "Please continue.";
+          processedMessages.splice(i, 0, {
+            role: placeholderRole,
+            parts: [{ text: placeholderText }]
+          });
+          i++; // Skip the newly inserted message
+        }
+      }
+      
+      // Convert to Gemini format
+      let contents: Content[] = [];
+      
+      // Use the processed messages
+      contents = processedMessages;
+      
+      // Log the processed contents for debugging
+      console.log("Processed conversation history:", JSON.stringify(contents));
 
     try {
       // Configure options
       const config: any = {
         temperature: 0,
       };
+      
+      // Add system prompt as systemInstruction in config if not empty and not using cache
+      if (systemPrompt && !useCache) {
+        // System prompt will be passed in the config, not as a message
+        config.systemInstruction = systemPrompt;
+      }
       
       // Add thinking config if available and budget is set
       if (modelInfo.thinkingConfig && this.options.thinkingBudgetTokens) {
@@ -109,43 +151,186 @@ export class GeminiProvider implements LLMProvider {
         config.cachedContent = this.cacheName;
       }
 
-      // Get the last message (current user query)
-      const lastMessage = contents.pop();
+      // Convert our tools to Gemini's function format if provided
+      let geminiTools;
+      if (tools && tools.length > 0) {
+        geminiTools = {
+          functionDeclarations: tools.map(tool => ({
+            name: tool.name,
+            description: tool.description || `Execute the ${tool.name} tool`,
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                input: {
+                  type: "STRING",
+                  description: tool.name.includes("navigate") ? 
+                    "The URL to navigate to" : 
+                    "The input to the tool"
+                },
+                requires_approval: {
+                  type: "BOOLEAN",
+                  description: "Whether this tool call requires user approval"
+                }
+              },
+              required: ["input"]
+            }
+          }))
+        };
+      }
       
-      // Only proceed if the last message is from the user
-      if (!lastMessage || lastMessage.role !== "user") {
-        throw new Error("Last message must be from the user");
+      // Make sure we have at least one message in the contents array
+      if (contents.length === 0) {
+        // If no messages, add a default user message
+        contents.push({
+          role: "user",
+          parts: [{ text: "Hello" }]
+        });
       }
       
       // Send the message and get the stream
-      const result = await this.client.models.generateContentStream({
+      // Use type assertion to bypass TypeScript error for tools property
+      const params: any = {
         model: modelId,
-        contents: contents.length > 0 ? contents : [],
-        ...lastMessage,
+        contents: contents,
         config,
-      });
+      };
       
-      let totalOutputTokens = 0;
+      // Add tools if provided
+      if (geminiTools) {
+        params.tools = geminiTools;
+        
+        // Add toolConfig to force function calling
+        params.toolConfig = {
+          functionCallingConfig: {
+            mode: "ANY" // Use ANY mode to force the model to use function calls
+          }
+        };
+      }
+      
+      const result = await this.client.models.generateContentStream(params);
+      
+      // Track usage metadata
+      let lastUsageMetadata: any = null;
       
       // Process the stream
       for await (const chunk of result) {
-        if (chunk.text) {
+        // Debug log to help diagnose response structure
+        console.debug("Gemini chunk:", JSON.stringify(chunk));
+        
+        // Handle function calls at the top level (this is the key change)
+        if (chunk.functionCalls && chunk.functionCalls.length > 0) {
+          for (const functionCall of chunk.functionCalls) {
+            const { name, args } = functionCall;
+            
+            // Convert to our XML format with null checks
+            const input = args && args.input ? args.input : "";
+            const requiresApproval = args && args.requires_approval === true ? "true" : "false";
+            
+            const xmlToolCall = `<tool>${name}</tool>\n<input>${input}</input>\n<requires_approval>${requiresApproval}</requires_approval>`;
+            
+            console.log("Found top-level function call:", name, args || {});
+            yield {
+              type: "text",
+              text: xmlToolCall,
+            };
+          }
+        }
+        // Handle text chunks
+        else if (chunk.text) {
           yield {
             type: "text",
             text: chunk.text,
           };
-          
-          // Estimate token usage (Gemini doesn't provide this in stream)
-          // Rough estimate: 1 token ≈ 4 characters
-          const estimatedTokens = Math.ceil(chunk.text.length / 4);
-          totalOutputTokens += estimatedTokens;
-          
-          yield {
-            type: "usage",
-            inputTokens: 0,
-            outputTokens: totalOutputTokens,
-          };
         }
+        // Handle candidates with parts (which may contain executableCode or functionCall)
+        else if (chunk.candidates && chunk.candidates.length > 0) {
+          for (const candidate of chunk.candidates) {
+            // Check for function calls in candidate.functionCall (some versions of the API put it here)
+            // Use type assertion to bypass TypeScript error
+            const candidateAny = candidate as any;
+            if (candidateAny.functionCall) {
+              const { name, args } = candidateAny.functionCall;
+              
+              // Convert to our XML format with null checks
+              const input = args && args.input ? args.input : "";
+              const requiresApproval = args && args.requires_approval === true ? "true" : "false";
+              
+              const xmlToolCall = `<tool>${name}</tool>\n<input>${input}</input>\n<requires_approval>${requiresApproval}</requires_approval>`;
+              
+              console.log("Found candidate function call:", name, args || {});
+              yield {
+                type: "text",
+                text: xmlToolCall,
+              };
+            }
+            // Process content parts
+            else if (candidate.content && candidate.content.parts) {
+              for (const part of candidate.content.parts) {
+                // Handle function calls in parts (Gemini's native function calling format)
+                // Use type assertion to bypass TypeScript error
+                const partAny = part as any;
+                if (partAny.functionCall) {
+                  const { name, args } = partAny.functionCall;
+                  
+                  // Convert to our XML format with null checks
+                  const input = args && args.input ? args.input : "";
+                  const requiresApproval = args && args.requires_approval === true ? "true" : "false";
+                  
+                  const xmlToolCall = `<tool>${name}</tool>\n<input>${input}</input>\n<requires_approval>${requiresApproval}</requires_approval>`;
+                  
+                  console.log("Found part function call:", name, args || {});
+                  yield {
+                    type: "text",
+                    text: xmlToolCall,
+                  };
+                }
+                // Handle executable code (legacy/fallback method)
+                else if (part.executableCode && part.executableCode.code) {
+                  // Only process if it's an XML tool call (starts with <tool>)
+                  if (part.executableCode.code.trim().startsWith('<tool>')) {
+                    console.log("Found XML tool call in executableCode:", part.executableCode.code);
+                    yield {
+                      type: "text",
+                      text: part.executableCode.code,
+                    };
+                  } else {
+                    console.log("Ignoring non-XML executableCode:", part.executableCode.code);
+                  }
+                } else if (part.text) {
+                  yield {
+                    type: "text",
+                    text: part.text,
+                  };
+                }
+              }
+            }
+          }
+        }
+        
+        // Track usage metadata
+        if (chunk.usageMetadata) {
+          lastUsageMetadata = chunk.usageMetadata;
+        }
+      }
+      
+      // Yield final usage information
+      if (lastUsageMetadata) {
+        yield {
+          type: "usage",
+          inputTokens: lastUsageMetadata.promptTokenCount || 0,
+          outputTokens: lastUsageMetadata.candidatesTokenCount || 0,
+          cacheWriteTokens: lastUsageMetadata.cachedContentTokenCount || 0,
+          cacheReadTokens: useCache ? (lastUsageMetadata.promptTokenCount || 0) : 0,
+        };
+      } else {
+        // Fallback to estimated token usage if no metadata available
+        console.warn("No usage metadata available from Gemini, using estimates");
+        yield {
+          type: "usage",
+          inputTokens: Math.ceil(systemPrompt.length / 4) + 
+                       Math.ceil(messages.reduce((acc, msg) => acc + (msg.content?.length || 0), 0) / 4),
+          outputTokens: 0,
+        };
       }
     } catch (error) {
       console.error("Error in Gemini stream:", error);

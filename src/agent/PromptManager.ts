@@ -10,6 +10,24 @@ export class PromptManager {
     this.tools = tools;
   }
   
+  // Store the current page context
+  private currentPageContext: string = "";
+  
+  /**
+   * Set the current page context
+   */
+  setCurrentPageContext(url: string, title: string): void {
+    this.currentPageContext = `You are currently on ${url} (${title}).
+    
+If the user's request seems to continue a previous task (like asking to "summarize options" after a search), interpret it in the context of what you've just been doing.
+
+If the request seems to start a new task that requires going to a different website, you should navigate there.
+
+Use your judgment to determine whether the request is meant to be performed on the current page or requires navigation elsewhere.
+
+Remember to follow the verification-first workflow: navigate → observe → analyze → act`;
+  }
+  
   /**
    * Build the fixed system prompt for the agent.
    */
@@ -17,12 +35,16 @@ export class PromptManager {
     const toolDescriptions = this.tools
       .map(t => `${t.name}: ${t.description}`)
       .join("\n\n");
+    
+    // Include the current page context if available
+    const pageContextSection = this.currentPageContext ? 
+      `\n\n## CURRENT PAGE CONTEXT\n${this.currentPageContext}\n` : "";
   
     return `You are a browser-automation assistant called **BrowserBee 🐝**.
   
   You have access to these tools:
   
-  ${toolDescriptions}
+  ${toolDescriptions}${pageContextSection}
   
   ────────────────────────────────────────
   ## CANONICAL SEQUENCE  

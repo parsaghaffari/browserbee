@@ -35,7 +35,7 @@ import { ConfigManager, ProviderConfig } from "../background/configManager";
 export class BrowserAgent {
   private llmProvider: LLMProvider;
   private toolManager: ToolManager;
-  private promptManager: PromptManager;
+  promptManager: PromptManager;
   private memoryManager: MemoryManager;
   private errorHandler: ErrorHandler;
   private executionEngine: ExecutionEngine;

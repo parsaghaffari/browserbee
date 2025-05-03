@@ -25,14 +25,24 @@ export class OpenAIProvider implements LLMProvider {
     const model = this.getModel();
     const modelId = model.id;
 
+    // Process messages to filter out system instructions
+    const filteredMessages = messages.filter(message => 
+      !(message.role === "user" && 
+        typeof message.content === "string" && 
+        message.content.startsWith("[SYSTEM INSTRUCTION:"))
+    );
+    
     // Convert messages to OpenAI format
     const openaiMessages = [
       { role: "system", content: systemPrompt },
-      ...messages.map(msg => ({
+      ...filteredMessages.map(msg => ({
         role: msg.role,
         content: msg.content,
       })),
     ];
+    
+    // Log the processed messages for debugging
+    console.log("Processed OpenAI messages:", JSON.stringify(openaiMessages));
 
     // Configure options for the API request
     const options: any = {

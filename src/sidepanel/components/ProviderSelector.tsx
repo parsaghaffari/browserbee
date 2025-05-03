@@ -102,10 +102,9 @@ export function ProviderSelector() {
   }
   
   return (
-    <div className="flex items-center mb-2">
-      <FontAwesomeIcon icon={faRobot} className="mr-2 text-primary" />
+    <div className="flex justify-end items-center mb-2 px-0">
       <select 
-        className="select select-sm select-bordered flex-grow"
+        className="select select-ghost select-xs select-bordered w-auto focus:outline-none focus:ring-0"
         value={`${currentProvider}|${currentModel}`}
         onChange={handleChange}
       >

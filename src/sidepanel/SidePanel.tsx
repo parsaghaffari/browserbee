@@ -151,13 +151,12 @@ export function SidePanel() {
       <header className="mb-4">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-primary">BrowserBee 🐝</h1>
-          <TabStatusBar 
-            tabId={tabId}
-            tabTitle={tabTitle}
-          />
-        </div>
-        <ProviderSelector />
-        <p className="text-sm text-gray-600 mt-2">
+        <TabStatusBar 
+          tabId={tabId}
+          tabTitle={tabTitle}
+        />
+      </div>
+      <p className="text-sm text-gray-600 mt-2">
           What can I do for you today?
         </p>
       </header>
@@ -202,6 +201,7 @@ export function SidePanel() {
         onCancel={cancelExecution}
         isProcessing={isProcessing}
       />
+      <ProviderSelector />
     </div>
   );
 }

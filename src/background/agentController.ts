@@ -394,21 +394,17 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
           content: pageContextMessage
         }, targetTabId);
         
-        // Always add page context to message history, even if it's empty
-        // Note: Using "user" role for system instructions since Anthropic SDK doesn't support "system" role
-        // This is a workaround - ideally these would be system messages as they're instructions, not user input
-        await addToConversationHistory(targetTabId, { 
-          role: "user",
-          content: `[SYSTEM INSTRUCTION: You are currently on ${currentUrl} (${currentTitle}). 
-          
-If the user's request seems to continue a previous task (like asking to "summarize options" after a search), interpret it in the context of what you've just been doing.
-
-If the request seems to start a new task that requires going to a different website, you should navigate there.
-
-Use your judgment to determine whether the request is meant to be performed on the current page or requires navigation elsewhere.
-
-Remember to follow the verification-first workflow: navigate → observe → analyze → act]`
-        });
+        // Set the current page context in the PromptManager
+        // This will be included in the system prompt
+        if (updatedTabState.agent) {
+          // Access the PromptManager through the agent
+          // This is a bit of a hack since we don't have direct access to the PromptManager
+          // We're assuming the agent has a property called promptManager
+          const promptManager = (updatedTabState.agent as any).promptManager;
+          if (promptManager && typeof promptManager.setCurrentPageContext === 'function') {
+            promptManager.setCurrentPageContext(currentUrl, currentTitle);
+          }
+        }
       } catch (error) {
         logWithTimestamp("Could not get current page info: " + String(error), 'warn');
       }

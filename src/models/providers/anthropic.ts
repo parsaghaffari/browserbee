@@ -53,35 +53,44 @@ export class AnthropicProvider implements LLMProvider {
             cache_control: { type: "ephemeral" },
           },
         ],
-        messages: messages.map((message, index) => {
-          if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-            return {
-              ...message,
-              content:
-                typeof message.content === "string"
-                  ? [
-                      {
-                        type: "text",
-                        text: message.content,
-                        cache_control: {
-                          type: "ephemeral",
+        // Process messages to filter out system instructions and ensure clean conversation
+        messages: messages
+          // First filter out system instructions embedded in user messages
+          .filter(message => 
+            !(message.role === "user" && 
+              typeof message.content === "string" && 
+              message.content.startsWith("[SYSTEM INSTRUCTION:"))
+          )
+          // Then apply cache control to user messages
+          .map((message, index) => {
+            if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+              return {
+                ...message,
+                content:
+                  typeof message.content === "string"
+                    ? [
+                        {
+                          type: "text",
+                          text: message.content,
+                          cache_control: {
+                            type: "ephemeral",
+                          },
                         },
-                      },
-                    ]
-                  : message.content.map((content: any, contentIndex: number) =>
-                      contentIndex === message.content.length - 1
-                        ? {
-                            ...content,
-                            cache_control: {
-                              type: "ephemeral",
-                            },
-                          }
-                        : content
-                    ),
-            };
-          }
-          return message;
-        }),
+                      ]
+                    : message.content.map((content: any, contentIndex: number) =>
+                        contentIndex === message.content.length - 1
+                          ? {
+                              ...content,
+                              cache_control: {
+                                type: "ephemeral",
+                              },
+                            }
+                          : content
+                      ),
+              };
+            }
+            return message;
+          }),
         stream: true,
       },
       modelId.includes("claude-3") ? {

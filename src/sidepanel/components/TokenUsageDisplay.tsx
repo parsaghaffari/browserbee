@@ -91,18 +91,6 @@ export function TokenUsageDisplay() {
   
   return (
     <div className="card bg-base-100 shadow-sm p-3 mt-2 text-xs">
-      {providerConfig && (
-        <div className="flex justify-between items-center mb-2">
-          <span className="font-medium">
-            <FontAwesomeIcon icon={faRobot} className="mr-1" />
-            Model:
-          </span>
-          <span className="text-xs">
-            {formatProviderName(providerConfig.provider)} / 
-            {formatModelName(providerConfig.apiModelId || '')}
-          </span>
-        </div>
-      )}
       <div className="flex justify-between items-center">
         <span className="font-medium">Token Usage:</span>
         <span><FontAwesomeIcon icon={faArrowUp} /> {formatTokenCount(usage.inputTokens)} <FontAwesomeIcon icon={faArrowDown} /> {formatTokenCount(usage.outputTokens)}</span>
