@@ -22,7 +22,7 @@ HN launch:
 - [x] code robustness and refactoring
 - [x] hygiene and marketing (readme, license, acknowledgements)
 - [x] marketing videos
-- [ ] llm adaptors (config in options, show active LLM)
+- [x] llm adaptors (config in options, show active LLM)
 - [ ] add saved prompts with persistence in local DB
 - [ ] max llm calls: allow user to configure, ask for user permission to exceed
 
