@@ -23,7 +23,7 @@ HN launch (0.9.0):
 - [x] hygiene and marketing (readme, license, acknowledgements)
 - [x] marketing videos
 - [x] llm adaptors (config in options, show active LLM)
--- [ ] automatically refresh model list upon change in configuration
+-- [x] automatically refresh model list upon change in configuration
 - [ ] add saved prompts with persistence in local DB
 - [ ] max llm calls: allow user to configure, ask for user permission to exceed
 - [ ] create docs
