@@ -1,4 +1,4 @@
-friends launch:
+friends launch (0.1.0):
 - [x] render markdown in output
 - [x] add streaming output
 - [x] add button to clear context (otherwise continue with previous context)
@@ -12,10 +12,10 @@ friends launch:
 - [x] better handling of when user cancels the debugging session
 - [x] put on github
 
-HN launch:
+HN launch (0.9.0):
 - [ ] write tests 
 - [x] add "requires approval" flag to irreversible tools, and seek explicit approval from user
-- [ ] better handling of multiple Chrome windows
+- [x] better handling of multiple Chrome windows
 -- [ ] fix "frame detatched" error when a user reloads the extension without properly closing it/debug session first
 - [x] add token counter
 - [x] context summarization
@@ -23,8 +23,11 @@ HN launch:
 - [x] hygiene and marketing (readme, license, acknowledgements)
 - [x] marketing videos
 - [x] llm adaptors (config in options, show active LLM)
+-- [ ] automatically refresh model list upon change in configuration
 - [ ] add saved prompts with persistence in local DB
 - [ ] max llm calls: allow user to configure, ask for user permission to exceed
+- [ ] create docs
+- [ ] upload to Chrome web store
 
 later:
 - [ ] session replay feature
@@ -33,3 +36,5 @@ later:
 -- [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
 -- [ ] include pre-built memories for major websites
 - [ ] scheduler for recurring tasks using chrome.alarms
+- [ ] test and enhance prompt caching
+- [ ] add user memory component
