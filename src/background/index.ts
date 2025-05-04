@@ -1,5 +1,5 @@
 import { setupMessageListeners } from './messageHandler';
-import { cleanupOnUnload } from './tabManager';
+import { cleanupOnUnload, setupTabListeners } from './tabManager';
 import { logWithTimestamp } from './utils';
 import { MemoryService } from '../tracking/memoryService';
 
@@ -12,9 +12,11 @@ function initializeExtension(): void {
   // Set up message listeners
   setupMessageListeners();
   
+  // Set up tab listeners
+  setupTabListeners();
+  
   // Set up event listeners
   setupEventListeners();
-  
 }
 
 /**

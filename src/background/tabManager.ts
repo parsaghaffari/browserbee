@@ -13,6 +13,9 @@ let currentTabId: number | null = null;
 // Playwright instance
 let crxAppPromise: Promise<Awaited<ReturnType<typeof crx.start>>> | null = null;
 
+// Map to store target objects by tab ID and target ID
+const targetMap = new Map<number, Map<string, any>>();
+
 /**
  * Get the current tab ID
  * @returns The current tab ID or null if no tab is attached
@@ -135,10 +138,217 @@ export async function getCrxApp(forceNew = false) {
           // Set up event listeners
           app.addListener('attached', ({ tabId }) => {
             addAttachedTab(tabId);
+            
+            // Notify UI components about the attachment
+            chrome.runtime.sendMessage({
+              action: 'tabStatusChanged',
+              status: 'attached',
+              tabId
+            });
           });
           
           app.addListener('detached', (tabId) => {
             removeAttachedTab(tabId);
+            
+            // Notify UI components about the detachment
+            chrome.runtime.sendMessage({
+              action: 'tabStatusChanged',
+              status: 'detached',
+              tabId
+            });
+          });
+          
+          // Target created event (new tab or iframe)
+          app.addListener('targetCreated', async (target) => {
+            try {
+              const targetInfo = {
+                type: await target.type(),
+                url: await target.url()
+              };
+              
+              logWithTimestamp(`Target created: ${JSON.stringify(targetInfo)}`);
+              
+              // If this is a page target (tab), we can get its tab ID
+              if (targetInfo.type === 'page') {
+                // We need to implement a way to get the tab ID from the target
+                const tabId = await getTabIdFromTarget(target);
+                
+                if (tabId) {
+                  // Store information about this target
+                  storeTargetInfo(tabId, target, targetInfo);
+                  
+                  // Notify UI components
+                  chrome.runtime.sendMessage({
+                    action: 'targetCreated',
+                    tabId,
+                    targetInfo
+                  });
+                }
+              }
+            } catch (error) {
+              handleError(error, 'handling targetCreated event');
+            }
+          });
+          
+          // Target destroyed event
+          app.addListener('targetDestroyed', async (target) => {
+            try {
+              // Try to get the URL before the target is fully destroyed
+              let url = '<unknown>';
+              try {
+                url = await target.url();
+              } catch (e) {
+                // Ignore errors getting URL from destroyed target
+              }
+              
+              logWithTimestamp(`Target destroyed: ${url}`);
+              
+              // If we have a mapping from this target to a tab ID, use it
+              const tabId = getTabIdFromTargetMap(target);
+              
+              if (tabId) {
+                // Clean up any stored information about this target
+                removeTargetInfo(tabId, target);
+                
+                // Notify UI components
+                chrome.runtime.sendMessage({
+                  action: 'targetDestroyed',
+                  tabId,
+                  url
+                });
+              }
+            } catch (error) {
+              handleError(error, 'handling targetDestroyed event');
+            }
+          });
+          
+          // Target changed event (e.g., navigation)
+          app.addListener('targetChanged', async (target) => {
+            try {
+              const url = await target.url();
+              logWithTimestamp(`Target changed: ${url}`);
+              
+              // If we have a mapping from this target to a tab ID, use it
+              const tabId = getTabIdFromTargetMap(target);
+              
+              if (tabId) {
+                // Update stored information about this target
+                updateTargetInfo(tabId, target, { url });
+                
+                // Update tab title if possible
+                try {
+                  const page = await target.page();
+                  if (page) {
+                    const title = await page.title();
+                    
+                    // Update the tab state with the new title
+                    const tabState = getTabState(tabId);
+                    if (tabState) {
+                      setTabState(tabId, { ...tabState, title });
+                      
+                      // Notify UI components about the title change
+                      chrome.runtime.sendMessage({
+                        action: 'tabTitleChanged',
+                        tabId,
+                        title
+                      });
+                    }
+                  }
+                } catch (pageError) {
+                  // Ignore errors getting page or title
+                }
+                
+                // Notify UI components about the URL change
+                chrome.runtime.sendMessage({
+                  action: 'targetChanged',
+                  tabId,
+                  url
+                });
+              }
+            } catch (error) {
+              handleError(error, 'handling targetChanged event');
+            }
+          });
+          
+          // Page dialog event (alert, confirm, prompt)
+          app.addListener('dialog', async (dialog, page) => {
+            try {
+              const dialogInfo = {
+                type: dialog.type(),
+                message: dialog.message()
+              };
+              
+              logWithTimestamp(`Dialog in page: ${JSON.stringify(dialogInfo)}`);
+              
+              // Get the tab ID for this page
+              const tabId = await getTabIdFromPage(page);
+              
+              if (tabId) {
+                // Notify UI components about the dialog
+                chrome.runtime.sendMessage({
+                  action: 'pageDialog',
+                  tabId,
+                  dialogInfo
+                });
+                
+                // Auto-dismiss dialogs to prevent blocking
+                // This behavior could be configurable
+                await dialog.dismiss();
+              }
+            } catch (error) {
+              handleError(error, 'handling dialog event');
+            }
+          });
+          
+          // Page console event
+          app.addListener('console', async (msg, page) => {
+            try {
+              const consoleInfo = {
+                type: msg.type(),
+                text: msg.text()
+              };
+              
+              // Only log warnings and errors to avoid noise
+              if (consoleInfo.type === 'warning' || consoleInfo.type === 'error') {
+                logWithTimestamp(`Console ${consoleInfo.type}: ${consoleInfo.text}`);
+                
+                // Get the tab ID for this page
+                const tabId = await getTabIdFromPage(page);
+                
+                if (tabId) {
+                  // Notify UI components about the console message
+                  chrome.runtime.sendMessage({
+                    action: 'pageConsole',
+                    tabId,
+                    consoleInfo
+                  });
+                }
+              }
+            } catch (error) {
+              handleError(error, 'handling console event');
+            }
+          });
+          
+          // Page error event
+          app.addListener('pageerror', async (error, page) => {
+            try {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              logWithTimestamp(`Page error: ${errorMessage}`, 'error');
+              
+              // Get the tab ID for this page
+              const tabId = await getTabIdFromPage(page);
+              
+              if (tabId) {
+                // Notify UI components about the error
+                chrome.runtime.sendMessage({
+                  action: 'pageError',
+                  tabId,
+                  error: errorMessage
+                });
+              }
+            } catch (handlingError) {
+              handleError(handlingError, 'handling page error event');
+            }
           });
           
           return app;
@@ -255,9 +465,9 @@ async function isTabValid(tabId: number): Promise<boolean> {
  * @param tabId The tab ID to attach to
  * @param windowId Optional window ID
  * @param maxRetries Maximum number of retries
- * @returns Promise resolving to true if attachment was successful, false otherwise
+ * @returns Promise resolving to true if attachment was successful, or the new tab ID if a fallback page was created
  */
-export async function attachToTab(tabId: number, windowId?: number, maxRetries = 3): Promise<boolean> {
+export async function attachToTab(tabId: number, windowId?: number, maxRetries = 3): Promise<boolean | number> {
   try {
     logWithTimestamp(`Initializing for tab ${tabId} in window ${windowId || 'unknown'}`);
     
@@ -273,10 +483,12 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
       // Check if the tab is valid for attachment
       if (!tab || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
         logWithTimestamp(`Tab ${tabId} is not valid for attachment, creating new page instead`, 'warn');
+        // Return the new tab ID from createNewPageAsFallback
         return await createNewPageAsFallback(tabId, windowId);
       }
     } catch (error) {
       logWithTimestamp(`Error getting tab info: ${error}`, 'warn');
+      // Return the new tab ID from createNewPageAsFallback
       return await createNewPageAsFallback(tabId, windowId);
     }
     
@@ -417,9 +629,9 @@ export async function attachToTab(tabId: number, windowId?: number, maxRetries =
  * Create a new page as a fallback when attachment fails
  * @param tabId The tab ID that failed to attach
  * @param windowId Optional window ID
- * @returns Promise resolving to false (indicating attachment failed but fallback was created)
+ * @returns Promise resolving to the new tab ID
  */
-async function createNewPageAsFallback(tabId: number, windowId?: number): Promise<false> {
+async function createNewPageAsFallback(tabId: number, windowId?: number): Promise<number> {
   logWithTimestamp(`All attachment attempts failed for tab ${tabId}, creating new page`, 'warn');
   
   try {
@@ -433,31 +645,298 @@ async function createNewPageAsFallback(tabId: number, windowId?: number): Promis
     const page = await crxApp.newPage();
     logWithTimestamp(`Created new page instead`);
     
-    // Try to navigate to the same URL and get tab title
-    let tabTitle = "New Page";
+    // Get the actual Chrome tab ID for this new page
+    let newTabId: number | undefined;
+    
     try {
-      const tabInfo = await chrome.tabs.get(tabId);
-      if (tabInfo.title) {
-        tabTitle = tabInfo.title;
+      // Wait a moment for the page to be fully created
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Try to get the tab ID from the page
+      newTabId = await getTabIdFromPage(page);
+      
+      if (!newTabId) {
+        // If we couldn't get the tab ID, use the context pages to find it
+        const pages = await crxApp.context().pages();
+        const pageIndex = pages.indexOf(page);
+        
+        if (pageIndex >= 0) {
+          // Get all Chrome tabs
+          const chromeTabs = await chrome.tabs.query({});
+          
+          // Find the most recently created tab
+          const newestTab = chromeTabs.sort((a, b) => {
+            return (b.id || 0) - (a.id || 0);
+          })[0];
+          
+          if (newestTab && newestTab.id) {
+            newTabId = newestTab.id;
+            logWithTimestamp(`Using newest Chrome tab ID ${newTabId} for fallback page`);
+          }
+        }
       }
-      if (tabInfo.url && !tabInfo.url.startsWith('chrome://') && !tabInfo.url.startsWith('chrome-extension://')) {
-        await page.goto(tabInfo.url);
-        logWithTimestamp(`Navigated new page to ${tabInfo.url}`);
+    } catch (idError) {
+      handleError(idError, 'getting tab ID for new page');
+    }
+    
+    // If we still don't have a new tab ID, use the original one
+    if (!newTabId) {
+      logWithTimestamp(`Could not determine new tab ID, using original tab ID ${tabId}`, 'warn');
+      newTabId = tabId;
+    } else {
+      logWithTimestamp(`Created new page with tab ID ${newTabId}`);
+    }
+    
+    // Try to navigate to the same URL if possible
+    let tabTitle = "New BrowserBee Tab";
+    let originalUrl: string | undefined;
+    
+    try {
+      // Try to get the original tab info
+      const tabInfo = await chrome.tabs.get(tabId).catch(() => null);
+      if (tabInfo && tabInfo.title) {
+        // Only use the original title if we're reusing the same tab ID
+        if (newTabId === tabId) {
+          tabTitle = tabInfo.title;
+        }
+      }
+      
+      if (tabInfo && tabInfo.url && 
+          !tabInfo.url.startsWith('chrome://') && 
+          !tabInfo.url.startsWith('chrome-extension://')) {
+        originalUrl = tabInfo.url;
+        await page.goto(originalUrl).catch(e => {
+          handleError(e, 'navigating to original URL');
+        });
+        logWithTimestamp(`Navigated new page to ${originalUrl}`);
       }
     } catch (navError) {
       handleError(navError, 'navigating to tab URL');
     }
     
-    setCurrentTabId(tabId);
-    setTabState(tabId, { page, agent: null, windowId, title: tabTitle });
+    // Set the new tab as current
+    setCurrentTabId(newTabId);
+    
+    // Store the new tab state
+    setTabState(newTabId, { 
+      page, 
+      agent: null, 
+      windowId, 
+      title: tabTitle 
+    });
+    
+    // If this is a different tab ID than the original, notify UI about the replacement
+    if (newTabId !== tabId) {
+      logWithTimestamp(`Notifying UI that tab ${tabId} was replaced with ${newTabId}`);
+      chrome.runtime.sendMessage({
+        action: 'tabReplaced',
+        oldTabId: tabId,
+        newTabId: newTabId,
+        title: tabTitle,
+        url: originalUrl
+      });
+    }
+    
+    return newTabId;
   } catch (error) {
     handleError(error, 'creating fallback page');
     // Even if creating the fallback page fails, we still want to update the state
     setCurrentTabId(tabId);
     setTabState(tabId, { page: null, agent: null, windowId, title: "Error Page" });
+    return tabId;
+  }
+}
+
+/**
+ * Store information about a target for a tab
+ * @param tabId The tab ID
+ * @param target The target object
+ * @param info Additional information about the target
+ */
+function storeTargetInfo(tabId: number, target: any, info: any): void {
+  if (!targetMap.has(tabId)) {
+    targetMap.set(tabId, new Map());
   }
   
-  return false;
+  // Generate a unique ID for this target if it doesn't have one
+  const targetId = target._id || `target_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Store the target with its ID
+  targetMap.get(tabId)!.set(targetId, {
+    target,
+    info,
+    timestamp: Date.now()
+  });
+  
+  // Also store the tab ID on the target object if possible
+  try {
+    // This is a bit of a hack, but it allows us to retrieve the tab ID from the target later
+    (target as any)._tabId = tabId;
+  } catch (error) {
+    // Ignore errors setting property on target
+  }
+}
+
+/**
+ * Update information about a target for a tab
+ * @param tabId The tab ID
+ * @param target The target object
+ * @param info Additional information about the target
+ */
+function updateTargetInfo(tabId: number, target: any, info: any): void {
+  if (!targetMap.has(tabId)) {
+    // If we don't have this tab ID in our map, store it
+    storeTargetInfo(tabId, target, info);
+    return;
+  }
+  
+  // Try to find the target in the map
+  const tabTargets = targetMap.get(tabId)!;
+  
+  // Generate a unique ID for this target if it doesn't have one
+  const targetId = target._id || `target_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Check if we already have this target
+  if (tabTargets.has(targetId)) {
+    // Update the existing entry
+    const existingEntry = tabTargets.get(targetId)!;
+    tabTargets.set(targetId, {
+      ...existingEntry,
+      info: { ...existingEntry.info, ...info },
+      timestamp: Date.now()
+    });
+  } else {
+    // Store as a new target
+    storeTargetInfo(tabId, target, info);
+  }
+}
+
+/**
+ * Remove information about a target for a tab
+ * @param tabId The tab ID
+ * @param target The target object
+ */
+function removeTargetInfo(tabId: number, target: any): void {
+  if (!targetMap.has(tabId)) {
+    return;
+  }
+  
+  // Generate a unique ID for this target if it doesn't have one
+  const targetId = target._id || `target_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Remove the target from the map
+  targetMap.get(tabId)!.delete(targetId);
+  
+  // If there are no more targets for this tab, remove the tab entry
+  if (targetMap.get(tabId)!.size === 0) {
+    targetMap.delete(tabId);
+  }
+}
+
+/**
+ * Get the tab ID from a target object
+ * @param target The target object
+ * @returns The tab ID or undefined if not found
+ */
+function getTabIdFromTargetMap(target: any): number | undefined {
+  // First, try to get the tab ID directly from the target
+  if (target._tabId) {
+    return target._tabId;
+  }
+  
+  // If that fails, search through our map
+  for (const [tabId, tabTargets] of targetMap.entries()) {
+    for (const [, entry] of tabTargets.entries()) {
+      if (entry.target === target) {
+        return tabId;
+      }
+    }
+  }
+  
+  return undefined;
+}
+
+/**
+ * Get the tab ID from a page object
+ * @param page The page object
+ * @returns Promise resolving to the tab ID or undefined if not found
+ */
+async function getTabIdFromPage(page: any): Promise<number | undefined> {
+  try {
+    // Try to get the target for this page
+    const target = page.target();
+    
+    // If we have a target, try to get its tab ID
+    if (target) {
+      return getTabIdFromTargetMap(target);
+    }
+    
+    // If that fails, try to use internal Playwright-CRX APIs
+    // This is implementation-specific and might change
+    if (page._session && page._session._connection && page._session._connection._transport) {
+      const transport = page._session._connection._transport;
+      
+      // If this is a CrxTransport, it might have a _tabId property
+      if (transport._tabId) {
+        return transport._tabId;
+      }
+    }
+  } catch (error) {
+    handleError(error, 'getting tab ID from page');
+  }
+  
+  return undefined;
+}
+
+/**
+ * Get the tab ID from a target object using Playwright-CRX internals
+ * @param target The target object
+ * @returns Promise resolving to the tab ID or undefined if not found
+ */
+async function getTabIdFromTarget(target: any): Promise<number | undefined> {
+  try {
+    // First, try to get the page for this target
+    const page = await target.page();
+    if (page) {
+      return getTabIdFromPage(page);
+    }
+    
+    // If that fails, try to use internal Playwright-CRX APIs
+    // This is implementation-specific and might change
+    if (target._session && target._session._connection && target._session._connection._transport) {
+      const transport = target._session._connection._transport;
+      
+      // If this is a CrxTransport, it might have a _tabId property
+      if (transport._tabId) {
+        return transport._tabId;
+      }
+    }
+  } catch (error) {
+    handleError(error, 'getting tab ID from target');
+  }
+  
+  return undefined;
+}
+
+/**
+ * Set up tab event listeners
+ */
+export function setupTabListeners(): void {
+  // Listen for tab removal events
+  chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+    if (isTabAttached(tabId)) {
+      logWithTimestamp(`Tab ${tabId} was closed by user, cleaning up state`);
+      removeAttachedTab(tabId);
+      
+      // Notify UI that the tab was closed
+      chrome.runtime.sendMessage({
+        action: 'tabStatusChanged',
+        status: 'detached',
+        tabId,
+        reason: 'closed'
+      });
+    }
+  });
 }
 
 /**

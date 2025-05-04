@@ -156,6 +156,64 @@ export type BackgroundMessage =
   | TokenUsageUpdatedMessage
   | UpdateOutputMessage;
 
+// New message types for enhanced tab management
+export interface TabStatusChangedMessage {
+  action: 'tabStatusChanged';
+  status: 'attached' | 'detached';
+  tabId: number;
+}
+
+export interface TargetCreatedMessage {
+  action: 'targetCreated';
+  tabId: number;
+  targetInfo: {
+    type: string;
+    url: string;
+  };
+}
+
+export interface TargetDestroyedMessage {
+  action: 'targetDestroyed';
+  tabId: number;
+  url: string;
+}
+
+export interface TargetChangedMessage {
+  action: 'targetChanged';
+  tabId: number;
+  url: string;
+}
+
+export interface TabTitleChangedMessage {
+  action: 'tabTitleChanged';
+  tabId: number;
+  title: string;
+}
+
+export interface PageDialogMessage {
+  action: 'pageDialog';
+  tabId: number;
+  dialogInfo: {
+    type: string;
+    message: string;
+  };
+}
+
+export interface PageConsoleMessage {
+  action: 'pageConsole';
+  tabId: number;
+  consoleInfo: {
+    type: string;
+    text: string;
+  };
+}
+
+export interface PageErrorMessage {
+  action: 'pageError';
+  tabId: number;
+  error: string;
+}
+
 export type UIMessage =
   | UpdateOutputMessage
   | UpdateStreamingChunkMessage
@@ -167,7 +225,15 @@ export type UIMessage =
   | FallbackStartedMessage
   | UpdateScreenshotMessage
   | TokenUsageUpdatedMessage
-  | RequestApprovalMessage;
+  | RequestApprovalMessage
+  | TabStatusChangedMessage
+  | TargetCreatedMessage
+  | TargetDestroyedMessage
+  | TargetChangedMessage
+  | TabTitleChangedMessage
+  | PageDialogMessage
+  | PageConsoleMessage
+  | PageErrorMessage;
 
 // State types
 export interface TabState {

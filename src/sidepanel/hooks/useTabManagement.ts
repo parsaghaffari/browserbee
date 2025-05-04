@@ -61,6 +61,39 @@ export const useTabManagement = () => {
       chrome.tabs.onUpdated.removeListener(handleTabUpdated);
     };
   }, [tabId]);
+  
+  // Listen for tab replacement events
+  useEffect(() => {
+    if (!tabId) return;
+    
+    const messageListener = (
+      message: any,
+      sender: chrome.runtime.MessageSender,
+      sendResponse: (response?: any) => void
+    ) => {
+      // Handle tab replacement
+      if (message.action === 'tabReplaced' && message.oldTabId === tabId) {
+        console.log(`Tab ${tabId} was replaced with new tab ${message.newTabId}`);
+        
+        // Update the tab ID and title
+        setTabId(message.newTabId);
+        setTabTitle(message.title || "New BrowserBee Tab");
+        
+        sendResponse({ received: true });
+        return true;
+      }
+      
+      return false;
+    };
+    
+    // Add the message listener
+    chrome.runtime.onMessage.addListener(messageListener);
+    
+    // Clean up the listener when the component unmounts or tabId changes
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
+  }, [tabId]);
 
   return {
     tabId,

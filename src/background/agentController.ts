@@ -363,7 +363,15 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       const { attachToTab } = await import('./tabManager');
       
       // Attach to the tab
-      await attachToTab(targetTabId);
+      const attachResult = await attachToTab(targetTabId);
+      
+      // If attachResult is a number, it means a new tab was created
+      if (typeof attachResult === 'number') {
+        // Update the target tab ID to the new one
+        logWithTimestamp(`Tab ${targetTabId} was replaced with new tab ${attachResult}`);
+        targetTabId = attachResult;
+      }
+      
       await initializeAgent(targetTabId);
     }
 

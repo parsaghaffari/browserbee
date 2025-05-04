@@ -15,6 +15,13 @@ interface UseChromeMessagingProps {
   onProcessingComplete: () => void;
   onRequestApproval?: (request: { requestId: string, toolName: string, toolInput: string, reason: string }) => void;
   setTabTitle: (title: string) => void;
+  onTabStatusChanged?: (status: 'attached' | 'detached', tabId: number) => void;
+  onTargetCreated?: (tabId: number, targetInfo: any) => void;
+  onTargetDestroyed?: (tabId: number, url: string) => void;
+  onTargetChanged?: (tabId: number, url: string) => void;
+  onPageDialog?: (tabId: number, dialogInfo: any) => void;
+  onPageConsole?: (tabId: number, consoleInfo: any) => void;
+  onPageError?: (tabId: number, error: string) => void;
 }
 
 export const useChromeMessaging = ({
@@ -30,7 +37,14 @@ export const useChromeMessaging = ({
   onUpdateScreenshot,
   onProcessingComplete,
   onRequestApproval,
-  setTabTitle
+  setTabTitle,
+  onTabStatusChanged,
+  onTargetCreated,
+  onTargetDestroyed,
+  onTargetChanged,
+  onPageDialog,
+  onPageConsole,
+  onPageError
 }: UseChromeMessagingProps) => {
   
   // Listen for updates from the background script
@@ -95,6 +109,23 @@ export const useChromeMessaging = ({
             reason: message.reason || 'This action requires approval.'
           });
         }
+      } 
+      else if (message.action === 'tabStatusChanged' && onTabStatusChanged && message.status && message.tabId) {
+        onTabStatusChanged(message.status, message.tabId);
+      } else if (message.action === 'targetCreated' && onTargetCreated && message.tabId && message.targetInfo) {
+        onTargetCreated(message.tabId, message.targetInfo);
+      } else if (message.action === 'targetDestroyed' && onTargetDestroyed && message.tabId && message.url) {
+        onTargetDestroyed(message.tabId, message.url);
+      } else if (message.action === 'targetChanged' && onTargetChanged && message.tabId && message.url) {
+        onTargetChanged(message.tabId, message.url);
+      } else if (message.action === 'tabTitleChanged' && setTabTitle && message.title) {
+        setTabTitle(message.title);
+      } else if (message.action === 'pageDialog' && onPageDialog && message.tabId && message.dialogInfo) {
+        onPageDialog(message.tabId, message.dialogInfo);
+      } else if (message.action === 'pageConsole' && onPageConsole && message.tabId && message.consoleInfo) {
+        onPageConsole(message.tabId, message.consoleInfo);
+      } else if (message.action === 'pageError' && onPageError && message.tabId && message.error) {
+        onPageError(message.tabId, message.error);
       }
     };
 
@@ -113,7 +144,14 @@ export const useChromeMessaging = ({
     onUpdateScreenshot,
     onProcessingComplete,
     onRequestApproval,
-    setTabTitle
+    setTabTitle,
+    onTabStatusChanged,
+    onTargetCreated,
+    onTargetDestroyed,
+    onTargetChanged,
+    onPageDialog,
+    onPageConsole,
+    onPageError
   ]);
 
   const executePrompt = (prompt: string) => {

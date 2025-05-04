@@ -105,7 +105,22 @@ export function SidePanel() {
       // Add the request to the list
       setApprovalRequests(prev => [...prev, request]);
     },
-    setTabTitle
+    setTabTitle,
+    // New event handlers for tab events
+    onTabStatusChanged: (status, tabId) => {
+      // We don't need to do anything here as TabStatusBar handles this
+    },
+    onTargetChanged: (tabId, url) => {
+      // We don't need to do anything here as TabStatusBar handles this
+    },
+    onPageDialog: (tabId, dialogInfo) => {
+      // Add a system message about the dialog
+      addSystemMessage(`📢 Dialog: ${dialogInfo.type} - ${dialogInfo.message}`);
+    },
+    onPageError: (tabId, error) => {
+      // Add a system message about the error
+      addSystemMessage(`❌ Page Error: ${error}`);
+    }
   });
 
   // Handle form submission

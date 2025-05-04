@@ -111,7 +111,15 @@ function isBackgroundMessage(message: any): message is BackgroundMessage {
       message.action === 'approvalResponse' ||
       message.action === 'reflectAndLearn' ||
       message.action === 'tokenUsageUpdated' ||  // Add support for token usage updates
-      message.action === 'updateOutput'  // Add support for output updates
+      message.action === 'updateOutput' ||  // Add support for output updates
+      message.action === 'tabStatusChanged' ||
+      message.action === 'targetCreated' ||
+      message.action === 'targetDestroyed' ||
+      message.action === 'targetChanged' ||
+      message.action === 'tabTitleChanged' ||
+      message.action === 'pageDialog' ||
+      message.action === 'pageConsole' ||
+      message.action === 'pageError'
     )
   );
 }

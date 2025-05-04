@@ -21,4 +21,16 @@ export interface ChromeMessage {
   toolName?: string;
   toolInput?: string;
   reason?: string;
+  
+  status?: 'attached' | 'detached';
+  targetInfo?: any;
+  url?: string;
+  title?: string;
+  dialogInfo?: any;
+  consoleInfo?: any;
+  error?: string;
+  
+  // Tab replacement properties
+  oldTabId?: number;
+  newTabId?: number;
 }
