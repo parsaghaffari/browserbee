@@ -164,8 +164,37 @@ export class OpenAIProvider implements LLMProvider {
                   // Parse just the first object
                   args = JSON.parse(jsonObjects[0]);
                 } else {
-                  // If it's not multiple objects, re-throw the original error
-                  throw parseError;
+                  // Second attempt: sanitize and try again
+                  console.log("Attempting to sanitize tool arguments before parsing");
+                  // Replace double quotes in CSS selectors with single quotes
+                  const sanitizedArgs = toolArguments
+                    .replace(/(\w+)\[name="([^"]+)"\]/g, '$1[name=\'$2\']')
+                    .replace(/(\w+)\[class="([^"]+)"\]/g, '$1[class=\'$2\']')
+                    .replace(/(\w+)\[id="([^"]+)"\]/g, '$1[id=\'$2\']')
+                    .replace(/(\w+)\[type="([^"]+)"\]/g, '$1[type=\'$2\']')
+                    .replace(/(\w+)\[value="([^"]+)"\]/g, '$1[value=\'$2\']');
+                  
+                  try {
+                    args = JSON.parse(sanitizedArgs);
+                    console.log("Successfully parsed sanitized tool arguments");
+                  } catch (secondError) {
+                    console.error("Error parsing sanitized tool arguments:", secondError);
+                    
+                    // Third attempt: use regex to extract the input directly
+                    const inputMatch = toolArguments.match(/"input"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
+                    const requiresApprovalMatch = toolArguments.match(/"requires_approval"\s*:\s*(true|false)/);
+                    
+                    if (inputMatch) {
+                      console.log("Extracted input using regex");
+                      args = {
+                        input: inputMatch[1].replace(/\\"/g, '"'),
+                        requires_approval: requiresApprovalMatch ? 
+                          requiresApprovalMatch[1] === 'true' : false
+                      };
+                    } else {
+                      throw secondError; // If we can't extract the input, re-throw
+                    }
+                  }
                 }
               }
               
@@ -220,8 +249,37 @@ export class OpenAIProvider implements LLMProvider {
               // Parse just the first object
               args = JSON.parse(jsonObjects[0]);
             } else {
-              // If it's not multiple objects, re-throw the original error
-              throw parseError;
+              // Second attempt: sanitize and try again
+              console.log("Attempting to sanitize unfinished tool arguments before parsing");
+              // Replace double quotes in CSS selectors with single quotes
+              const sanitizedArgs = toolArguments
+                .replace(/(\w+)\[name="([^"]+)"\]/g, '$1[name=\'$2\']')
+                .replace(/(\w+)\[class="([^"]+)"\]/g, '$1[class=\'$2\']')
+                .replace(/(\w+)\[id="([^"]+)"\]/g, '$1[id=\'$2\']')
+                .replace(/(\w+)\[type="([^"]+)"\]/g, '$1[type=\'$2\']')
+                .replace(/(\w+)\[value="([^"]+)"\]/g, '$1[value=\'$2\']');
+              
+              try {
+                args = JSON.parse(sanitizedArgs);
+                console.log("Successfully parsed sanitized unfinished tool arguments");
+              } catch (secondError) {
+                console.error("Error parsing sanitized unfinished tool arguments:", secondError);
+                
+                // Third attempt: use regex to extract the input directly
+                const inputMatch = toolArguments.match(/"input"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
+                const requiresApprovalMatch = toolArguments.match(/"requires_approval"\s*:\s*(true|false)/);
+                
+                if (inputMatch) {
+                  console.log("Extracted input using regex from unfinished tool call");
+                  args = {
+                    input: inputMatch[1].replace(/\\"/g, '"'),
+                    requires_approval: requiresApprovalMatch ? 
+                      requiresApprovalMatch[1] === 'true' : false
+                  };
+                } else {
+                  throw secondError; // If we can't extract the input, re-throw
+                }
+              }
             }
           }
           
