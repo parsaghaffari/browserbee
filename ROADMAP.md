@@ -31,7 +31,7 @@ HN launch (0.9.0):
 
 later:
 - [ ] session replay feature
-- [x] task memory using indexedDB (<website, task, steps, outcome>) 
+- [x] task memory using indexedDB (<website, task, steps>) 
 -- [x] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
 -- [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
 -- [ ] include pre-built memories for major websites
