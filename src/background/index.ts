@@ -23,6 +23,31 @@ function initializeExtension(): void {
  * Set up event listeners for the extension
  */
 function setupEventListeners(): void {
+  // Listen for changes to Chrome storage
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'sync') {
+      // Check if any provider configuration has changed
+      const providerConfigChanged = Object.keys(changes).some(key => 
+        key === 'provider' || 
+        key === 'anthropicApiKey' || 
+        key === 'openaiApiKey' || 
+        key === 'geminiApiKey' ||
+        key === 'anthropicBaseUrl' ||
+        key === 'openaiBaseUrl' ||
+        key === 'geminiBaseUrl'
+      );
+      
+      if (providerConfigChanged) {
+        // Notify all clients that provider configuration has changed
+        chrome.runtime.sendMessage({
+          action: 'providerConfigChanged'
+        });
+        
+        logWithTimestamp('Provider configuration changed, notified clients');
+      }
+    }
+  });
+  
   // Open options page when the extension is first installed
   chrome.runtime.onInstalled.addListener((details) => {
     logWithTimestamp('BrowserBee 🐝 extension installed');

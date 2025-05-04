@@ -135,6 +135,11 @@ export interface TokenUsageUpdatedMessage {
   tabId?: number;
 }
 
+export interface ProviderConfigChangedMessage {
+  action: 'providerConfigChanged';
+  tabId?: number;
+}
+
 export interface RequestApprovalMessage {
   action: 'requestApproval';
   requestId: string;
@@ -154,7 +159,8 @@ export type BackgroundMessage =
   | ApprovalResponseMessage
   | ReflectAndLearnMessage
   | TokenUsageUpdatedMessage
-  | UpdateOutputMessage;
+  | UpdateOutputMessage
+  | ProviderConfigChangedMessage;
 
 // New message types for enhanced tab management
 export interface TabStatusChangedMessage {
@@ -225,6 +231,7 @@ export type UIMessage =
   | FallbackStartedMessage
   | UpdateScreenshotMessage
   | TokenUsageUpdatedMessage
+  | ProviderConfigChangedMessage
   | RequestApprovalMessage
   | TabStatusChangedMessage
   | TargetCreatedMessage

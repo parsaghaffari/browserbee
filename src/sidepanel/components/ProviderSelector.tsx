@@ -16,37 +16,57 @@ export function ProviderSelector() {
   const [currentModel, setCurrentModel] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   
+  // Function to load provider options
+  const loadOptions = async () => {
+    setIsLoading(true);
+    const configManager = ConfigManager.getInstance();
+    
+    // Get current config
+    const config = await configManager.getProviderConfig();
+    setCurrentProvider(config.provider);
+    setCurrentModel(config.apiModelId || '');
+    
+    // Get configured providers
+    const providers = await configManager.getConfiguredProviders();
+    
+    // Build options
+    const providerOptions: ProviderOption[] = [];
+    
+    for (const provider of providers) {
+      const models = await configManager.getModelsForProvider(provider);
+      
+      providerOptions.push({
+        provider,
+        displayName: formatProviderName(provider),
+        models,
+      });
+    }
+    
+    setOptions(providerOptions);
+    setIsLoading(false);
+  };
+  
+  // Load options when component mounts
   useEffect(() => {
-    const loadOptions = async () => {
-      setIsLoading(true);
-      const configManager = ConfigManager.getInstance();
-      
-      // Get current config
-      const config = await configManager.getProviderConfig();
-      setCurrentProvider(config.provider);
-      setCurrentModel(config.apiModelId || '');
-      
-      // Get configured providers
-      const providers = await configManager.getConfiguredProviders();
-      
-      // Build options
-      const providerOptions: ProviderOption[] = [];
-      
-      for (const provider of providers) {
-        const models = await configManager.getModelsForProvider(provider);
-        
-        providerOptions.push({
-          provider,
-          displayName: formatProviderName(provider),
-          models,
-        });
+    loadOptions();
+  }, []);
+  
+  // Listen for provider configuration changes
+  useEffect(() => {
+    const handleMessage = (message: any) => {
+      if (message.action === 'providerConfigChanged') {
+        console.log('Provider configuration changed, refreshing options');
+        loadOptions();
       }
-      
-      setOptions(providerOptions);
-      setIsLoading(false);
     };
     
-    loadOptions();
+    // Add the message listener
+    chrome.runtime.onMessage.addListener(handleMessage);
+    
+    // Clean up the listener when the component unmounts
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
   }, []);
   
   const formatProviderName = (provider: string) => {

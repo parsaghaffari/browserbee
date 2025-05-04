@@ -76,6 +76,12 @@ export function handleMessage(
         // This allows components to send UI updates
         sendResponse({ success: true });
         return true;
+        
+      case 'providerConfigChanged':
+        // Just pass through provider configuration change notifications
+        // This allows the ProviderSelector component to refresh
+        sendResponse({ success: true });
+        return true;
 
       default:
         // This should never happen due to the type guard, but TypeScript requires it
@@ -112,6 +118,7 @@ function isBackgroundMessage(message: any): message is BackgroundMessage {
       message.action === 'reflectAndLearn' ||
       message.action === 'tokenUsageUpdated' ||  // Add support for token usage updates
       message.action === 'updateOutput' ||  // Add support for output updates
+      message.action === 'providerConfigChanged' ||  // Add support for provider config changes
       message.action === 'tabStatusChanged' ||
       message.action === 'targetCreated' ||
       message.action === 'targetDestroyed' ||
