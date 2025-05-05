@@ -16,7 +16,7 @@ HN launch (0.9.0):
 - [ ] write tests 
 - [x] add "requires approval" flag to irreversible tools, and seek explicit approval from user
 - [x] better handling of multiple Chrome windows
--- [ ] fix "frame detatched" error when a user reloads the extension without properly closing it/debug session first
+-- [x] fix "frame detatched" error when a user reloads the extension without properly closing it/debug session first
 - [x] add token counter
 - [x] context summarization
 - [x] code robustness and refactoring
