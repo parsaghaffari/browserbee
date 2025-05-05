@@ -35,3 +35,4 @@ coverage/
 # Misc
 .cache/
 .temp/
+api_keys.txt
