@@ -12,8 +12,9 @@ Since BrowserBee runs entirely within your browser (with the exception of the LL
 - Supports major LLM providers such as **Anthropic**, **OpenAI**, and **Gemini**, with more coming soon
 - Tracks **token use** and **price** so you know how much you're spending on each task
 - Has access to a wide range of **🕹️ browser tools** for interacting and understanding browser state
-- Uses Playwright in the background which is a robust browser automation tool
-- The memory feature captures useful tool use sequences and stores them locally to make future use more efficient
+- Uses **Playwright** in the background which is a robust browser automation tool
+- The **memory** feature captures useful tool use sequences and stores them locally to make future use more efficient
+- The agent knows when to ask for user's **approval**, e.g. for purchases or posting updates on social media
 
 ## ✅ Use Cases
 
