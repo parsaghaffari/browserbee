@@ -50,7 +50,8 @@ export function SidePanel() {
     approveRequest(requestId);
     // Remove the request from the list
     setApprovalRequests(prev => prev.filter(req => req.requestId !== requestId));
-    // No need to add a system message - agent.ts will handle this
+    // Add a system message to indicate approval
+    addSystemMessage(`✅ Approved action: ${requestId}`);
   };
 
   const handleReject = (requestId: string) => {
@@ -58,7 +59,8 @@ export function SidePanel() {
     rejectRequest(requestId);
     // Remove the request from the list
     setApprovalRequests(prev => prev.filter(req => req.requestId !== requestId));
-    // No need to add a system message - agent.ts will handle this
+    // Add a system message to indicate rejection
+    addSystemMessage(`❌ Rejected action: ${requestId}`);
   };
 
   // Set up Chrome messaging with callbacks

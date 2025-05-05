@@ -24,7 +24,7 @@ export async function requestApproval(
     const requestId = generateUniqueId();
     pendingApprovals.set(requestId, { resolve, toolName, toolInput, reason });
     
-    // Send approval request to UI
+    // Send approval request to UI with a callback to handle errors
     chrome.runtime.sendMessage({
       action: 'requestApproval',
       tabId,
@@ -32,6 +32,14 @@ export async function requestApproval(
       toolName,
       toolInput,
       reason
+    }, (response) => {
+      // Handle any potential errors
+      if (chrome.runtime.lastError) {
+        console.error('Error sending approval request:', chrome.runtime.lastError);
+        // If there's an error, resolve with false (reject the action)
+        resolve(false);
+      }
+      // Don't resolve here - wait for the handleApprovalResponse call
     });
   });
 }
@@ -46,6 +54,8 @@ export function handleApprovalResponse(requestId: string, approved: boolean): vo
   if (pendingApproval) {
     pendingApproval.resolve(approved);
     pendingApprovals.delete(requestId);
+  } else {
+    console.warn(`No pending approval found for requestId: ${requestId}`);
   }
 }
 

@@ -165,7 +165,8 @@ export type BackgroundMessage =
   | TokenUsageUpdatedMessage
   | UpdateOutputMessage
   | ProviderConfigChangedMessage
-  | ForceResetPlaywrightMessage;
+  | ForceResetPlaywrightMessage
+  | RequestApprovalMessage;
 
 // New message types for enhanced tab management
 export interface TabStatusChangedMessage {

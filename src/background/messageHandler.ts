@@ -86,6 +86,12 @@ export function handleMessage(
       case 'forceResetPlaywright':
         handleForceResetPlaywright(message, sendResponse);
         return true;
+        
+      case 'requestApproval':
+        // Just acknowledge receipt of the request approval message
+        // The actual approval handling is done by the UI
+        sendResponse({ success: true });
+        return true;
 
       default:
         // This should never happen due to the type guard, but TypeScript requires it
@@ -131,7 +137,8 @@ function isBackgroundMessage(message: any): message is BackgroundMessage {
       message.action === 'pageDialog' ||
       message.action === 'pageConsole' ||
       message.action === 'pageError' ||
-      message.action === 'forceResetPlaywright'
+      message.action === 'forceResetPlaywright' ||
+      message.action === 'requestApproval'  // Add support for request approval messages
     )
   );
 }

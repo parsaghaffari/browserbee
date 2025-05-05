@@ -49,12 +49,12 @@ export const useChromeMessaging = ({
   
   // Listen for updates from the background script
   useEffect(() => {
-    const messageListener = (message: ChromeMessage) => {
+    const messageListener = (message: ChromeMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
       // Only process messages intended for this tab
       // If the message has a tabId, check if it matches this tab's ID
       // If the message doesn't have a tabId, process it (for backward compatibility)
       if (message.tabId && message.tabId !== tabId) {
-        return; // Skip messages for other tabs
+        return false; // Skip messages for other tabs
       }
       
       if (message.action === 'updateOutput') {
@@ -108,6 +108,12 @@ export const useChromeMessaging = ({
             toolInput: message.toolInput,
             reason: message.reason || 'This action requires approval.'
           });
+          // Send a response to keep the message channel open
+          sendResponse({ success: true });
+          return true; // Keep the message channel open for async response
+        } else {
+          console.warn('Received incomplete requestApproval message');
+          sendResponse({ success: false, error: 'Incomplete approval request' });
         }
       } 
       else if (message.action === 'tabStatusChanged' && onTabStatusChanged && message.status && message.tabId) {
@@ -127,6 +133,10 @@ export const useChromeMessaging = ({
       } else if (message.action === 'pageError' && onPageError && message.tabId && message.error) {
         onPageError(message.tabId, message.error);
       }
+      
+      // Send a response for any message that doesn't explicitly return true
+      sendResponse({ success: true });
+      return false; // Don't keep the message channel open by default
     };
 
     chrome.runtime.onMessage.addListener(messageListener);
@@ -202,9 +212,9 @@ export const useChromeMessaging = ({
       requestId,
       approved: true,
       tabId 
-    }, () => {
+    }, (response) => {
       if (chrome.runtime.lastError) {
-        console.error(chrome.runtime.lastError);
+        console.error('Error sending approval response:', chrome.runtime.lastError);
       }
     });
   };
@@ -215,9 +225,9 @@ export const useChromeMessaging = ({
       requestId,
       approved: false,
       tabId 
-    }, () => {
+    }, (response) => {
       if (chrome.runtime.lastError) {
-        console.error(chrome.runtime.lastError);
+        console.error('Error sending rejection response:', chrome.runtime.lastError);
       }
     });
   };
