@@ -1,6 +1,6 @@
 {
   "name": "browserbee",
-  "description": "Control your browser with natural language using Claude 3 Sonnet and Playwright ✨",
+  "description": "Control your browser with natural language",
   "version": "0.1.0",
   "type": "module",
   "keywords": [
@@ -14,7 +14,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/browserbee.git"
+    "url": "https://github.com/parsaghaffari/browserbee.git"
   },
   "scripts": {
     "build": "tsc && vite build",
@@ -33,7 +33,7 @@
     "@langchain/langgraph": "^0.2.64",
     "langchain": "^0.3.22",
     "openai": "^4.28.0",
-    "playwright-crx": "0.13.0",
+    "playwright-crx": "github:parsaghaffari/playwright-crx#0.14.0-patch",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",

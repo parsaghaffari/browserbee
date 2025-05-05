@@ -112,21 +112,23 @@ export const TabStatusBar: React.FC<TabStatusBarProps> = ({
         {tabTitle}
       </span>
       
-      {/* Show refresh button when tab is detached */}
-      {tabStatus === 'detached' && (
-        <button 
-          className="ml-1 text-xs text-primary hover:text-primary-focus"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          title="Refresh connection"
-        >
-          <FontAwesomeIcon 
-            icon={faRotateRight} 
-            className={isRefreshing ? 'animate-spin' : ''} 
-            size="xs"
-          />
-        </button>
-      )}
+      {/* Only show refresh button when detached */}
+      <div className="flex items-center">
+        {tabStatus === 'detached' && (
+          <button 
+            className="ml-1 text-xs text-primary hover:text-primary-focus"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh connection"
+          >
+            <FontAwesomeIcon 
+              icon={faRotateRight} 
+              className={isRefreshing ? 'animate-spin' : ''} 
+              size="xs"
+            />
+          </button>
+        )}
+      </div>
     </div>
   );
 };

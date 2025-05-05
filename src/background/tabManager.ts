@@ -101,270 +101,245 @@ export function getWindowForTab(tabId: number): number | undefined {
  * @param forceNew Whether to force a new instance
  * @returns Promise resolving to the Playwright instance
  */
-export async function getCrxApp(forceNew = false) {
+export async function getCrxApp(forceNew = false): Promise<Awaited<ReturnType<typeof crx.start>>> {
   if (forceNew || !crxAppPromise) {
     logWithTimestamp(forceNew ? 'Forcing new Playwright instance' : 'Initializing shared Playwright instance');
     
-    // Always set crxAppPromise to null first when forcing a new instance
-    // This prevents "crxApplication is already started" errors
-    if (forceNew) {
-      // Store the old promise to close it later
-      const oldPromise = crxAppPromise;
-      // Immediately set to null to avoid race conditions
-      crxAppPromise = null;
-      
-      // Close the old instance if it exists
-      if (oldPromise) {
-        try {
-          const oldApp = await oldPromise;
-          await oldApp.close().catch(err => {
-            // Just log the error but don't throw - we're creating a new instance anyway
-            handleError(err, 'closing old Playwright instance');
-          });
-        } catch (error) {
-          // Just log the error but don't throw - we're creating a new instance anyway
-          handleError(error, 'accessing old Playwright instance');
-        }
+    // Close old instance if it exists
+    if (crxAppPromise) {
+      try {
+        const oldApp = await crxAppPromise;
+        await oldApp.close().catch(() => {});
+      } catch (e) {
+        // Ignore errors
       }
+      crxAppPromise = null;
     }
     
-    // Only create a new instance if crxAppPromise is null
-    // This additional check prevents race conditions where multiple calls
-    // might try to create instances simultaneously
-    if (!crxAppPromise) {
-      try {
-        // Create a new instance with proper error handling
-        crxAppPromise = crx.start().then(app => {
-          // Set up event listeners
-          app.addListener('attached', ({ tabId }) => {
-            addAttachedTab(tabId);
-            
-            // Notify UI components about the attachment
-            chrome.runtime.sendMessage({
-              action: 'tabStatusChanged',
-              status: 'attached',
-              tabId
-            });
-          });
-          
-          app.addListener('detached', (tabId) => {
-            removeAttachedTab(tabId);
-            
-            // Notify UI components about the detachment
-            chrome.runtime.sendMessage({
-              action: 'tabStatusChanged',
-              status: 'detached',
-              tabId
-            });
-          });
-          
-          // Target created event (new tab or iframe)
-          app.addListener('targetCreated', async (target) => {
-            try {
-              const targetInfo = {
-                type: await target.type(),
-                url: await target.url()
-              };
-              
-              logWithTimestamp(`Target created: ${JSON.stringify(targetInfo)}`);
-              
-              // If this is a page target (tab), we can get its tab ID
-              if (targetInfo.type === 'page') {
-                // We need to implement a way to get the tab ID from the target
-                const tabId = await getTabIdFromTarget(target);
-                
-                if (tabId) {
-                  // Store information about this target
-                  storeTargetInfo(tabId, target, targetInfo);
-                  
-                  // Notify UI components
-                  chrome.runtime.sendMessage({
-                    action: 'targetCreated',
-                    tabId,
-                    targetInfo
-                  });
-                }
-              }
-            } catch (error) {
-              handleError(error, 'handling targetCreated event');
-            }
-          });
-          
-          // Target destroyed event
-          app.addListener('targetDestroyed', async (target) => {
-            try {
-              // Try to get the URL before the target is fully destroyed
-              let url = '<unknown>';
-              try {
-                url = await target.url();
-              } catch (e) {
-                // Ignore errors getting URL from destroyed target
-              }
-              
-              logWithTimestamp(`Target destroyed: ${url}`);
-              
-              // If we have a mapping from this target to a tab ID, use it
-              const tabId = getTabIdFromTargetMap(target);
-              
-              if (tabId) {
-                // Clean up any stored information about this target
-                removeTargetInfo(tabId, target);
-                
-                // Notify UI components
-                chrome.runtime.sendMessage({
-                  action: 'targetDestroyed',
-                  tabId,
-                  url
-                });
-              }
-            } catch (error) {
-              handleError(error, 'handling targetDestroyed event');
-            }
-          });
-          
-          // Target changed event (e.g., navigation)
-          app.addListener('targetChanged', async (target) => {
-            try {
-              const url = await target.url();
-              logWithTimestamp(`Target changed: ${url}`);
-              
-              // If we have a mapping from this target to a tab ID, use it
-              const tabId = getTabIdFromTargetMap(target);
-              
-              if (tabId) {
-                // Update stored information about this target
-                updateTargetInfo(tabId, target, { url });
-                
-                // Update tab title if possible
-                try {
-                  const page = await target.page();
-                  if (page) {
-                    const title = await page.title();
-                    
-                    // Update the tab state with the new title
-                    const tabState = getTabState(tabId);
-                    if (tabState) {
-                      setTabState(tabId, { ...tabState, title });
-                      
-                      // Notify UI components about the title change
-                      chrome.runtime.sendMessage({
-                        action: 'tabTitleChanged',
-                        tabId,
-                        title
-                      });
-                    }
-                  }
-                } catch (pageError) {
-                  // Ignore errors getting page or title
-                }
-                
-                // Notify UI components about the URL change
-                chrome.runtime.sendMessage({
-                  action: 'targetChanged',
-                  tabId,
-                  url
-                });
-              }
-            } catch (error) {
-              handleError(error, 'handling targetChanged event');
-            }
-          });
-          
-          // Page dialog event (alert, confirm, prompt)
-          app.addListener('dialog', async (dialog, page) => {
-            try {
-              const dialogInfo = {
-                type: dialog.type(),
-                message: dialog.message()
-              };
-              
-              logWithTimestamp(`Dialog in page: ${JSON.stringify(dialogInfo)}`);
-              
-              // Get the tab ID for this page
-              const tabId = await getTabIdFromPage(page);
-              
-              if (tabId) {
-                // Notify UI components about the dialog
-                chrome.runtime.sendMessage({
-                  action: 'pageDialog',
-                  tabId,
-                  dialogInfo
-                });
-                
-                // Auto-dismiss dialogs to prevent blocking
-                // This behavior could be configurable
-                await dialog.dismiss();
-              }
-            } catch (error) {
-              handleError(error, 'handling dialog event');
-            }
-          });
-          
-          // Page console event
-          app.addListener('console', async (msg, page) => {
-            try {
-              const consoleInfo = {
-                type: msg.type(),
-                text: msg.text()
-              };
-              
-              // Only log warnings and errors to avoid noise
-              if (consoleInfo.type === 'warning' || consoleInfo.type === 'error') {
-                logWithTimestamp(`Console ${consoleInfo.type}: ${consoleInfo.text}`);
-                
-                // Get the tab ID for this page
-                const tabId = await getTabIdFromPage(page);
-                
-                if (tabId) {
-                  // Notify UI components about the console message
-                  chrome.runtime.sendMessage({
-                    action: 'pageConsole',
-                    tabId,
-                    consoleInfo
-                  });
-                }
-              }
-            } catch (error) {
-              handleError(error, 'handling console event');
-            }
-          });
-          
-          // Page error event
-          app.addListener('pageerror', async (error, page) => {
-            try {
-              const errorMessage = error instanceof Error ? error.message : String(error);
-              logWithTimestamp(`Page error: ${errorMessage}`, 'error');
-              
-              // Get the tab ID for this page
-              const tabId = await getTabIdFromPage(page);
-              
-              if (tabId) {
-                // Notify UI components about the error
-                chrome.runtime.sendMessage({
-                  action: 'pageError',
-                  tabId,
-                  error: errorMessage
-                });
-              }
-            } catch (handlingError) {
-              handleError(handlingError, 'handling page error event');
-            }
-          });
-          
-          return app;
-        }).catch(error => {
-          // If start fails, set crxAppPromise to null so we can try again
-          logWithTimestamp(`Failed to start Playwright instance: ${error}`, 'error');
-          crxAppPromise = null;
-          throw error;
+    // Create new instance
+    crxAppPromise = crx.start().then(app => {
+      // Set up event listeners
+      app.addListener('attached', ({ tabId }) => {
+        addAttachedTab(tabId);
+        
+        // Notify UI components about the attachment
+        chrome.runtime.sendMessage({
+          action: 'tabStatusChanged',
+          status: 'attached',
+          tabId
         });
-      } catch (error) {
-        // This catch block handles synchronous errors in the try block
-        logWithTimestamp(`Error creating Playwright instance: ${error}`, 'error');
-        crxAppPromise = null;
-        throw error;
-      }
-    }
+      });
+      
+      app.addListener('detached', (tabId) => {
+        removeAttachedTab(tabId);
+        
+        // Notify UI components about the detachment
+        chrome.runtime.sendMessage({
+          action: 'tabStatusChanged',
+          status: 'detached',
+          tabId
+        });
+      });
+      
+      // Target created event (new tab or iframe)
+      app.addListener('targetCreated', async (target) => {
+        try {
+          const targetInfo = {
+            type: await target.type(),
+            url: await target.url()
+          };
+          
+          logWithTimestamp(`Target created: ${JSON.stringify(targetInfo)}`);
+          
+          // If this is a page target (tab), we can get its tab ID
+          if (targetInfo.type === 'page') {
+            // We need to implement a way to get the tab ID from the target
+            const tabId = await getTabIdFromTarget(target);
+            
+            if (tabId) {
+              // Store information about this target
+              storeTargetInfo(tabId, target, targetInfo);
+              
+              // Notify UI components
+              chrome.runtime.sendMessage({
+                action: 'targetCreated',
+                tabId,
+                targetInfo
+              });
+            }
+          }
+        } catch (error) {
+          handleError(error, 'handling targetCreated event');
+        }
+      });
+      
+      // Target destroyed event
+      app.addListener('targetDestroyed', async (target) => {
+        try {
+          // Try to get the URL before the target is fully destroyed
+          let url = '<unknown>';
+          try {
+            url = await target.url();
+          } catch (e: unknown) {
+            // Ignore errors getting URL from destroyed target
+          }
+          
+          logWithTimestamp(`Target destroyed: ${url}`);
+          
+          // If we have a mapping from this target to a tab ID, use it
+          const tabId = getTabIdFromTargetMap(target);
+          
+          if (tabId) {
+            // Clean up any stored information about this target
+            removeTargetInfo(tabId, target);
+            
+            // Notify UI components
+            chrome.runtime.sendMessage({
+              action: 'targetDestroyed',
+              tabId,
+              url
+            });
+          }
+        } catch (error) {
+          handleError(error, 'handling targetDestroyed event');
+        }
+      });
+      
+      // Target changed event (e.g., navigation)
+      app.addListener('targetChanged', async (target) => {
+        try {
+          const url = await target.url();
+          logWithTimestamp(`Target changed: ${url}`);
+          
+          // If we have a mapping from this target to a tab ID, use it
+          const tabId = getTabIdFromTargetMap(target);
+          
+          if (tabId) {
+            // Update stored information about this target
+            updateTargetInfo(tabId, target, { url });
+            
+            // Update tab title if possible
+            try {
+              const page = await target.page();
+              if (page) {
+                const title = await page.title();
+                
+                // Update the tab state with the new title
+                const tabState = getTabState(tabId);
+                if (tabState) {
+                  setTabState(tabId, { ...tabState, title });
+                  
+                  // Notify UI components about the title change
+                  chrome.runtime.sendMessage({
+                    action: 'tabTitleChanged',
+                    tabId,
+                    title
+                  });
+                }
+              }
+            } catch (pageError) {
+              // Ignore errors getting page or title
+            }
+            
+            // Notify UI components about the URL change
+            chrome.runtime.sendMessage({
+              action: 'targetChanged',
+              tabId,
+              url
+            });
+          }
+        } catch (error) {
+          handleError(error, 'handling targetChanged event');
+        }
+      });
+      
+      // Page dialog event (alert, confirm, prompt)
+      app.addListener('dialog', async (dialog, page) => {
+        try {
+          const dialogInfo = {
+            type: dialog.type(),
+            message: dialog.message()
+          };
+          
+          logWithTimestamp(`Dialog in page: ${JSON.stringify(dialogInfo)}`);
+          
+          // Get the tab ID for this page
+          const tabId = await getTabIdFromPage(page);
+          
+          if (tabId) {
+            // Notify UI components about the dialog
+            chrome.runtime.sendMessage({
+              action: 'pageDialog',
+              tabId,
+              dialogInfo
+            });
+            
+            // Auto-dismiss dialogs to prevent blocking
+            // This behavior could be configurable
+            await dialog.dismiss();
+          }
+        } catch (error) {
+          handleError(error, 'handling dialog event');
+        }
+      });
+      
+      // Page console event
+      app.addListener('console', async (msg, page) => {
+        try {
+          const consoleInfo = {
+            type: msg.type(),
+            text: msg.text()
+          };
+          
+          // Only log warnings and errors to avoid noise
+          if (consoleInfo.type === 'warning' || consoleInfo.type === 'error') {
+            logWithTimestamp(`Console ${consoleInfo.type}: ${consoleInfo.text}`);
+            
+            // Get the tab ID for this page
+            const tabId = await getTabIdFromPage(page);
+            
+            if (tabId) {
+              // Notify UI components about the console message
+              chrome.runtime.sendMessage({
+                action: 'pageConsole',
+                tabId,
+                consoleInfo
+              });
+            }
+          }
+        } catch (error) {
+          handleError(error, 'handling console event');
+        }
+      });
+      
+      // Page error event
+      app.addListener('pageerror', async (error, page) => {
+        try {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logWithTimestamp(`Page error: ${errorMessage}`, 'error');
+          
+          // Get the tab ID for this page
+          const tabId = await getTabIdFromPage(page);
+          
+          if (tabId) {
+            // Notify UI components about the error
+            chrome.runtime.sendMessage({
+              action: 'pageError',
+              tabId,
+              error: errorMessage
+            });
+          }
+        } catch (handlingError) {
+          handleError(handlingError, 'handling page error event');
+        }
+      });
+      
+      return app;
+    }).catch(error => {
+      logWithTimestamp(`Failed to start Playwright instance: ${error}`, 'error');
+      crxAppPromise = null;
+      throw error;
+    });
   }
   
   return await crxAppPromise;
@@ -970,3 +945,76 @@ export async function cleanupOnUnload(): Promise<void> {
     }
   }
 }
+
+/**
+ * Force reset the Playwright instance
+ * Uses the playwright-crx's forceReset method to clean up the instance
+ * @returns Promise resolving to true when reset is complete
+ */
+export async function forceResetPlaywright(): Promise<boolean> {
+  logWithTimestamp('Force resetting Playwright instance');
+  
+  // Reset BrowserBee-specific state
+  currentTabId = null;
+  attachedTabIds.clear();
+  targetMap.clear();
+  
+  try {
+    // Check if the forceReset method is available
+    if (typeof crx.forceReset === 'function') {
+      logWithTimestamp('Using crx.forceReset() method');
+      await crx.forceReset();
+      logWithTimestamp('Successfully reset Playwright instance using crx.forceReset()');
+      
+      // Create a new instance after reset
+      await getCrxApp(true);
+      return true;
+    } else {
+      logWithTimestamp('crx.forceReset method not available, falling back to basic reset', 'warn');
+      
+      // Basic reset - clear promise and create new instance
+      crxAppPromise = null;
+      await getCrxApp(true);
+      return true;
+    }
+  } catch (error) {
+    handleError(error, 'force resetting Playwright instance');
+    
+    // If there's an error, reload the extension as a last resort
+    logWithTimestamp('Error during reset, reloading extension');
+    setTimeout(() => {
+      chrome.runtime.reload();
+    }, 500);
+    
+    return false;
+  }
+}
+
+// Add global debug functions
+Object.assign(self, {
+  resetPlaywright: () => {
+    crxAppPromise = null;
+    return "Playwright instance reset. Reload the extension to apply.";
+  },
+  reloadExtension: () => {
+    chrome.runtime.reload();
+    return "Extension reloading...";
+  },
+  forceCleanup: async () => {
+    try {
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (tab.id) {
+          try {
+            await chrome.debugger.detach({ tabId: tab.id });
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+      }
+      return "Debugger detached from all tabs";
+    } catch (e) {
+      return `Error: ${e}`;
+    }
+  }
+});

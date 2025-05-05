@@ -3,7 +3,7 @@ import { logWithTimestamp, handleError } from './utils';
 import { executePrompt } from './agentController';
 import { cancelExecution } from './agentController';
 import { clearMessageHistory } from './agentController';
-import { attachToTab, getTabState, getWindowForTab } from './tabManager';
+import { attachToTab, getTabState, getWindowForTab, forceResetPlaywright } from './tabManager';
 import { initializeAgent } from './agentController';
 import { TokenTrackingService } from '../tracking/tokenTrackingService';
 import { handleApprovalResponse } from '../agent/approvalManager';
@@ -82,6 +82,10 @@ export function handleMessage(
         // This allows the ProviderSelector component to refresh
         sendResponse({ success: true });
         return true;
+        
+      case 'forceResetPlaywright':
+        handleForceResetPlaywright(message, sendResponse);
+        return true;
 
       default:
         // This should never happen due to the type guard, but TypeScript requires it
@@ -126,7 +130,8 @@ function isBackgroundMessage(message: any): message is BackgroundMessage {
       message.action === 'tabTitleChanged' ||
       message.action === 'pageDialog' ||
       message.action === 'pageConsole' ||
-      message.action === 'pageError'
+      message.action === 'pageError' ||
+      message.action === 'forceResetPlaywright'
     )
   );
 }
@@ -320,6 +325,38 @@ function handleReflectAndLearn(
     console.error("MEMORY DEBUG: Error in handleReflectAndLearn", error);
     const errorMessage = handleError(error, 'triggering reflection');
     logWithTimestamp(`Error triggering reflection: ${errorMessage}`, 'error');
+    sendResponse({ success: false, error: errorMessage });
+  }
+}
+
+/**
+ * Handle the forceResetPlaywright message
+ * @param message The message to handle
+ * @param sendResponse The function to send a response
+ */
+async function handleForceResetPlaywright(
+  message: Extract<BackgroundMessage, { action: 'forceResetPlaywright' }>,
+  sendResponse: (response?: any) => void
+): Promise<void> {
+  try {
+    logWithTimestamp('Force resetting Playwright instance');
+    
+    // Call the forceResetPlaywright function from tabManager
+    const result = await forceResetPlaywright();
+    
+    // Notify UI components about the reset
+    chrome.runtime.sendMessage({
+      action: 'updateOutput',
+      content: {
+        type: 'system',
+        content: `Playwright instance has been force reset. ${result ? 'Success' : 'Failed'}`
+      }
+    });
+    
+    sendResponse({ success: result });
+  } catch (error) {
+    const errorMessage = handleError(error, 'force resetting Playwright instance');
+    logWithTimestamp(`Error force resetting Playwright instance: ${errorMessage}`, 'error');
     sendResponse({ success: false, error: errorMessage });
   }
 }

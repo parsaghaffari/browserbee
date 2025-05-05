@@ -140,6 +140,10 @@ export interface ProviderConfigChangedMessage {
   tabId?: number;
 }
 
+export interface ForceResetPlaywrightMessage {
+  action: 'forceResetPlaywright';
+}
+
 export interface RequestApprovalMessage {
   action: 'requestApproval';
   requestId: string;
@@ -160,7 +164,8 @@ export type BackgroundMessage =
   | ReflectAndLearnMessage
   | TokenUsageUpdatedMessage
   | UpdateOutputMessage
-  | ProviderConfigChangedMessage;
+  | ProviderConfigChangedMessage
+  | ForceResetPlaywrightMessage;
 
 // New message types for enhanced tab management
 export interface TabStatusChangedMessage {
