@@ -12,7 +12,7 @@ friends launch (0.1.0):
 - [x] better handling of when user cancels the debugging session
 - [x] put on github
 
-HN launch (0.9.0):
+HN launch (0.2.0):
 - [ ] write tests 
 - [x] add "requires approval" flag to irreversible tools, and seek explicit approval from user
 - [x] better handling of multiple Chrome windows
