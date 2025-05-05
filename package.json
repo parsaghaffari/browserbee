@@ -33,7 +33,7 @@
     "@langchain/langgraph": "^0.2.64",
     "langchain": "^0.3.22",
     "openai": "^4.28.0",
-    "playwright-crx": "github:parsaghaffari/playwright-crx#0.14.0-patch",
+    "playwright-crx": "npm:@parsaghaffari/playwright-crx@0.14.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
