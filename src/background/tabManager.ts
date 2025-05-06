@@ -7,6 +7,9 @@ const attachedTabIds = new Set<number>();
 const tabToWindowMap = new Map<number, number>();
 const tabStates = new Map<number, TabState>();
 
+// Track fallback tabs (created when attachment fails)
+const fallbackTabIds = new Set<number>();
+
 // Current tab ID
 let currentTabId: number | null = null;
 
@@ -74,6 +77,12 @@ export function addAttachedTab(tabId: number): void {
  */
 export function removeAttachedTab(tabId: number): void {
   attachedTabIds.delete(tabId);
+  
+  // Also remove from fallback tabs set if it's a fallback tab
+  if (fallbackTabIds.has(tabId)) {
+    fallbackTabIds.delete(tabId);
+  }
+  
   logWithTimestamp(`Tab ${tabId} detached`);
 }
 
@@ -373,6 +382,7 @@ export async function resetAfterDebugSessionCancellation(): Promise<boolean> {
   // Reset all state
   currentTabId = null;
   attachedTabIds.clear();
+  fallbackTabIds.clear();
   
   // Don't clear tabStates or tabToWindowMap as they might be needed later
   
@@ -617,8 +627,28 @@ async function createNewPageAsFallback(tabId: number, windowId?: number): Promis
     const crxApp = await getCrxApp();
     
     // Create a new page as fallback
-    const page = await crxApp.newPage();
-    logWithTimestamp(`Created new page instead`);
+    let page;
+    try {
+      page = await crxApp.newPage();
+      logWithTimestamp(`Created new page instead`);
+    } catch (pageError) {
+      // Check if this is the "Target page, context or browser has been closed" error
+      const errorStr = String(pageError);
+      if (errorStr.includes('Target page, context or browser has been closed')) {
+        logWithTimestamp(`Browser context was closed, forcing a complete reset before trying again`, 'warn');
+        
+        // Force a complete reset of the Playwright instance
+        await forceResetPlaywright();
+        
+        // Try again with the fresh instance
+        const freshCrxApp = await getCrxApp();
+        page = await freshCrxApp.newPage();
+        logWithTimestamp(`Successfully created new page after forced reset`);
+      } else {
+        // For other errors, just re-throw
+        throw pageError;
+      }
+    }
     
     // Get the actual Chrome tab ID for this new page
     let newTabId: number | undefined;
@@ -691,6 +721,9 @@ async function createNewPageAsFallback(tabId: number, windowId?: number): Promis
     
     // Set the new tab as current
     setCurrentTabId(newTabId);
+    
+    // Mark this as a fallback tab
+    fallbackTabIds.add(newTabId);
     
     // Store the new tab state
     setTabState(newTabId, { 
@@ -894,12 +927,24 @@ async function getTabIdFromTarget(target: any): Promise<number | undefined> {
 }
 
 /**
+ * Check if a tab is a fallback tab
+ * @param tabId The tab ID to check
+ * @returns True if the tab is a fallback tab, false otherwise
+ */
+export function isFallbackTab(tabId: number): boolean {
+  return fallbackTabIds.has(tabId);
+}
+
+/**
  * Set up tab event listeners
  */
 export function setupTabListeners(): void {
   // Listen for tab removal events
-  chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
-    if (isTabAttached(tabId)) {
+  chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+    const isAttached = isTabAttached(tabId);
+    const isFallback = isFallbackTab(tabId);
+    
+    if (isAttached) {
       logWithTimestamp(`Tab ${tabId} was closed by user, cleaning up state`);
       removeAttachedTab(tabId);
       
@@ -910,6 +955,25 @@ export function setupTabListeners(): void {
         tabId,
         reason: 'closed'
       });
+      
+      // If this is a fallback tab or the current tab, we need to reset the Playwright instance
+      // to avoid inconsistent state when trying to attach to another tab later
+      if (isFallback || tabId === currentTabId) {
+        logWithTimestamp(`Tab ${tabId} was a fallback tab or current tab, resetting Playwright instance`);
+        
+        // Remove from fallback tabs set if it was a fallback tab
+        if (isFallback) {
+          fallbackTabIds.delete(tabId);
+        }
+        
+        // Reset the current tab ID if this was the current tab
+        if (tabId === currentTabId) {
+          setCurrentTabId(null);
+        }
+        
+        // Force reset the Playwright instance to ensure clean state
+        await forceResetPlaywright();
+      }
     }
   });
 }
@@ -927,6 +991,7 @@ export async function cleanupOnUnload(): Promise<void> {
   crxAppPromise = null;
   currentTabId = null;
   attachedTabIds.clear();
+  fallbackTabIds.clear();
   
   // Don't clear tabStates or tabToWindowMap as they might be needed if the extension is reloaded
   
@@ -957,6 +1022,7 @@ export async function forceResetPlaywright(): Promise<boolean> {
   // Reset BrowserBee-specific state
   currentTabId = null;
   attachedTabIds.clear();
+  fallbackTabIds.clear();
   targetMap.clear();
   
   try {
