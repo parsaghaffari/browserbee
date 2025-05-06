@@ -1,4 +1,4 @@
-import type { Page } from "playwright-crx/test";
+import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
 
 // Import all tools from their respective modules

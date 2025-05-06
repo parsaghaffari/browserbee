@@ -1,5 +1,5 @@
 import { DynamicTool } from "langchain/tools";
-import type { Page } from "playwright-crx/test";
+import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
 import { truncate, MAX_RETURN_CHARS, MAX_SCREENSHOT_CHARS } from "./utils";
 

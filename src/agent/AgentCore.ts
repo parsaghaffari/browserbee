@@ -1,4 +1,4 @@
-import type { Page } from "playwright-crx/test";
+import type { Page } from "playwright-crx";
 import { getAllTools } from "./tools/index";
 import { ToolManager } from "./ToolManager";
 import { PromptManager } from "./PromptManager";

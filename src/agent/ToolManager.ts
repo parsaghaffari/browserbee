@@ -1,4 +1,4 @@
-import type { Page } from "playwright-crx/test";
+import type { Page } from "playwright-crx";
 import { BrowserTool, ToolExecutionContext } from "./tools/types";
 
 /**

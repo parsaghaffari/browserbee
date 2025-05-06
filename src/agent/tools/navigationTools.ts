@@ -1,5 +1,5 @@
 import { DynamicTool } from "langchain/tools";
-import type { Page } from "playwright-crx/test";
+import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
 
 export const browserNavigate: ToolFactory = (page: Page) =>
