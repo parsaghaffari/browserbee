@@ -2,6 +2,7 @@ import { DynamicTool } from "langchain/tools";
 import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
 import { createNewTab, getWindowForTab, getCrxAppForTab } from "../../background/tabManager";
+import { setCurrentPage } from "../PageContextManager";
 
 export const browserTabList: ToolFactory = (page: Page) =>
   new DynamicTool({
@@ -26,7 +27,7 @@ export const browserTabNew: ToolFactory = (page: Page) =>
   new DynamicTool({
     name: "browser_tab_new",
     description:
-      "Open a new tab. Optional input = URL to navigate to (otherwise blank tab).",
+      "Open a new tab. Optional input = URL to navigate to (otherwise blank tab). Note: This does NOT automatically switch to the new tab. Use browser_tab_select after creating a new tab if you want to interact with it.",
     func: async (input: string) => {
       try {
         // Get the current tab's ID to find its window
@@ -51,7 +52,10 @@ export const browserTabNew: ToolFactory = (page: Page) =>
         const pages = crxApp.context().pages();
         const newTabIndex = pages.length - 1;
         
-        return `Opened new tab (#${newTabIndex}) in window ${windowId}.`;
+        // Note: We don't update the PageContextManager here because we're not switching to the new tab
+        // The user must explicitly call browser_tab_select to switch to the new tab
+        
+        return `Opened new tab (#${newTabIndex}) in window ${windowId}. To interact with this tab, use browser_tab_select with index ${newTabIndex}.`;
       } catch (err) {
         return `Error opening new tab: ${
           err instanceof Error ? err.message : String(err)
@@ -64,7 +68,7 @@ export const browserTabSelect: ToolFactory = (page: Page) =>
   new DynamicTool({
     name: "browser_tab_select",
     description:
-      "Switch focus to a tab by index. Input = integer index from browser_tab_list.",
+      "Switch focus to a tab by index. Input = integer index from browser_tab_list. IMPORTANT: After switching tabs, you must use browser_get_active_tab to confirm the switch was successful and to get information about the new active tab.",
     func: async (input: string) => {
       try {
         const idx = Number(input.trim());
@@ -73,8 +77,23 @@ export const browserTabSelect: ToolFactory = (page: Page) =>
         const pages = page.context().pages();
         if (idx < 0 || idx >= pages.length)
           return `Error: index ${idx} out of range (0‑${pages.length - 1}).`;
+        
+        // Switch to the tab
         await pages[idx].bringToFront();
-        return `Switched to tab ${idx}.`;
+        
+        // Update the current page in the PageContextManager
+        setCurrentPage(pages[idx]);
+        
+        // Get information about the new tab
+        const newUrl = pages[idx].url();
+        let newTitle = "Unknown";
+        try {
+          newTitle = await pages[idx].title();
+        } catch (titleError) {
+          // Ignore errors getting title
+        }
+        
+        return `Switched to tab ${idx}. Now active: "${newTitle}" (${newUrl}). Use browser_get_active_tab for more details.`;
       } catch (err) {
         return `Error selecting tab: ${
           err instanceof Error ? err.message : String(err)

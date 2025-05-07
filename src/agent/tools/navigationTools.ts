@@ -1,6 +1,7 @@
 import { DynamicTool } from "langchain/tools";
 import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
+import { withActivePage } from "./utils";
 
 export const browserNavigate: ToolFactory = (page: Page) =>
   new DynamicTool({
@@ -9,8 +10,10 @@ export const browserNavigate: ToolFactory = (page: Page) =>
       "Navigate the browser to a specific URL. Input must be a full URL, e.g. https://example.com",
     func: async (url: string) => {
       try {
-        await page.goto(url);
-        return `Successfully navigated to ${url}`;
+        return await withActivePage(page, async (activePage) => {
+          await activePage.goto(url);
+          return `Successfully navigated to ${url}`;
+        });
       } catch (error) {
         return `Error navigating to ${url}: ${
           error instanceof Error ? error.message : String(error)
@@ -25,8 +28,10 @@ export const browserWaitForNavigation: ToolFactory = (page: Page) =>
     description: "Wait until network is idle (Playwright).",
     func: async () => {
       try {
-        await page.waitForLoadState("networkidle");
-        return "Navigation complete.";
+        return await withActivePage(page, async (activePage) => {
+          await activePage.waitForLoadState("networkidle");
+          return "Navigation complete.";
+        });
       } catch (error) {
         return `Error waiting for navigation: ${
           error instanceof Error ? error.message : String(error)
@@ -41,8 +46,10 @@ export const browserNavigateBack: ToolFactory = (page: Page) =>
     description: "Go back to the previous page (history.back()). No input.",
     func: async () => {
       try {
-        await page.goBack();
-        return "Navigated back.";
+        return await withActivePage(page, async (activePage) => {
+          await activePage.goBack();
+          return "Navigated back.";
+        });
       } catch (err) {
         return `Error going back: ${
           err instanceof Error ? err.message : String(err)
@@ -57,8 +64,10 @@ export const browserNavigateForward: ToolFactory = (page: Page) =>
     description: "Go forward to the next page (history.forward()). No input.",
     func: async () => {
       try {
-        await page.goForward();
-        return "Navigated forward.";
+        return await withActivePage(page, async (activePage) => {
+          await activePage.goForward();
+          return "Navigated forward.";
+        });
       } catch (err) {
         return `Error going forward: ${
           err instanceof Error ? err.message : String(err)

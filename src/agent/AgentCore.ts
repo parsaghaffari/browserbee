@@ -5,6 +5,7 @@ import { PromptManager } from "./PromptManager";
 import { MemoryManager } from "./MemoryManager";
 import { ErrorHandler } from "./ErrorHandler";
 import { ExecutionEngine, ExecutionCallbacks } from "./ExecutionEngine";
+import { initializePageContext } from "./PageContextManager";
 import { BrowserTool, ToolExecutionContext } from "./tools/types";
 // Define our own DynamicTool interface to avoid import issues
 interface DynamicTool {
@@ -44,6 +45,9 @@ export class BrowserAgent {
    * Create a new BrowserAgent
    */
   constructor(page: Page, config: ProviderConfig) {
+    // Initialize the PageContextManager with the initial page
+    initializePageContext(page);
+    
     // Initialize LLM provider with the provided configuration
     this.llmProvider = createProvider(config.provider, {
       apiKey: config.apiKey,

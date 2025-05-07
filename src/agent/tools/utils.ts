@@ -1,34 +1,51 @@
-/** Hard cap for anything we stream back to the LLM. */
-export const MAX_RETURN_CHARS = 20_000;
-export const MAX_SCREENSHOT_CHARS = 200_000; 
+import type { Page, Dialog } from "playwright-crx";
+import { getCurrentPage } from "../PageContextManager";
 
-/** Truncate long strings so they don't blow the context window. */
-export const truncate = (str: string, max = MAX_RETURN_CHARS) =>
-  str.length > max
-    ? `${str.slice(0, max)}\n… (truncated, total ${str.length} chars)`
-    : str;
+// Constants for output size limits
+export const MAX_RETURN_CHARS = 20000;
+export const MAX_SCREENSHOT_CHARS = 500000;
 
-// Dialog handling utilities
+/**
+ * Helper function to execute a function with the active page from PageContextManager
+ * @param page The original page reference
+ * @param fn The function to execute with the active page
+ * @returns The result of the function
+ */
+export async function withActivePage<T>(
+  page: Page, 
+  fn: (activePage: Page) => Promise<T>
+): Promise<T> {
+  // Get the current active page from PageContextManager
+  const activePage = getCurrentPage(page);
+  
+  // Execute the function with the active page
+  return await fn(activePage);
+}
+
+/**
+ * Truncate a string to a maximum length
+ * @param str The string to truncate
+ * @param maxLength The maximum length (default: MAX_RETURN_CHARS)
+ * @returns The truncated string
+ */
+export function truncate(str: string, maxLength: number = MAX_RETURN_CHARS): string {
+  if (str.length <= maxLength) return str;
+  return str.substring(0, maxLength) + `\n\n[Truncated ${str.length - maxLength} characters]`;
+}
+
+// Dialog handling
 export let lastDialog: Dialog | null = null;
 
-export const resetDialog = () => {
+export function resetDialog() {
   lastDialog = null;
-};
+}
 
-export const installDialogListener = (page: Page) => {
-  // add only once per context
-  const ctx: BrowserContext = page.context();
-  if ((ctx as any)._dialogListenerInstalled) return;
-  ctx.on("page", p =>
-    p.on("dialog", d => {
-      lastDialog = d;
-    })
-  );
-  page.on("dialog", d => {
-    lastDialog = d;
+export function installDialogListener(page: Page) {
+  // Get the active page
+  const activePage = getCurrentPage(page);
+  
+  // Install the dialog listener on the active page
+  activePage.on("dialog", dialog => {
+    lastDialog = dialog;
   });
-  (ctx as any)._dialogListenerInstalled = true;
-};
-
-// Add missing imports
-import type { Page, BrowserContext, Dialog } from "playwright-crx/test";
+}

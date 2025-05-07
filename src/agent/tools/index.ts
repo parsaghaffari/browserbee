@@ -17,6 +17,12 @@ import {
   browserNavigateForward 
 } from "./navigationTools";
 
+import {
+  browserGetActiveTab,
+  browserNavigateTab,
+  browserScreenshotTab
+} from "./tabContextTools";
+
 import { 
   browserClick, 
   browserType, 
@@ -57,6 +63,11 @@ export {
   browserWaitForNavigation,
   browserNavigateBack,
   browserNavigateForward,
+  
+  // Tab context tools
+  browserGetActiveTab,
+  browserNavigateTab,
+  browserScreenshotTab,
   
   // Interaction tools
   browserClick,
@@ -102,6 +113,11 @@ export function getAllTools(page: Page) {
     browserWaitForNavigation(page),
     browserNavigateBack(page),
     browserNavigateForward(page),
+    
+    // Tab context tools
+    browserGetActiveTab(page),
+    browserNavigateTab(page),
+    browserScreenshotTab(page),
     
     // Interaction tools
     browserClick(page),

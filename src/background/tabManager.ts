@@ -275,9 +275,9 @@ export async function getCrxAppForTab(tabId: number): Promise<Awaited<ReturnType
 /**
  * Attach to a tab
  */
-export async function attachToTab(tabId: number, windowId?: number): Promise<boolean> {
+export async function attachToTab(tabId: number, windowId?: number, retryCount: number = 0): Promise<boolean> {
   try {
-    logWithTimestamp(`Attaching to tab ${tabId}`);
+    logWithTimestamp(`Attaching to tab ${tabId}${retryCount > 0 ? ` (retry attempt ${retryCount})` : ''}`);
     
     // If already attached, just log it
     if (isTabAttached(tabId)) {
@@ -314,11 +314,11 @@ export async function attachToTab(tabId: number, windowId?: number): Promise<boo
       storeWindowForTab(tabId, windowId);
     }
     
-    // Get the Playwright instance for this window
-    const crxApp = await getCrxApp(windowId);
-    
     try {
-      // Attach to the tab
+      // Get the Playwright instance for this window
+      const crxApp = await getCrxApp(windowId);
+      
+      // Attempt to attach to the tab
       const page = await crxApp.attach(tabId);
       setCurrentTabId(tabId);
       setTabState(tabId, { page, windowId, title: tabTitle });
@@ -326,6 +326,42 @@ export async function attachToTab(tabId: number, windowId?: number): Promise<boo
       logWithTimestamp(`Successfully attached to tab ${tabId}`);
       return true;
     } catch (error) {
+      // Check if this is a detached frame error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if ((errorMessage.includes('Frame has been detached') || 
+           errorMessage.includes('Target closed') ||
+           errorMessage.includes('Session closed')) && 
+           retryCount < 2) {  // Limit to 2 retry attempts
+        
+        logWithTimestamp(`Detected detached frame for tab ${tabId}, attempting recovery...`, 'warn');
+        
+        // Use crx.forceReset() to reset the Playwright instance
+        // Use type assertion to tell TypeScript that forceReset exists
+        await (crx as any).forceReset();
+        
+        // Wait a moment for things to stabilize
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Clear our internal state
+        windowToCrxAppMap.clear();
+        defaultCrxAppPromise = null;
+        
+        // Notify UI that recovery is in progress
+        chrome.runtime.sendMessage({
+          action: 'updateOutput',
+          content: {
+            type: 'system',
+            content: `Recovering from detached frame in tab ${tabId}...`
+          },
+          tabId
+        });
+        
+        // Try again with incremented retry count
+        return attachToTab(tabId, windowId, retryCount + 1);
+      }
+      
+      // For other errors or if we've exceeded retry attempts, just handle normally
       handleError(error, `attachment for tab ${tabId}`);
       return false;
     }
@@ -578,10 +614,31 @@ export function isFallbackTab(tabId: number): boolean {
 }
 
 /**
- * For backward compatibility with existing code
+ * Force reset the Playwright instance using crx.forceReset()
  */
 export async function forceResetPlaywright(): Promise<boolean> {
-  return resetPlaywright();
+  try {
+    logWithTimestamp('Force resetting Playwright instance using crx.forceReset()');
+    
+    // Use crx.forceReset() to reset the Playwright instance
+    await (crx as any).forceReset();
+    
+    // Wait a moment for things to stabilize
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Clear our internal state
+    windowToCrxAppMap.clear();
+    defaultCrxAppPromise = null;
+    
+    // Create a new default instance
+    await getCrxApp(undefined, true);
+    
+    logWithTimestamp('Playwright instance force reset successful');
+    return true;
+  } catch (error) {
+    handleError(error, 'force resetting Playwright instance');
+    return false;
+  }
 }
 
 /**
