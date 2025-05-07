@@ -43,7 +43,7 @@ If you're interested in contributing to build any of these features or to improv
    - Go to `chrome://extensions/`
    - Enable "Developer mode"
    - Click "Load unpacked" and select the `dist` directory
-   - Set your LLM API key(s) for Anthropi, OpenAI, and/or Gemini in the options page that pops up
+   - Set your LLM API key(s) for Anthropic, OpenAI, Gemini, and/or configure Ollama in the options page that pops up
 
 ## 🏃‍♂️ Usage
 
