@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 
 export const useTabManagement = () => {
   const [tabId, setTabId] = useState<number | null>(null);
+  const [windowId, setWindowId] = useState<number | null>(null);
   const [tabTitle, setTabTitle] = useState<string>('');
 
   // Get the current tab ID and title when the component mounts
@@ -16,6 +17,7 @@ export const useTabManagement = () => {
           const activeTabTitle = tabs[0].title || 'Unknown Tab';
           
           setTabId(activeTabId);
+          setWindowId(windowId);
           setTabTitle(activeTabTitle);
           console.log(`Using tab ID ${activeTabId} in window ${windowId} from last focused window`);
           console.log(`Tab title: ${activeTabTitle}`);
@@ -97,6 +99,7 @@ export const useTabManagement = () => {
 
   return {
     tabId,
+    windowId,
     tabTitle,
     setTabTitle
   };

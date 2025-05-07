@@ -7,7 +7,16 @@ import { ScreenshotManager } from "../tracking/screenshotManager";
 import { TokenTrackingService } from "../tracking/tokenTrackingService";
 import { ExecutionCallbacks } from "../agent/ExecutionEngine";
 import { sendUIMessage, logWithTimestamp, handleError } from "./utils";
-import { getCurrentTabId, getTabState, setTabState } from "./tabManager";
+import { 
+  getCurrentTabId, 
+  getTabState, 
+  setTabState, 
+  getWindowForTab, 
+  getAgentForWindow, 
+  setAgentForWindow,
+  getAgentForTab,
+  isConnectionHealthy
+} from "./tabManager";
 import { saveReflectionMemory } from "./reflectionController";
 import { ConfigManager } from "./configManager";
 import { 
@@ -231,9 +240,11 @@ export async function addToConversationHistory(tabId: number, message: Anthropic
 export async function initializeAgent(tabId: number, forceReinit: boolean = false): Promise<boolean> {
   const tabState = getTabState(tabId);
   
-  if (!tabState?.page) {
+  if (!tabState?.page || !tabState.windowId) {
     return false;
   }
+  
+  const windowId = tabState.windowId;
   
   // Get provider configuration
   const configManager = ConfigManager.getInstance();
@@ -244,19 +255,20 @@ export async function initializeAgent(tabId: number, forceReinit: boolean = fals
   tokenTracker.updateProviderAndModel(providerConfig.provider, providerConfig.apiModelId || '');
   
   // Check if we need to initialize or reinitialize the agent
-  const needsInit = !tabState.agent || forceReinit;
-  const needsReinit = tabState.agent && await needsReinitialization(tabState.agent, providerConfig);
+  const existingAgent = getAgentForWindow(windowId);
+  const needsInit = !existingAgent || forceReinit;
+  const needsReinit = existingAgent && await needsReinitialization(existingAgent, providerConfig);
   
   if (needsInit || needsReinit) {
     try {
       if (providerConfig.apiKey) {
-        logWithTimestamp(`Creating LLM agent with ${providerConfig.provider} provider...`);
+        logWithTimestamp(`Creating LLM agent for window ${windowId} with ${providerConfig.provider} provider...`);
         const agent = await createBrowserAgent(tabState.page, providerConfig.apiKey);
         
-        // Update the tab state with the agent
-        setTabState(tabId, { ...tabState, agent });
+        // Store the agent by window ID
+        setAgentForWindow(windowId, agent);
         
-        logWithTimestamp('LLM agent created successfully');
+        logWithTimestamp(`LLM agent created successfully for window ${windowId}`);
         return true;
       } else {
         logWithTimestamp('No API key found for the selected provider, skipping agent initialization', 'warn');
@@ -268,7 +280,7 @@ export async function initializeAgent(tabId: number, forceReinit: boolean = fals
     }
   }
   
-  return !!tabState.agent;
+  return !!existingAgent;
 }
 
 /**
@@ -276,26 +288,40 @@ export async function initializeAgent(tabId: number, forceReinit: boolean = fals
  * @param tabId The tab ID to cancel execution for
  */
 export function cancelExecution(tabId?: number): void {
-  // If a tabId is provided, make sure it matches the current tab
-  if (tabId && tabId !== getCurrentTabId()) {
-    logWithTimestamp(`Ignoring cancel request for tab ${tabId} because current tab is ${getCurrentTabId()}`);
+  if (!tabId) {
+    // If no tab ID provided, try to cancel the current tab's agent
+    const currentTabId = getCurrentTabId();
+    if (!currentTabId) return;
+    tabId = currentTabId;
+  }
+  
+  // Get the window ID for this tab
+  const windowId = getWindowForTab(tabId);
+  if (!windowId) {
+    logWithTimestamp(`Cannot cancel execution for tab ${tabId}: no window ID found`);
     return;
   }
   
-  const currentTabId = getCurrentTabId();
-  if (!currentTabId) return;
-  
-  const tabState = getTabState(currentTabId);
-  if (tabState?.agent) {
-    tabState.agent.cancel();
-    sendUIMessage('updateOutput', {
-      type: 'system',
-      content: 'Cancelling execution...'
-    }, currentTabId);
-    
-    // Immediately notify UI that processing is complete
-    sendUIMessage('processingComplete', null, currentTabId);
+  // Get the agent for this window
+  const agent = getAgentForWindow(windowId);
+  if (!agent) {
+    logWithTimestamp(`Cannot cancel execution for window ${windowId}: no agent found`);
+    return;
   }
+  
+  // Cancel the agent
+  agent.cancel();
+  
+  // Notify UI
+  sendUIMessage('updateOutput', {
+    type: 'system',
+    content: 'Cancelling execution...'
+  }, tabId);
+  
+  // Immediately notify UI that processing is complete
+  sendUIMessage('processingComplete', null, tabId);
+  
+  logWithTimestamp(`Cancelled execution for tab ${tabId} in window ${windowId}`);
 }
 
 /**
@@ -341,7 +367,8 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
     const tabState = getTabState(targetTabId);
     
     // Check if we need to initialize or reattach
-    const needsInitialization = !tabState?.page || !tabState?.agent;
+    const tabWindowId = tabState?.windowId;
+    const needsInitialization = !tabState?.page || !tabWindowId || !getAgentForWindow(tabWindowId);
     const connectionBroken = tabState?.page && !(await isConnectionHealthy(tabState.page));
     
     if (needsInitialization || connectionBroken) {
@@ -378,8 +405,8 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
     // Get the updated tab state
     const updatedTabState = getTabState(targetTabId);
     
-    // If we still don't have a page or agent, something went wrong
-    if (!updatedTabState?.page || !updatedTabState?.agent) {
+    // If we still don't have a page or window ID, something went wrong
+    if (!updatedTabState?.page || !updatedTabState?.windowId) {
       sendUIMessage('updateOutput', {
         type: 'system',
         content: 'Error: Failed to initialize Playwright or create agent.'
@@ -404,11 +431,13 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         
         // Set the current page context in the PromptManager
         // This will be included in the system prompt
-        if (updatedTabState.agent) {
+        const updatedWindowId = updatedTabState.windowId;
+        const agent = getAgentForWindow(updatedWindowId);
+        if (agent) {
           // Access the PromptManager through the agent
           // This is a bit of a hack since we don't have direct access to the PromptManager
           // We're assuming the agent has a property called promptManager
-          const promptManager = (updatedTabState.agent as any).promptManager;
+          const promptManager = (agent as any).promptManager;
           if (promptManager && typeof promptManager.setCurrentPageContext === 'function') {
             promptManager.setCurrentPageContext(currentUrl, currentTitle);
           }
@@ -619,10 +648,32 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       }
     };
     
+    // Get the agent for this window
+    const updatedWindowId = updatedTabState.windowId;
+    if (!updatedWindowId) {
+      sendUIMessage('updateOutput', {
+        type: 'system',
+        content: `Error: No window ID found for tab ${targetTabId}.`
+      }, targetTabId);
+      sendUIMessage('processingComplete', null, targetTabId);
+      return;
+    }
+    
+    const agent = getAgentForWindow(updatedWindowId);
+    
+    if (!agent) {
+      sendUIMessage('updateOutput', {
+        type: 'system',
+        content: `Error: No agent found for window ${updatedWindowId}.`
+      }, targetTabId);
+      sendUIMessage('processingComplete', null, targetTabId);
+      return;
+    }
+    
     // Execute the prompt with the agent
     const messageHistory = await getMessageHistory(targetTabId);
     await executePromptWithFallback(
-      updatedTabState.agent, 
+      agent, 
       prompt, 
       callbacks, 
       messageHistory
@@ -634,23 +685,5 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       content: `Error: ${errorMessage}`
     }, tabId);
     sendUIMessage('processingComplete', null, tabId);
-  }
-}
-
-/**
- * Check if the connection to the page is still healthy
- * @param page The page to check
- * @returns True if the connection is healthy, false otherwise
- */
-async function isConnectionHealthy(page: any): Promise<boolean> {
-  if (!page) return false;
-  
-  try {
-    // Try a simple operation that would fail if the connection is broken
-    await page.evaluate(() => true);
-    return true;
-  } catch (error) {
-    logWithTimestamp("Connection health check failed: " + String(error), 'warn');
-    return false;
   }
 }

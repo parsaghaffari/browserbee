@@ -12,22 +12,36 @@ const pendingApprovals = new Map<string, {
  * @param toolName The name of the tool being executed
  * @param toolInput The input to the tool
  * @param reason The reason approval is required
+ * @param windowId Optional window ID to scope the approval request to a specific window
  * @returns A promise that resolves to true if approved, false if rejected
  */
 export async function requestApproval(
   tabId: number,
   toolName: string,
   toolInput: string,
-  reason: string
+  reason: string,
+  windowId?: number
 ): Promise<boolean> {
   return new Promise((resolve) => {
     const requestId = generateUniqueId();
     pendingApprovals.set(requestId, { resolve, toolName, toolInput, reason });
     
+    // Get the window ID if not provided
+    if (!windowId) {
+      try {
+        // Try to get the window ID from the tab manager
+        const getWindowForTab = require('../background/tabManager').getWindowForTab;
+        windowId = getWindowForTab(tabId);
+      } catch (error) {
+        console.error('Error getting window ID for tab:', error);
+      }
+    }
+    
     // Send approval request to UI with a callback to handle errors
     chrome.runtime.sendMessage({
       action: 'requestApproval',
       tabId,
+      windowId, // Include window ID in the message
       requestId,
       toolName,
       toolInput,

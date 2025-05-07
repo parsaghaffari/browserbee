@@ -3,6 +3,7 @@ import { ChromeMessage } from '../types';
 
 interface UseChromeMessagingProps {
   tabId: number | null;
+  windowId?: number | null;
   onUpdateOutput: (content: any) => void;
   onUpdateStreamingChunk: (content: any) => void;
   onFinalizeStreamingSegment: (id: number, content: string) => void;
@@ -26,6 +27,7 @@ interface UseChromeMessagingProps {
 
 export const useChromeMessaging = ({
   tabId,
+  windowId,
   onUpdateOutput,
   onUpdateStreamingChunk,
   onFinalizeStreamingSegment,
@@ -50,11 +52,13 @@ export const useChromeMessaging = ({
   // Listen for updates from the background script
   useEffect(() => {
     const messageListener = (message: ChromeMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-      // Only process messages intended for this tab
+      // Only process messages intended for this tab and window
       // If the message has a tabId, check if it matches this tab's ID
-      // If the message doesn't have a tabId, process it (for backward compatibility)
-      if (message.tabId && message.tabId !== tabId) {
-        return false; // Skip messages for other tabs
+      // If the message has a windowId, check if it matches this window's ID
+      // If the message doesn't have a tabId or windowId, process it (for backward compatibility)
+      if ((message.tabId && message.tabId !== tabId) || 
+          (message.windowId && windowId && message.windowId !== windowId)) {
+        return false; // Skip messages for other tabs or windows
       }
       
       if (message.action === 'updateOutput') {
@@ -143,6 +147,7 @@ export const useChromeMessaging = ({
     return () => chrome.runtime.onMessage.removeListener(messageListener);
   }, [
     tabId,
+    windowId,
     onUpdateOutput,
     onUpdateStreamingChunk,
     onFinalizeStreamingSegment,
@@ -171,7 +176,8 @@ export const useChromeMessaging = ({
         chrome.runtime.sendMessage({ 
           action: 'executePrompt', 
           prompt,
-          tabId 
+          tabId,
+          windowId
         }, () => {
           const lastError = chrome.runtime.lastError;
           if (lastError) {
@@ -191,7 +197,8 @@ export const useChromeMessaging = ({
   const cancelExecution = () => {
     chrome.runtime.sendMessage({ 
       action: 'cancelExecution',
-      tabId 
+      tabId,
+      windowId
     }, () => {
       if (chrome.runtime.lastError) {
         console.error(chrome.runtime.lastError);
@@ -202,7 +209,8 @@ export const useChromeMessaging = ({
   const clearHistory = () => {
     chrome.runtime.sendMessage({ 
       action: 'clearHistory', 
-      tabId 
+      tabId,
+      windowId
     });
   };
 
@@ -211,7 +219,8 @@ export const useChromeMessaging = ({
       action: 'approvalResponse',
       requestId,
       approved: true,
-      tabId 
+      tabId,
+      windowId
     }, (response) => {
       if (chrome.runtime.lastError) {
         console.error('Error sending approval response:', chrome.runtime.lastError);
@@ -224,7 +233,8 @@ export const useChromeMessaging = ({
       action: 'approvalResponse',
       requestId,
       approved: false,
-      tabId 
+      tabId,
+      windowId
     }, (response) => {
       if (chrome.runtime.lastError) {
         console.error('Error sending rejection response:', chrome.runtime.lastError);

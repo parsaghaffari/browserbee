@@ -1,5 +1,5 @@
 import { logWithTimestamp, handleError, sendUIMessage } from './utils';
-import { getTabState } from './tabManager';
+import { getTabState, getWindowForTab, getAgentForWindow } from './tabManager';
 import { executePrompt } from './agentController';
 import { MemoryService, AgentMemory } from '../tracking/memoryService';
 import { ExecutionCallbacks } from '../agent/ExecutionEngine';
@@ -44,8 +44,28 @@ export async function triggerReflection(tabId?: number): Promise<void> {
     }
     const tabState = getTabState(activeTabId);
     
-    if (!tabState || !tabState.agent) {
-      logWithTimestamp(`Cannot reflect: No agent for tab ${activeTabId}`, 'warn');
+    // Get the window ID for this tab
+    const windowId = getWindowForTab(activeTabId);
+    if (!windowId) {
+      logWithTimestamp(`Cannot reflect: No window ID for tab ${activeTabId}`, 'warn');
+      
+      // Notify the UI
+      chrome.runtime.sendMessage({
+        action: 'updateOutput',
+        content: {
+          type: 'system',
+          content: `❌ Cannot reflect: No window ID found for this tab.`
+        },
+        tabId: activeTabId
+      });
+      
+      return;
+    }
+    
+    // Get the agent for this window
+    const agent = getAgentForWindow(windowId);
+    if (!agent) {
+      logWithTimestamp(`Cannot reflect: No agent for window ${windowId}`, 'warn');
       
       // Notify the UI
       chrome.runtime.sendMessage({
