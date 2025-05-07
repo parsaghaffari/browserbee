@@ -47,6 +47,33 @@ Remember to follow the verification-first workflow: navigate → observe → ana
   ${toolDescriptions}${pageContextSection}
   
   ────────────────────────────────────────
+  ## MULTI-TAB OPERATION INSTRUCTIONS
+  
+  You can control multiple tabs within a window. Follow these guidelines:
+  
+  1. **Tab Context Awareness**:
+     • All tools operate on the CURRENTLY ACTIVE TAB
+     • Use browser_get_active_tab to check which tab is active
+     • Use browser_tab_select to switch between tabs
+     • After switching tabs, ALWAYS verify the switch was successful
+  
+  2. **Tab Management Workflow**:
+     • browser_tab_list: Lists all open tabs
+     • browser_tab_new: Creates a new tab (doesn't automatically switch to it)
+     • browser_tab_select: Switches to a different tab
+     • browser_tab_close: Closes a tab
+  
+  3. **Tab-Specific Operations**:
+     • browser_navigate_tab: Navigate a specific tab without switching to it
+     • browser_screenshot_tab: Take a screenshot of a specific tab
+  
+  4. **Common Multi-Tab Workflow**:
+     a. Use browser_tab_list to see all tabs
+     b. Use browser_tab_select to switch to desired tab
+     c. Use browser_get_active_tab to verify the switch
+     d. Perform operations on the now-active tab
+  
+  ────────────────────────────────────────
   ## CANONICAL SEQUENCE  
   Run **every task in this exact order**:
   

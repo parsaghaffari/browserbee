@@ -1,5 +1,5 @@
 import { logWithTimestamp, handleError, sendUIMessage } from './utils';
-import { getTabState } from './tabManager';
+import { getTabState, getWindowForTab, getAgentForWindow } from './tabManager';
 import { executePrompt } from './agentController';
 import { MemoryService, AgentMemory } from '../tracking/memoryService';
 import { ExecutionCallbacks } from '../agent/ExecutionEngine';
@@ -44,18 +44,30 @@ export async function triggerReflection(tabId?: number): Promise<void> {
     }
     const tabState = getTabState(activeTabId);
     
-    if (!tabState || !tabState.agent) {
-      logWithTimestamp(`Cannot reflect: No agent for tab ${activeTabId}`, 'warn');
+    // Get the window ID for this tab
+    const windowId = getWindowForTab(activeTabId);
+    if (!windowId) {
+      logWithTimestamp(`Cannot reflect: No window ID for tab ${activeTabId}`, 'warn');
       
       // Notify the UI
-      chrome.runtime.sendMessage({
-        action: 'updateOutput',
-        content: {
-          type: 'system',
-          content: `❌ Cannot reflect: No active agent session found.`
-        },
-        tabId: activeTabId
-      });
+      sendUIMessage('updateOutput', {
+        type: 'system',
+        content: `❌ Cannot reflect: No window ID found for this tab.`
+      }, activeTabId, windowId);
+      
+      return;
+    }
+    
+    // Get the agent for this window
+    const agent = getAgentForWindow(windowId);
+    if (!agent) {
+      logWithTimestamp(`Cannot reflect: No agent for window ${windowId}`, 'warn');
+      
+      // Notify the UI
+      sendUIMessage('updateOutput', {
+        type: 'system',
+        content: `❌ Cannot reflect: No active agent session found.`
+      }, activeTabId, windowId);
       
       return;
     }
@@ -74,14 +86,10 @@ export async function triggerReflection(tabId?: number): Promise<void> {
     }
     
     // Notify the UI that reflection has started
-    chrome.runtime.sendMessage({
-      action: 'updateOutput',
-      content: {
-        type: 'system',
-        content: `🧠 Reflecting on this session to learn useful patterns for ${domain}...`
-      },
-      tabId: activeTabId
-    });
+    sendUIMessage('updateOutput', {
+      type: 'system',
+      content: `🧠 Reflecting on this session to learn useful patterns for ${domain}...`
+    }, activeTabId, windowId);
     
     // Create a reflection prompt
     const reflectionPrompt = `
@@ -123,14 +131,10 @@ async function processReflectionOutput(output: string, domain: string, tabId: nu
     // Check if IndexedDB is available
     if (typeof indexedDB === 'undefined') {
       logWithTimestamp(`IndexedDB is not available in this browser environment`, 'error');
-      chrome.runtime.sendMessage({
-        action: 'updateOutput',
-        content: {
-          type: 'system',
-          content: `❌ Cannot save memories: IndexedDB is not available in this browser environment.`
-        },
-        tabId: tabId
-      });
+      sendUIMessage('updateOutput', {
+        type: 'system',
+        content: `❌ Cannot save memories: IndexedDB is not available in this browser environment.`
+      }, tabId);
       return;
     }
     
@@ -191,46 +195,30 @@ async function processReflectionOutput(output: string, domain: string, tabId: nu
       
       // Notify the UI
       if (savedIds.length > 0) {
-        chrome.runtime.sendMessage({
-          action: 'updateOutput',
-          content: {
-            type: 'system',
-            content: `✅ Saved ${savedIds.length} memories for ${domain}. The agent will now remember how to perform these tasks on this website.`
-          },
-          tabId: tabId
-        });
+        sendUIMessage('updateOutput', {
+          type: 'system',
+          content: `✅ Saved ${savedIds.length} memories for ${domain}. The agent will now remember how to perform these tasks on this website.`
+        }, tabId);
       } else {
-        chrome.runtime.sendMessage({
-          action: 'updateOutput',
-          content: {
-            type: 'system',
-            content: `⚠️ No valid memories were found in the reflection. Please try again.`
-          },
-          tabId: tabId
-        });
+        sendUIMessage('updateOutput', {
+          type: 'system',
+          content: `⚠️ No valid memories were found in the reflection. Please try again.`
+        }, tabId);
       }
     } else {
       // No JSON found
-      chrome.runtime.sendMessage({
-        action: 'updateOutput',
-        content: {
-          type: 'system',
-          content: `❌ Could not extract a valid memory from the reflection. Please try again.`
-        },
-        tabId: tabId
-      });
+      sendUIMessage('updateOutput', {
+        type: 'system',
+        content: `❌ Could not extract a valid memory from the reflection. Please try again.`
+      }, tabId);
     }
   } catch (error) {
     // JSON parsing error
     logWithTimestamp(`Error processing reflection: ${error instanceof Error ? error.message : String(error)}`, 'error');
-    chrome.runtime.sendMessage({
-      action: 'updateOutput',
-      content: {
-        type: 'system',
-        content: `❌ Error processing reflection: ${error instanceof Error ? error.message : String(error)}`
-      },
-      tabId: tabId
-    });
+    sendUIMessage('updateOutput', {
+      type: 'system',
+      content: `❌ Error processing reflection: ${error instanceof Error ? error.message : String(error)}`
+    }, tabId);
   }
 }
 

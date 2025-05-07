@@ -9,16 +9,19 @@ export interface ExecutePromptMessage {
   action: 'executePrompt';
   prompt: string;
   tabId?: number;
+  windowId?: number;
 }
 
 export interface CancelExecutionMessage {
   action: 'cancelExecution';
   tabId?: number;
+  windowId?: number;
 }
 
 export interface ClearHistoryMessage {
   action: 'clearHistory';
   tabId?: number;
+  windowId?: number;
 }
 
 export interface InitializeTabMessage {
@@ -35,17 +38,22 @@ export interface SwitchToTabMessage {
 
 export interface GetTokenUsageMessage {
   action: 'getTokenUsage';
+  tabId?: number;
+  windowId?: number;
 }
 
 export interface ApprovalResponseMessage {
   action: 'approvalResponse';
   requestId: string;
   approved: boolean;
+  tabId?: number;
+  windowId?: number;
 }
 
 export interface ReflectAndLearnMessage {
   action: 'reflectAndLearn';
   tabId?: number;
+  windowId?: number;
 }
 
 // UI Message types
@@ -58,6 +66,7 @@ export interface UpdateOutputMessage {
     mediaType?: string;
   };
   tabId?: number;
+  windowId?: number;
 }
 
 export interface UpdateStreamingChunkMessage {
@@ -67,6 +76,7 @@ export interface UpdateStreamingChunkMessage {
     content: string;
   };
   tabId?: number;
+  windowId?: number;
 }
 
 export interface FinalizeStreamingSegmentMessage {
@@ -76,6 +86,7 @@ export interface FinalizeStreamingSegmentMessage {
     content: string;
   };
   tabId?: number;
+  windowId?: number;
 }
 
 export interface StartNewSegmentMessage {
@@ -84,18 +95,21 @@ export interface StartNewSegmentMessage {
     id: number;
   };
   tabId?: number;
+  windowId?: number;
 }
 
 export interface StreamingCompleteMessage {
   action: 'streamingComplete';
   content: null;
   tabId?: number;
+  windowId?: number;
 }
 
 export interface ProcessingCompleteMessage {
   action: 'processingComplete';
   content: null;
   tabId?: number;
+  windowId?: number;
 }
 
 export interface RateLimitMessage {
@@ -104,6 +118,7 @@ export interface RateLimitMessage {
     isRetrying: boolean;
   };
   tabId?: number;
+  windowId?: number;
 }
 
 export interface FallbackStartedMessage {
@@ -112,6 +127,7 @@ export interface FallbackStartedMessage {
     message: string;
   };
   tabId?: number;
+  windowId?: number;
 }
 
 export interface UpdateScreenshotMessage {
@@ -123,6 +139,7 @@ export interface UpdateScreenshotMessage {
     mediaType: string;
   };
   tabId?: number;
+  windowId?: number;
 }
 
 export interface TokenUsageUpdatedMessage {
@@ -133,11 +150,13 @@ export interface TokenUsageUpdatedMessage {
     cost: number;
   };
   tabId?: number;
+  windowId?: number;
 }
 
 export interface ProviderConfigChangedMessage {
   action: 'providerConfigChanged';
   tabId?: number;
+  windowId?: number;
 }
 
 export interface ForceResetPlaywrightMessage {
@@ -151,6 +170,7 @@ export interface RequestApprovalMessage {
   toolInput: string;
   reason: string;
   tabId?: number;
+  windowId?: number;
 }
 
 export type BackgroundMessage = 
@@ -173,11 +193,13 @@ export interface TabStatusChangedMessage {
   action: 'tabStatusChanged';
   status: 'attached' | 'detached';
   tabId: number;
+  windowId?: number;
 }
 
 export interface TargetCreatedMessage {
   action: 'targetCreated';
   tabId: number;
+  windowId?: number;
   targetInfo: {
     type: string;
     url: string;
@@ -187,24 +209,28 @@ export interface TargetCreatedMessage {
 export interface TargetDestroyedMessage {
   action: 'targetDestroyed';
   tabId: number;
+  windowId?: number;
   url: string;
 }
 
 export interface TargetChangedMessage {
   action: 'targetChanged';
   tabId: number;
+  windowId?: number;
   url: string;
 }
 
 export interface TabTitleChangedMessage {
   action: 'tabTitleChanged';
   tabId: number;
+  windowId?: number;
   title: string;
 }
 
 export interface PageDialogMessage {
   action: 'pageDialog';
   tabId: number;
+  windowId?: number;
   dialogInfo: {
     type: string;
     message: string;
@@ -214,6 +240,7 @@ export interface PageDialogMessage {
 export interface PageConsoleMessage {
   action: 'pageConsole';
   tabId: number;
+  windowId?: number;
   consoleInfo: {
     type: string;
     text: string;
@@ -223,6 +250,7 @@ export interface PageConsoleMessage {
 export interface PageErrorMessage {
   action: 'pageError';
   tabId: number;
+  windowId?: number;
   error: string;
 }
 
@@ -250,8 +278,12 @@ export type UIMessage =
 
 // State types
 export interface TabState {
-  agent: BrowserAgent | null;
   page: any;
   windowId?: number;
   title?: string;
+}
+
+// New interface for window state
+export interface WindowState {
+  agent: BrowserAgent | null;
 }

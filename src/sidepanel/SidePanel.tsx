@@ -23,6 +23,7 @@ export function SidePanel() {
   // Use custom hooks to manage state and functionality
   const { 
     tabId, 
+    windowId,
     tabTitle, 
     setTabTitle 
   } = useTabManagement();
@@ -72,6 +73,7 @@ export function SidePanel() {
     rejectRequest
   } = useChromeMessaging({
     tabId,
+    windowId,
     onUpdateOutput: (content) => {
       addMessage({ ...content, isComplete: true });
     },

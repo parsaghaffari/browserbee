@@ -1,4 +1,4 @@
-import type { Page } from "playwright-crx/test";
+import type { Page } from "playwright-crx";
 import { MemoryService, AgentMemory } from '../../tracking/memoryService';
 import { logWithTimestamp } from '../../background/utils';
 import { normalizeDomain } from '../../tracking/domainUtils';

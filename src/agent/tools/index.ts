@@ -1,4 +1,4 @@
-import type { Page } from "playwright-crx/test";
+import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
 
 // Import all tools from their respective modules
@@ -16,6 +16,12 @@ import {
   browserNavigateBack, 
   browserNavigateForward 
 } from "./navigationTools";
+
+import {
+  browserGetActiveTab,
+  browserNavigateTab,
+  browserScreenshotTab
+} from "./tabContextTools";
 
 import { 
   browserClick, 
@@ -57,6 +63,11 @@ export {
   browserWaitForNavigation,
   browserNavigateBack,
   browserNavigateForward,
+  
+  // Tab context tools
+  browserGetActiveTab,
+  browserNavigateTab,
+  browserScreenshotTab,
   
   // Interaction tools
   browserClick,
@@ -102,6 +113,11 @@ export function getAllTools(page: Page) {
     browserWaitForNavigation(page),
     browserNavigateBack(page),
     browserNavigateForward(page),
+    
+    // Tab context tools
+    browserGetActiveTab(page),
+    browserNavigateTab(page),
+    browserScreenshotTab(page),
     
     // Interaction tools
     browserClick(page),

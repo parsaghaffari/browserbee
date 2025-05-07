@@ -17,6 +17,7 @@ HN launch (0.2.0):
 - [x] add "requires approval" flag to irreversible tools, and seek explicit approval from user
 - [x] better handling of multiple Chrome windows
 -- [x] fix "frame detatched" error when a user reloads the extension without properly closing it/debug session first
+-- [ ] bug: approval dialog now appears in all windows
 - [x] add token counter
 - [x] context summarization
 - [x] code robustness and refactoring

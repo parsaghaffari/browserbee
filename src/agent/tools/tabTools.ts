@@ -1,6 +1,8 @@
 import { DynamicTool } from "langchain/tools";
-import type { Page } from "playwright-crx/test";
+import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
+import { createNewTab, getWindowForTab, getCrxAppForTab } from "../../background/tabManager";
+import { setCurrentPage } from "../PageContextManager";
 
 export const browserTabList: ToolFactory = (page: Page) =>
   new DynamicTool({
@@ -25,12 +27,35 @@ export const browserTabNew: ToolFactory = (page: Page) =>
   new DynamicTool({
     name: "browser_tab_new",
     description:
-      "Open a new tab. Optional input = URL to navigate to (otherwise blank tab).",
+      "Open a new tab. Optional input = URL to navigate to (otherwise blank tab). Note: This does NOT automatically switch to the new tab. Use browser_tab_select after creating a new tab if you want to interact with it.",
     func: async (input: string) => {
       try {
-        const p = await page.context().newPage();
-        if (input.trim()) await p.goto(input.trim());
-        return `Opened new tab (#${page.context().pages().length - 1}).`;
+        // Get the current tab's ID to find its window
+        const currentTabId = await getCurrentTabId(page);
+        
+        if (!currentTabId) {
+          throw new Error("Could not determine current tab ID");
+        }
+        
+        // Get the window ID for the current tab
+        const windowId = await getWindowId(page, currentTabId);
+        
+        if (!windowId) {
+          throw new Error("Could not determine window ID for current tab");
+        }
+        
+        // Create a new tab in the same window
+        const newTabId = await createNewTab(windowId, input.trim() || undefined);
+        
+        // Get the new tab's index in the context
+        const crxApp = await getCrxAppForTab(currentTabId);
+        const pages = crxApp.context().pages();
+        const newTabIndex = pages.length - 1;
+        
+        // Note: We don't update the PageContextManager here because we're not switching to the new tab
+        // The user must explicitly call browser_tab_select to switch to the new tab
+        
+        return `Opened new tab (#${newTabIndex}) in window ${windowId}. To interact with this tab, use browser_tab_select with index ${newTabIndex}.`;
       } catch (err) {
         return `Error opening new tab: ${
           err instanceof Error ? err.message : String(err)
@@ -43,7 +68,7 @@ export const browserTabSelect: ToolFactory = (page: Page) =>
   new DynamicTool({
     name: "browser_tab_select",
     description:
-      "Switch focus to a tab by index. Input = integer index from browser_tab_list.",
+      "Switch focus to a tab by index. Input = integer index from browser_tab_list. IMPORTANT: After switching tabs, you must use browser_get_active_tab to confirm the switch was successful and to get information about the new active tab.",
     func: async (input: string) => {
       try {
         const idx = Number(input.trim());
@@ -52,8 +77,23 @@ export const browserTabSelect: ToolFactory = (page: Page) =>
         const pages = page.context().pages();
         if (idx < 0 || idx >= pages.length)
           return `Error: index ${idx} out of range (0‑${pages.length - 1}).`;
+        
+        // Switch to the tab
         await pages[idx].bringToFront();
-        return `Switched to tab ${idx}.`;
+        
+        // Update the current page in the PageContextManager
+        setCurrentPage(pages[idx]);
+        
+        // Get information about the new tab
+        const newUrl = pages[idx].url();
+        let newTitle = "Unknown";
+        try {
+          newTitle = await pages[idx].title();
+        } catch (titleError) {
+          // Ignore errors getting title
+        }
+        
+        return `Switched to tab ${idx}. Now active: "${newTitle}" (${newUrl}). Use browser_get_active_tab for more details.`;
       } catch (err) {
         return `Error selecting tab: ${
           err instanceof Error ? err.message : String(err)
@@ -83,3 +123,64 @@ export const browserTabClose: ToolFactory = (page: Page) =>
       }
     },
   });
+
+/**
+ * Helper function to get the current tab ID from a page
+ */
+async function getCurrentTabId(page: Page): Promise<number | undefined> {
+  try {
+    // Try to use internal Playwright-CRX APIs to get the tab ID
+    if ((page as any)._session && (page as any)._session._connection && (page as any)._session._connection._transport) {
+      const transport = (page as any)._session._connection._transport;
+      
+      // If this is a CrxTransport, it might have a _tabId property
+      if (transport._tabId) {
+        return transport._tabId;
+      }
+    }
+    
+    // If that fails, try to get the tab ID from Chrome
+    // This is a fallback method that might not always work
+    const pages = page.context().pages();
+    const pageIndex = pages.indexOf(page);
+    
+    if (pageIndex >= 0) {
+      // Get all Chrome tabs
+      const chromeTabs = await chrome.tabs.query({});
+      
+      // Try to match by URL
+      const pageUrl = page.url();
+      const matchingTab = chromeTabs.find(tab => tab.url === pageUrl);
+      
+      if (matchingTab && matchingTab.id) {
+        return matchingTab.id;
+      }
+    }
+  } catch (error) {
+    console.error('Error getting current tab ID:', error);
+  }
+  
+  return undefined;
+}
+
+/**
+ * Helper function to get the window ID for a tab
+ */
+async function getWindowId(page: Page, tabId: number): Promise<number | undefined> {
+  // First try to get the window ID from tabManager
+  const windowId = getWindowForTab(tabId);
+  
+  if (windowId) {
+    return windowId;
+  }
+  
+  // If that fails, try to get it from Chrome
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return tab.windowId;
+  } catch (error) {
+    console.error('Error getting window ID:', error);
+  }
+  
+  return undefined;
+}

@@ -46,7 +46,7 @@ export class TokenTrackingService {
     }
   }
 
-  public trackInputTokens(tokens: number, cacheTokens?: { write?: number, read?: number }): void {
+  public trackInputTokens(tokens: number, cacheTokens?: { write?: number, read?: number }, windowId?: number): void {
     this.inputTokens += tokens;
     
     // Add cache tokens to the total if provided
@@ -56,13 +56,13 @@ export class TokenTrackingService {
     }
     
     this.updateCost();
-    this.notifySubscribers();
+    this.notifySubscribers(windowId);
   }
 
-  public trackOutputTokens(tokens: number): void {
+  public trackOutputTokens(tokens: number, windowId?: number): void {
     this.outputTokens += tokens;
     this.updateCost();
-    this.notifySubscribers();
+    this.notifySubscribers(windowId);
   }
 
   public getUsage(): TokenUsage {
@@ -73,11 +73,11 @@ export class TokenTrackingService {
     };
   }
 
-  public reset(): void {
+  public reset(windowId?: number): void {
     this.inputTokens = 0;
     this.outputTokens = 0;
     this.cost = 0;
-    this.notifySubscribers();
+    this.notifySubscribers(windowId);
   }
 
   public subscribe(callback: () => void): () => void {
@@ -88,11 +88,11 @@ export class TokenTrackingService {
   }
 
   // Update provider and model information
-  public updateProviderAndModel(provider: string, modelId: string): void {
+  public updateProviderAndModel(provider: string, modelId: string, windowId?: number): void {
     this.currentProvider = provider;
     this.currentModelId = modelId;
     this.updateCost();
-    this.notifySubscribers();
+    this.notifySubscribers(windowId);
   }
 
   private updateCost(): void {
@@ -130,14 +130,31 @@ export class TokenTrackingService {
     this.cost = inputCost + outputCost;
   }
 
-  private notifySubscribers(): void {
+  private notifySubscribers(windowId?: number): void {
     // Send message to UI via Chrome runtime messaging
     try {
       const usage = this.getUsage();
-      chrome.runtime.sendMessage({
-        action: 'tokenUsageUpdated',
-        content: usage
-      });
+      
+      // Get the current tab ID and window ID if possible
+      chrome.tabs.query({ active: true, lastFocusedWindow: true })
+        .then(tabs => {
+          const tabId = tabs[0]?.id;
+          const currentWindowId = tabs[0]?.windowId || windowId;
+          
+          chrome.runtime.sendMessage({
+            action: 'tokenUsageUpdated',
+            content: usage,
+            tabId,
+            windowId: currentWindowId
+          });
+        })
+        .catch(error => {
+          // If we can't get the current tab, just send the message without tab/window ID
+          chrome.runtime.sendMessage({
+            action: 'tokenUsageUpdated',
+            content: usage
+          });
+        });
     } catch (error) {
       console.error('Error sending token usage update:', error);
     }

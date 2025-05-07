@@ -16,6 +16,7 @@ export interface ChromeMessage {
   action: string;
   content?: any;
   tabId?: number;
+  windowId?: number;
   // Approval request properties
   requestId?: string;
   toolName?: string;

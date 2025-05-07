@@ -5,11 +5,26 @@ import { UIMessage } from './types';
  * @param action The action type
  * @param content The content of the message
  * @param tabId Optional tab ID to include in the message
+ * @param windowId Optional window ID to include in the message
  */
-export function sendUIMessage(action: string, content: any, tabId?: number) {
-  // Include the current tab ID in the message if available
+export function sendUIMessage(action: string, content: any, tabId?: number, windowId?: number) {
+  // Include the current tab ID and window ID in the message if available
   if (tabId) {
-    chrome.runtime.sendMessage({ action, content, tabId });
+    // Get windowId from tabId if not provided
+    if (!windowId) {
+      try {
+        // Try to get the window ID from the tab manager
+        // Using require to avoid circular dependencies
+        const getWindowForTab = require('./tabManager').getWindowForTab;
+        if (typeof getWindowForTab === 'function') {
+          windowId = getWindowForTab(tabId);
+        }
+      } catch (error) {
+        // Ignore errors, just proceed without window ID
+        console.warn('Could not get window ID for tab:', tabId);
+      }
+    }
+    chrome.runtime.sendMessage({ action, content, tabId, windowId });
   } else {
     chrome.runtime.sendMessage({ action, content });
   }
