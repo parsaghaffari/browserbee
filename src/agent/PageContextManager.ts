@@ -84,3 +84,10 @@ export function setCurrentPage(page: Page): void {
 export function initializePageContext(initialPage: Page): void {
   PageContextManager.getInstance().initialize(initialPage);
 }
+
+/**
+ * Helper function to reset the PageContextManager
+ */
+export function resetPageContext(): void {
+  PageContextManager.getInstance().reset();
+}

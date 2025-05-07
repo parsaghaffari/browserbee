@@ -455,6 +455,15 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       sendUIMessage('processingComplete', null, targetTabId);
       return;
     }
+    
+    // Update PageContextManager with the new page
+    try {
+      const { setCurrentPage } = await import('../agent/PageContextManager');
+      setCurrentPage(updatedTabState.page);
+      logWithTimestamp(`Updated PageContextManager with page for tab ${targetTabId} in executePrompt`);
+    } catch (error) {
+      logWithTimestamp(`Error updating PageContextManager in executePrompt: ${error instanceof Error ? error.message : String(error)}`, 'warn');
+    }
 
     // Add current page context to history if we have a page
     if (updatedTabState.page) {

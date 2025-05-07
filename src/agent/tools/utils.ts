@@ -18,6 +18,33 @@ export async function withActivePage<T>(
   // Get the current active page from PageContextManager
   const activePage = getCurrentPage(page);
   
+  // Add debugging logs
+  try {
+    let originalUrl = "unknown";
+    let activeUrl = "unknown";
+    
+    try {
+      originalUrl = await page.url();
+    } catch (e) {
+      // Ignore errors getting original URL
+    }
+    
+    try {
+      activeUrl = await activePage.url();
+    } catch (e) {
+      // Ignore errors getting active URL
+    }
+    
+    console.log(`withActivePage: Original page URL: ${originalUrl}`);
+    console.log(`withActivePage: Active page URL: ${activeUrl}`);
+    
+    if (originalUrl !== activeUrl) {
+      console.log(`withActivePage: Using different page from PageContextManager`);
+    }
+  } catch (error) {
+    console.log(`withActivePage: Error getting URLs for debugging: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  
   // Execute the function with the active page
   return await fn(activePage);
 }

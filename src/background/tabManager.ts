@@ -323,6 +323,15 @@ export async function attachToTab(tabId: number, windowId?: number, retryCount: 
       setCurrentTabId(tabId);
       setTabState(tabId, { page, windowId, title: tabTitle });
       
+      // Update PageContextManager with the new page
+      try {
+        const { setCurrentPage } = await import('../agent/PageContextManager');
+        setCurrentPage(page);
+        logWithTimestamp(`Updated PageContextManager with page for tab ${tabId}`);
+      } catch (error) {
+        logWithTimestamp(`Error updating PageContextManager: ${error instanceof Error ? error.message : String(error)}`, 'warn');
+      }
+      
       logWithTimestamp(`Successfully attached to tab ${tabId}`);
       return true;
     } catch (error) {
@@ -524,6 +533,15 @@ export function setupTabListeners(): void {
       // Reset the current tab ID if this was the current tab
       if (tabId === currentTabId) {
         setCurrentTabId(null);
+      }
+      
+      // Reset PageContextManager
+      try {
+        const { resetPageContext } = await import('../agent/PageContextManager');
+        resetPageContext();
+        logWithTimestamp(`Reset PageContextManager for closed tab ${tabId}`);
+      } catch (error) {
+        logWithTimestamp(`Error resetting PageContextManager: ${error instanceof Error ? error.message : String(error)}`, 'warn');
       }
     }
   });

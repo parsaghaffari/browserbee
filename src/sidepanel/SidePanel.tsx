@@ -12,6 +12,9 @@ import { ApprovalRequest } from './components/ApprovalRequest';
 import { ProviderSelector } from './components/ProviderSelector';
 
 export function SidePanel() {
+  // State for tab status
+  const [tabStatus, setTabStatus] = useState<'attached' | 'detached' | 'unknown'>('unknown');
+  
   // State for approval requests
   const [approvalRequests, setApprovalRequests] = useState<Array<{
     requestId: string;
@@ -112,7 +115,8 @@ export function SidePanel() {
     setTabTitle,
     // New event handlers for tab events
     onTabStatusChanged: (status, tabId) => {
-      // We don't need to do anything here as TabStatusBar handles this
+      // Update the tab status state
+      setTabStatus(status);
     },
     onTargetChanged: (tabId, url) => {
       // We don't need to do anything here as TabStatusBar handles this
@@ -173,6 +177,7 @@ export function SidePanel() {
         <TabStatusBar 
           tabId={tabId}
           tabTitle={tabTitle}
+          tabStatus={tabStatus}
         />
       </div>
       <p className="text-sm text-gray-600 mt-2">
@@ -219,6 +224,7 @@ export function SidePanel() {
         onSubmit={handleSubmit}
         onCancel={cancelExecution}
         isProcessing={isProcessing}
+        tabStatus={tabStatus}
       />
       <ProviderSelector />
     </div>

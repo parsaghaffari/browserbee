@@ -7,18 +7,20 @@ interface PromptFormProps {
   onSubmit: (prompt: string) => void;
   onCancel: () => void;
   isProcessing: boolean;
+  tabStatus: 'attached' | 'detached' | 'unknown';
 }
 
 export const PromptForm: React.FC<PromptFormProps> = ({
   onSubmit,
   onCancel,
-  isProcessing
+  isProcessing,
+  tabStatus
 }) => {
   const [prompt, setPrompt] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prompt.trim() || isProcessing) return;
+    if (!prompt.trim() || isProcessing || tabStatus === 'detached') return;
     onSubmit(prompt);
     setPrompt(''); // Clear the prompt after submission
   };
@@ -38,9 +40,11 @@ export const PromptForm: React.FC<PromptFormProps> = ({
             }
             // Allow Shift+Enter to create a new line (default behavior)
           }}
-          placeholder="Type a message..."
+          placeholder={tabStatus === 'detached' 
+            ? "Tab connection lost. Please refresh the tab to continue." 
+            : "Type a message..."}
           autoFocus
-          disabled={isProcessing}
+          disabled={isProcessing || tabStatus === 'detached'}
           minRows={1}
           maxRows={10}
           style={{ 
@@ -65,8 +69,8 @@ export const PromptForm: React.FC<PromptFormProps> = ({
             type="submit" 
             className="btn btn-sm btn-circle btn-primary absolute"
             style={{ bottom: '5px', right: '5px' }}
-            disabled={!prompt.trim()}
-            title="Execute"
+            disabled={!prompt.trim() || tabStatus === 'detached'}
+            title={tabStatus === 'detached' ? "Refresh tab to continue" : "Execute"}
           >
             <FontAwesomeIcon icon={faPaperPlane} />
           </button>

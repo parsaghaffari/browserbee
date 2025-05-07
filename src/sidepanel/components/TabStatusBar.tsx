@@ -5,17 +5,18 @@ import { faRotateRight } from '@fortawesome/free-solid-svg-icons';
 interface TabStatusBarProps {
   tabId: number | null;
   tabTitle: string;
+  tabStatus: 'attached' | 'detached' | 'unknown';
 }
 
 export const TabStatusBar: React.FC<TabStatusBarProps> = ({
   tabId,
-  tabTitle
+  tabTitle,
+  tabStatus
 }) => {
-  const [tabStatus, setTabStatus] = useState<'attached' | 'detached' | 'unknown'>('unknown');
   const [tabUrl, setTabUrl] = useState<string>('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Listen for tab status changes
+  // Listen for URL changes only
   useEffect(() => {
     if (!tabId) return;
     
@@ -34,11 +35,8 @@ export const TabStatusBar: React.FC<TabStatusBarProps> = ({
         return;
       }
       
-      // Update status based on message type
-      if (message.action === 'tabStatusChanged' && message.status) {
-        setTabStatus(message.status);
-        sendResponse({ received: true });
-      } else if (message.action === 'targetChanged' && message.url) {
+      // Update URL based on message type
+      if (message.action === 'targetChanged' && message.url) {
         setTabUrl(message.url);
         sendResponse({ received: true });
       }
