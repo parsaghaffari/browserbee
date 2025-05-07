@@ -3,9 +3,6 @@ import { TabState, WindowState } from './types';
 import { logWithTimestamp, handleError } from './utils';
 import { BrowserAgent } from '../agent/AgentCore';
 
-// Define modes similar to Playwright-CRX
-type BrowserBeeMode = 'none' | 'standby' | 'inspecting' | 'automating' | 'detached';
-
 // Track attached tabs and their windows
 const attachedTabIds = new Set<number>();
 const tabStates = new Map<number, TabState>();
@@ -14,9 +11,8 @@ const tabToWindowMap = new Map<number, number>();
 // Track agents by window ID
 const windowToAgentMap = new Map<number, BrowserAgent>();
 
-// Current tab ID and mode
+// Current tab ID
 let currentTabId: number | null = null;
-let currentMode: BrowserBeeMode = 'none';
 
 // Map of window IDs to Playwright instances
 const windowToCrxAppMap = new Map<number, Promise<Awaited<ReturnType<typeof crx.start>>>>();
@@ -124,29 +120,6 @@ export function getWindowForTab(tabId: number): number | undefined {
   return tabToWindowMap.get(tabId);
 }
 
-/**
- * Update the action button appearance based on mode
- */
-async function updateActionButton(tabId: number, mode: BrowserBeeMode = currentMode): Promise<void> {
-  if (!mode || mode === 'none' || mode === 'standby' || mode === 'detached') {
-    await Promise.all([
-      chrome.action.setTitle({ title: mode === 'none' ? 'BrowserBee: Stopped' : 'BrowserBee: Ready', tabId }),
-      chrome.action.setBadgeText({ text: '', tabId }),
-    ]).catch(() => {});
-    return;
-  }
-
-  const { text, title, color, bgColor } = mode === 'automating' ?
-    { text: 'AUTO', title: 'BrowserBee: Automating', color: 'white', bgColor: 'darkred' } :
-    { text: 'INS', title: 'BrowserBee: Inspecting', color: 'white', bgColor: 'dodgerblue' };
-
-  await Promise.all([
-    chrome.action.setTitle({ title, tabId }),
-    chrome.action.setBadgeText({ text, tabId }),
-    chrome.action.setBadgeTextColor({ color, tabId }),
-    chrome.action.setBadgeBackgroundColor({ color: bgColor, tabId }),
-  ]).catch(() => {});
-}
 
 /**
  * Get or create a Playwright instance for a specific window
@@ -212,7 +185,6 @@ function createCrxApp(): Promise<Awaited<ReturnType<typeof crx.start>>> {
     // Set up event listeners
     app.addListener('attached', ({ tabId }) => {
       addAttachedTab(tabId);
-      updateActionButton(tabId);
       
       // Notify UI components about the attachment
       chrome.runtime.sendMessage({
@@ -225,7 +197,6 @@ function createCrxApp(): Promise<Awaited<ReturnType<typeof crx.start>>> {
     
     app.addListener('detached', (tabId) => {
       removeAttachedTab(tabId);
-      updateActionButton(tabId, 'detached');
       
       // Notify UI components about the detachment
       chrome.runtime.sendMessage({
@@ -300,23 +271,6 @@ export async function getCrxAppForTab(tabId: number): Promise<Awaited<ReturnType
   return getCrxApp(windowId);
 }
 
-/**
- * Set the current mode and update UI
- */
-export async function setMode(mode: BrowserBeeMode): Promise<void> {
-  currentMode = mode;
-  
-  // Update action button for all attached tabs
-  for (const tabId of attachedTabIds) {
-    await updateActionButton(tabId, mode);
-  }
-  
-  // Notify UI components about the mode change
-  chrome.runtime.sendMessage({
-    action: 'modeChanged',
-    mode
-  });
-}
 
 /**
  * Attach to a tab
@@ -325,11 +279,10 @@ export async function attachToTab(tabId: number, windowId?: number): Promise<boo
   try {
     logWithTimestamp(`Attaching to tab ${tabId}`);
     
-    // If already attached, just update the UI
+    // If already attached, just log it
     if (isTabAttached(tabId)) {
       logWithTimestamp(`Tab ${tabId} already attached`);
       setCurrentTabId(tabId);
-      await updateActionButton(tabId);
       return true;
     }
     
@@ -369,9 +322,6 @@ export async function attachToTab(tabId: number, windowId?: number): Promise<boo
       const page = await crxApp.attach(tabId);
       setCurrentTabId(tabId);
       setTabState(tabId, { page, windowId, title: tabTitle });
-      
-      // Update the action button
-      await updateActionButton(tabId);
       
       logWithTimestamp(`Successfully attached to tab ${tabId}`);
       return true;
@@ -542,13 +492,6 @@ export function setupTabListeners(): void {
     }
   });
   
-  // Listen for tab updates to update the action button
-  chrome.tabs.onUpdated.addListener(tabId => {
-    if (isTabAttached(tabId)) {
-      updateActionButton(tabId);
-    }
-  });
-  
   // Listen for window removal events
   chrome.windows.onRemoved.addListener(async (windowId) => {
     logWithTimestamp(`Window ${windowId} was closed, cleaning up Playwright instance and agent`);
@@ -570,27 +513,6 @@ export function setupTabListeners(): void {
     if (windowToAgentMap.has(windowId)) {
       logWithTimestamp(`Removing agent for window ${windowId}`);
       windowToAgentMap.delete(windowId);
-    }
-  });
-  
-  // Set up action button click handler
-  chrome.action.onClicked.addListener(async (tab) => {
-    if (!tab.id) return;
-    
-    // If already attached, toggle mode
-    if (isTabAttached(tab.id)) {
-      if (currentMode === 'automating') {
-        await setMode('inspecting');
-      } else if (currentMode === 'inspecting') {
-        await setMode('none');
-      } else {
-        await setMode('automating');
-      }
-    } else {
-      // Otherwise, attach to the tab
-      if (await attachToTab(tab.id, tab.windowId)) {
-        await setMode('automating');
-      }
     }
   });
 }
