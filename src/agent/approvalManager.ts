@@ -1,3 +1,5 @@
+import { getWindowForTab } from '../background/tabManager';
+
 // Pending approvals map
 const pendingApprovals = new Map<string, {
   resolve: (approved: boolean) => void,
@@ -30,7 +32,6 @@ export async function requestApproval(
     if (!windowId) {
       try {
         // Try to get the window ID from the tab manager
-        const getWindowForTab = require('../background/tabManager').getWindowForTab;
         windowId = getWindowForTab(tabId);
       } catch (error) {
         console.error('Error getting window ID for tab:', error);
