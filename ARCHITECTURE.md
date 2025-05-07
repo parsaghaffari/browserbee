@@ -36,6 +36,15 @@ The Models Module provides a flexible interface for multiple LLM providers:
 - **models/providers/gemini.ts**: Google Gemini provider implementation
   - Handles Gemini-specific streaming and features
 
+- **models/providers/ollama.ts**: Ollama provider implementation
+  - Connects to locally running Ollama models
+  - Uses browser-compatible version of the Ollama library
+  - Supports streaming responses from local models
+
+- **models/providers/ollama-format.ts**: Ollama message format transformer
+  - Converts between Anthropic and Ollama message formats
+  - Handles complex message structures with tools and images
+
 ### Agent Module
 
 The Agent Module is responsible for processing user instructions and executing browser automation tasks. It consists of a few sub-modules:
@@ -153,7 +162,7 @@ The Side Panel is the main interface for interacting with BrowserBee. It has bee
 #### Options Page
 
 - **options/Options.tsx**: Options page for configuring the extension
-  - Provider selection (Anthropic, OpenAI, Gemini)
+  - Provider selection (Anthropic, OpenAI, Gemini, Ollama)
   - API key management for each provider
   - Model selection for each provider
   - Advanced configuration options
@@ -198,6 +207,16 @@ The Tracking Module handles memory storage, token tracking, and other tracking-r
 - The Models Module provides a flexible interface for multiple LLM providers
 
 ## Provider System
+
+## Ollama Integration
+
+The Ollama integration allows users to connect to locally running Ollama models:
+
+1. **Browser Compatibility**: Uses the browser-compatible version of the Ollama library
+2. **API Key Optional**: Unlike other providers, Ollama doesn't require an API key
+3. **CORS Configuration**: Requires CORS to be enabled on the Ollama server
+4. **Local Models**: Supports models like llama3.1 and Qwen3
+5. **Privacy-Focused**: Provides a privacy-focused alternative to cloud-based LLM providers
 
 The provider system follows these design patterns:
 
