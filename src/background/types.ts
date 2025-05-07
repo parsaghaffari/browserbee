@@ -38,6 +38,8 @@ export interface SwitchToTabMessage {
 
 export interface GetTokenUsageMessage {
   action: 'getTokenUsage';
+  tabId?: number;
+  windowId?: number;
 }
 
 export interface ApprovalResponseMessage {

@@ -48,8 +48,8 @@ interface MessageHistory {
 // Define a maximum token budget for conversation history
 const MAX_CONVERSATION_TOKENS = 100000; // 100K tokens for conversation history
 
-// Message histories for conversation context (one per tab)
-const messageHistories = new Map<number, MessageHistory>();
+// Message histories for conversation context (one per window)
+const windowMessageHistories = new Map<number, MessageHistory>();
 
 /**
  * Get the current provider type from config
@@ -61,31 +61,42 @@ async function getCurrentProvider(): Promise<ProviderType> {
 }
 
 /**
- * Clear message history for a specific tab
- * @param tabId The tab ID to clear history for
+ * Clear message history for a specific window
+ * @param tabId The tab ID to identify the window
+ * @param windowId Optional window ID to clear history for
  */
-export async function clearMessageHistory(tabId?: number): Promise<void> {
+export async function clearMessageHistory(tabId?: number, windowId?: number): Promise<void> {
   // Get the screenshot manager
   const screenshotManager = ScreenshotManager.getInstance();
   
   // Get current provider
   const provider = await getCurrentProvider();
   
-  if (tabId) {
-    // Clear message history for a specific tab
-    messageHistories.set(tabId, { provider, originalRequest: null, conversationHistory: [] });
+  // If windowId is not provided but tabId is, try to get the window ID
+  if (tabId && !windowId) {
+    windowId = getWindowForTab(tabId);
+  }
+  
+  // If we have a window ID, clear that specific window's history
+  if (windowId) {
+    // Clear message history for a specific window
+    windowMessageHistories.set(windowId, { provider, originalRequest: null, conversationHistory: [] });
     // Clear screenshots
     screenshotManager.clear();
-    logWithTimestamp(`Message history and screenshots cleared for tab ${tabId}`);
+    logWithTimestamp(`Message history and screenshots cleared for window ${windowId}`);
   } else if (getCurrentTabId()) {
-    // Clear message history for the current tab
-    messageHistories.set(getCurrentTabId()!, { provider, originalRequest: null, conversationHistory: [] });
-    // Clear screenshots
-    screenshotManager.clear();
-    logWithTimestamp(`Message history and screenshots cleared for current tab ${getCurrentTabId()}`);
+    // Try to get the window ID for the current tab
+    const currentWindowId = getWindowForTab(getCurrentTabId()!);
+    if (currentWindowId) {
+      // Clear message history for the current window
+      windowMessageHistories.set(currentWindowId, { provider, originalRequest: null, conversationHistory: [] });
+      // Clear screenshots
+      screenshotManager.clear();
+      logWithTimestamp(`Message history and screenshots cleared for current window ${currentWindowId}`);
+    }
   } else {
-    // Clear all message histories if no tab ID is specified
-    messageHistories.clear();
+    // Clear all message histories if no window ID is specified
+    windowMessageHistories.clear();
     // Clear screenshots
     screenshotManager.clear();
     logWithTimestamp("All message histories and screenshots cleared");
@@ -93,24 +104,31 @@ export async function clearMessageHistory(tabId?: number): Promise<void> {
 }
 
 /**
- * Get message history for a specific tab
- * @param tabId The tab ID to get history for
- * @returns The combined message history for the tab (original request + conversation)
+ * Get message history for a specific window
+ * @param tabId The tab ID to identify the window
+ * @returns The combined message history for the window (original request + conversation)
  */
 export async function getMessageHistory(tabId: number): Promise<Anthropic.MessageParam[]> {
+  // Get the window ID for this tab
+  const windowId = getWindowForTab(tabId);
+  if (!windowId) {
+    logWithTimestamp(`Cannot get message history: No window ID found for tab ${tabId}`, 'warn');
+    return [];
+  }
+  
   // Get current provider
   const provider = await getCurrentProvider();
   
-  if (!messageHistories.has(tabId)) {
-    messageHistories.set(tabId, { provider, originalRequest: null, conversationHistory: [] });
+  if (!windowMessageHistories.has(windowId)) {
+    windowMessageHistories.set(windowId, { provider, originalRequest: null, conversationHistory: [] });
   }
   
-  const history = messageHistories.get(tabId)!;
+  const history = windowMessageHistories.get(windowId)!;
   
   // Update provider if it has changed
   if (history.provider !== provider) {
     history.provider = provider;
-    messageHistories.set(tabId, history);
+    windowMessageHistories.set(windowId, history);
   }
   
   // Convert generic messages to provider-specific format
@@ -184,49 +202,72 @@ function convertMessagesToProviderFormat(messages: GenericMessage[], provider: P
 }
 
 /**
- * Get the structured message history object for a specific tab
- * @param tabId The tab ID to get history for
+ * Get the structured message history object for a specific window
+ * @param tabId The tab ID to identify the window
  * @returns The structured message history object
  */
 export async function getStructuredMessageHistory(tabId: number): Promise<MessageHistory> {
+  // Get the window ID for this tab
+  const windowId = getWindowForTab(tabId);
+  if (!windowId) {
+    logWithTimestamp(`Cannot get structured message history: No window ID found for tab ${tabId}`, 'warn');
+    // Return an empty history if no window ID is found
+    const provider = await getCurrentProvider();
+    return { provider, originalRequest: null, conversationHistory: [] };
+  }
+  
   // Get current provider
   const provider = await getCurrentProvider();
   
-  if (!messageHistories.has(tabId)) {
-    messageHistories.set(tabId, { provider, originalRequest: null, conversationHistory: [] });
+  if (!windowMessageHistories.has(windowId)) {
+    windowMessageHistories.set(windowId, { provider, originalRequest: null, conversationHistory: [] });
   }
   
-  const history = messageHistories.get(tabId)!;
+  const history = windowMessageHistories.get(windowId)!;
   
   // Update provider if it has changed
   if (history.provider !== provider) {
     history.provider = provider;
-    messageHistories.set(tabId, history);
+    windowMessageHistories.set(windowId, history);
   }
   
   return history;
 }
 
 /**
- * Set the original request for a specific tab
- * @param tabId The tab ID to set the original request for
+ * Set the original request for a specific window
+ * @param tabId The tab ID to identify the window
  * @param request The original request message
  */
 export async function setOriginalRequest(tabId: number, request: Anthropic.MessageParam): Promise<void> {
+  // Get the window ID for this tab
+  const windowId = getWindowForTab(tabId);
+  if (!windowId) {
+    logWithTimestamp(`Cannot set original request: No window ID found for tab ${tabId}`, 'warn');
+    return;
+  }
+  
   const history = await getStructuredMessageHistory(tabId);
   history.originalRequest = request;
-  messageHistories.set(tabId, history);
+  windowMessageHistories.set(windowId, history);
 }
 
 /**
- * Add a message to the conversation history for a specific tab
- * @param tabId The tab ID to add the message to
+ * Add a message to the conversation history for a specific window
+ * @param tabId The tab ID to identify the window
  * @param message The message to add
  */
 export async function addToConversationHistory(tabId: number, message: Anthropic.MessageParam): Promise<void> {
+  // Get the window ID for this tab
+  const windowId = getWindowForTab(tabId);
+  if (!windowId) {
+    logWithTimestamp(`Cannot add to conversation history: No window ID found for tab ${tabId}`, 'warn');
+    return;
+  }
+  
   const history = await getStructuredMessageHistory(tabId);
   history.conversationHistory.push(message);
-  messageHistories.set(tabId, history);
+  windowMessageHistories.set(windowId, history);
 }
 
 // No replacement - removing the isNewTaskRequest function
@@ -489,8 +530,11 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
     const callbacks: ExecutionCallbacks = {
       onLlmChunk: (chunk) => {
         if (useStreaming) {
+          // Get the window ID for this tab
+          const windowId = getWindowForTab(targetTabId);
+          
           // Add chunk to buffer
-          addToStreamingBuffer(chunk, targetTabId);
+          addToStreamingBuffer(chunk, targetTabId, windowId);
         }
       },
       onLlmOutput: async (content) => {
@@ -546,8 +590,12 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
               history.conversationHistory.shift();
             }
             
-            // Update the message history
-            messageHistories.set(targetTabId, history);
+            // Get the window ID for this tab
+            const windowId = getWindowForTab(targetTabId);
+            if (windowId) {
+              // Update the message history
+              windowMessageHistories.set(windowId, history);
+            }
             
             logWithTimestamp(`Trimmed conversation history to ${history.conversationHistory.length} messages (${contextTokenCount(history.conversationHistory)} tokens)`);
           }
@@ -611,8 +659,11 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       },
       onSegmentComplete: (segment) => {
         if (useStreaming) {
+          // Get the window ID for this tab
+          const windowId = getWindowForTab(targetTabId);
+          
           // Finalize the current streaming segment
-          finalizeStreamingSegment(getCurrentSegmentId(), segment, targetTabId);
+          finalizeStreamingSegment(getCurrentSegmentId(), segment, targetTabId, windowId);
           
           // Increment segment ID for the next segment
           incrementSegmentId();
@@ -620,11 +671,17 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       },
       onToolStart: (toolName, toolInput) => {
         if (useStreaming) {
+          // Get the window ID for this tab
+          const windowId = getWindowForTab(targetTabId);
+          
           // Start a new segment for after the tool execution
-          startNewSegment(getCurrentSegmentId(), targetTabId);
+          startNewSegment(getCurrentSegmentId(), targetTabId, windowId);
         }
       },
       onComplete: () => {
+        // Get the window ID for this tab
+        const windowId = getWindowForTab(targetTabId);
+        
         // Finalize the last segment if needed FIRST
         // This ensures the final LLM output is not lost
         if (useStreaming && getStreamingBuffer().trim()) {
@@ -633,18 +690,18 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
           
           // If it doesn't have a tool call, it's likely the final output
           if (!hasToolCall) {
-            finalizeStreamingSegment(getCurrentSegmentId(), getStreamingBuffer(), targetTabId);
+            finalizeStreamingSegment(getCurrentSegmentId(), getStreamingBuffer(), targetTabId, windowId);
           }
         }
         
         // THEN clear any remaining buffer
-        clearStreamingBuffer(targetTabId);
+        clearStreamingBuffer(targetTabId, windowId);
         
         // Signal that streaming is complete
         if (useStreaming) {
-          signalStreamingComplete(targetTabId);
+          signalStreamingComplete(targetTabId, windowId);
         }
-        sendUIMessage('processingComplete', null, targetTabId);
+        sendUIMessage('processingComplete', null, targetTabId, windowId);
       }
     };
     

@@ -183,17 +183,19 @@ async function handleClearHistory(
   message: Extract<BackgroundMessage, { action: 'clearHistory' }>,
   sendResponse: (response?: any) => void
 ): Promise<void> {
-  await clearMessageHistory(message.tabId);
+  await clearMessageHistory(message.tabId, message.windowId);
   
   // Reset token tracking
   try {
     const tokenTracker = TokenTrackingService.getInstance();
-    tokenTracker.reset();
+    tokenTracker.reset(message.windowId);
     
     // Notify UI of reset
     chrome.runtime.sendMessage({
       action: 'tokenUsageUpdated',
-      content: tokenTracker.getUsage()
+      content: tokenTracker.getUsage(),
+      tabId: message.tabId,
+      windowId: message.windowId
     });
   } catch (error) {
     logWithTimestamp(`Error resetting token tracking: ${String(error)}`, 'warn');
@@ -240,7 +242,8 @@ function handleInitializeTab(
               type: 'system',
               content: `Connected to tab: ${tabState.title || tabTitle}`
             },
-            tabId: message.tabId
+            tabId: message.tabId,
+            windowId: tabState.windowId
           });
         }
         
@@ -292,6 +295,9 @@ function handleGetTokenUsage(
     const tokenTracker = TokenTrackingService.getInstance();
     const usage = tokenTracker.getUsage();
     
+    // Get the window ID if available
+    const windowId = message.windowId;
+    const tabId = message.tabId;
     
     // Send the usage directly in the response
     sendResponse({ 
@@ -302,7 +308,9 @@ function handleGetTokenUsage(
     // Also broadcast it to all clients
     chrome.runtime.sendMessage({
       action: 'tokenUsageUpdated',
-      content: usage
+      content: usage,
+      tabId,
+      windowId
     });
   } catch (error) {
     const errorMessage = handleError(error, 'getting token usage');
@@ -351,13 +359,20 @@ async function handleForceResetPlaywright(
     // Call the forceResetPlaywright function from tabManager
     const result = await forceResetPlaywright();
     
+    // Get the current tab and window ID if possible
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const tabId = tabs[0]?.id;
+    const windowId = tabs[0]?.windowId;
+    
     // Notify UI components about the reset
     chrome.runtime.sendMessage({
       action: 'updateOutput',
       content: {
         type: 'system',
         content: `Playwright instance has been force reset. ${result ? 'Success' : 'Failed'}`
-      }
+      },
+      tabId,
+      windowId
     });
     
     sendResponse({ success: result });
