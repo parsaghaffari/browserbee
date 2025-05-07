@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTabManagement } from './hooks/useTabManagement';
 import { useMessageManagement } from './hooks/useMessageManagement';
 import { useChromeMessaging } from './hooks/useChromeMessaging';
@@ -10,6 +10,7 @@ import { TokenUsageDisplay } from './components/TokenUsageDisplay';
 import { TokenTrackingService } from '../tracking/tokenTrackingService';
 import { ApprovalRequest } from './components/ApprovalRequest';
 import { ProviderSelector } from './components/ProviderSelector';
+import { ConfigManager } from '../background/configManager';
 
 export function SidePanel() {
   // State for tab status
@@ -22,6 +23,33 @@ export function SidePanel() {
     toolInput: string;
     reason: string;
   }>>([]);
+
+  // State to track if any LLM providers are configured
+  const [hasConfiguredProviders, setHasConfiguredProviders] = useState<boolean>(false);
+  
+  // Check if any providers are configured when component mounts
+  useEffect(() => {
+    const checkProviders = async () => {
+      const configManager = ConfigManager.getInstance();
+      const providers = await configManager.getConfiguredProviders();
+      setHasConfiguredProviders(providers.length > 0);
+    };
+    
+    checkProviders();
+    
+    // Listen for provider configuration changes
+    const handleMessage = (message: any) => {
+      if (message.action === 'providerConfigChanged') {
+        checkProviders();
+      }
+    };
+    
+    chrome.runtime.onMessage.addListener(handleMessage);
+    
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, []);
 
   // Use custom hooks to manage state and functionality
   const { 
@@ -169,6 +197,11 @@ export function SidePanel() {
     addSystemMessage("🧠 Reflecting on this session to learn useful patterns...");
   };
 
+  // Function to navigate to the options page
+  const navigateToOptions = () => {
+    chrome.runtime.openOptionsPage();
+  };
+
   return (
     <div className="flex flex-col h-screen p-4 bg-base-200">
       <header className="mb-4">
@@ -185,48 +218,67 @@ export function SidePanel() {
         </p>
       </header>
 
-      <div className="flex flex-col flex-grow gap-4 overflow-hidden md:flex-row shadow-sm">
-        <div className="card bg-base-100 shadow-md flex-1 flex flex-col overflow-hidden">
-          <OutputHeader 
-            onClearHistory={handleClearHistory}
-            onReflectAndLearn={handleReflectAndLearn}
-          />
-          <div 
-            ref={outputRef}
-            className="card-body p-3 overflow-auto bg-base-100 flex-1"
-          >
-            <MessageDisplay 
-              messages={messages}
-              streamingSegments={streamingSegments}
-              isStreaming={isStreaming}
+      {hasConfiguredProviders ? (
+        <>
+          <div className="flex flex-col flex-grow gap-4 overflow-hidden md:flex-row shadow-sm">
+            <div className="card bg-base-100 shadow-md flex-1 flex flex-col overflow-hidden">
+              <OutputHeader 
+                onClearHistory={handleClearHistory}
+                onReflectAndLearn={handleReflectAndLearn}
+              />
+              <div 
+                ref={outputRef}
+                className="card-body p-3 overflow-auto bg-base-100 flex-1"
+              >
+                <MessageDisplay 
+                  messages={messages}
+                  streamingSegments={streamingSegments}
+                  isStreaming={isStreaming}
+                />
+              </div>
+            </div>
+          </div>
+          
+          {/* Add Token Usage Display */}
+          <TokenUsageDisplay />
+          
+          {/* Display approval requests */}
+          {approvalRequests.map(req => (
+            <ApprovalRequest
+              key={req.requestId}
+              requestId={req.requestId}
+              toolName={req.toolName}
+              toolInput={req.toolInput}
+              reason={req.reason}
+              onApprove={handleApprove}
+              onReject={handleReject}
             />
+          ))}
+          
+          <PromptForm 
+            onSubmit={handleSubmit}
+            onCancel={cancelExecution}
+            isProcessing={isProcessing}
+            tabStatus={tabStatus}
+          />
+          <ProviderSelector />
+        </>
+      ) : (
+        <div className="flex flex-col flex-grow items-center justify-center">
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-semibold mb-2">No LLM provider configured</h2>
+            <p className="text-gray-600 mb-4">
+              You need to configure an LLM provider before you can use BrowserBee.
+            </p>
+            <button 
+              onClick={navigateToOptions}
+              className="btn btn-primary"
+            >
+              Configure Providers
+            </button>
           </div>
         </div>
-      </div>
-      
-      {/* Add Token Usage Display */}
-      <TokenUsageDisplay />
-      
-      {/* Display approval requests */}
-      {approvalRequests.map(req => (
-        <ApprovalRequest
-          key={req.requestId}
-          requestId={req.requestId}
-          toolName={req.toolName}
-          toolInput={req.toolInput}
-          reason={req.reason}
-          onApprove={handleApprove}
-          onReject={handleReject}
-        />
-      ))}
-      
-      <PromptForm 
-        onSubmit={handleSubmit}
-        onCancel={cancelExecution}
-        isProcessing={isProcessing}
-        tabStatus={tabStatus}
-      />
-      <ProviderSelector />
+      )}
     </div>
   );
 }
