@@ -1,6 +1,25 @@
 import { useState, useEffect } from 'react';
+import { anthropicModels, openaiModels, geminiModels } from '../models/models';
 
 export function Options() {
+  // Function to process and sort model pricing data
+  const getModelPricingData = () => {
+    const allModels = [
+      ...Object.entries(anthropicModels).map(([id, model]) => ({ 
+        id, provider: 'Anthropic', ...model 
+      })),
+      ...Object.entries(openaiModels).map(([id, model]) => ({ 
+        id, provider: 'OpenAI', ...model 
+      })),
+      ...Object.entries(geminiModels).map(([id, model]) => ({ 
+        id, provider: 'Google', ...model 
+      }))
+    ];
+    
+    // Sort by output price (cheapest first)
+    return allModels.sort((a, b) => a.outputPrice - b.outputPrice);
+  };
+  
   // Provider selection
   const [provider, setProvider] = useState('anthropic');
   
@@ -87,7 +106,20 @@ export function Options() {
   return (
     <div className="max-w-3xl mx-auto p-5 font-sans text-gray-800">
       <h1 className="text-2xl font-bold mb-6 text-primary">BrowserBee 🐝</h1>
-      
+      <div className="card bg-base-100 shadow-md mb-6">
+        <div className="card-body">
+          <h2 className="card-title text-xl">About</h2>
+          <p className="mb-3">
+            BrowserBee 🐝 is a Chrome extension that allows you to control your browser using natural language.
+            It supports multiple LLM providers including Anthropic Claude, OpenAI GPT, and Google Gemini to interpret your instructions and uses Playwright to execute them.
+          </p>
+          <p>
+            To use the extension, click on the extension icon to open the side panel, then enter your instructions
+            in the prompt field and hit Enter.
+          </p>
+        </div>
+      </div>
+
       <div className="card bg-base-100 shadow-md mb-6">
         <div className="card-body">
           <h2 className="card-title text-xl">LLM Provider Configuration</h2>
@@ -252,14 +284,37 @@ export function Options() {
       
       <div className="card bg-base-100 shadow-md">
         <div className="card-body">
-          <h2 className="card-title text-xl">About</h2>
-          <p className="mb-3">
-            BrowserBee 🐝 is a Chrome extension that allows you to control your browser using natural language.
-            It supports multiple LLM providers including Anthropic Claude, OpenAI GPT, and Google Gemini to interpret your instructions and uses Playwright to execute them.
+          <h2 className="card-title text-xl">Model Pricing</h2>
+          <p className="mb-4">
+            This table shows the relative costs of different LLM models, sorted from cheapest to most expensive.
+            Prices are in USD per 1 million tokens.
           </p>
-          <p>
-            To use the extension, click on the extension icon to open the side panel, then enter your instructions
-            in the prompt field and click "Execute".
+          
+          <div className="overflow-x-auto">
+            <table className="table table-zebra w-full">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Provider</th>
+                  <th>Input Price</th>
+                  <th>Output Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {getModelPricingData().map((model) => (
+                  <tr key={`${model.provider}-${model.id}`}>
+                    <td>{model.name}</td>
+                    <td>{model.provider}</td>
+                    <td>${model.inputPrice.toFixed(2)}</td>
+                    <td>${model.outputPrice.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          <p className="text-sm text-gray-500 mt-2">
+            * Prices are per 1 million tokens. Actual costs may vary based on usage.
           </p>
         </div>
       </div>
