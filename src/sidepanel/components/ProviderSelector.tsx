@@ -74,6 +74,7 @@ export function ProviderSelector() {
       case 'anthropic': return 'Anthropic';
       case 'openai': return 'OpenAI';
       case 'gemini': return 'Google';
+      case 'ollama': return 'Ollama';
       default: return provider;
     }
   };

@@ -157,7 +157,6 @@ The Side Panel is the main interface for interacting with BrowserBee. It has bee
   - API key management for each provider
   - Model selection for each provider
   - Advanced configuration options
-- **options/Options.css**: Styling for the options page
 - **options/index.tsx**: Entry point for the options page
 
 ### Tracking Module

@@ -64,6 +64,7 @@ export function TokenUsageDisplay() {
       case 'anthropic': return 'Anthropic';
       case 'openai': return 'OpenAI';
       case 'gemini': return 'Google';
+      case 'ollama': return 'Ollama';
       default: return provider;
     }
   };
@@ -85,6 +86,12 @@ export function TokenUsageDisplay() {
       // For Gemini models, capitalize and format
       const parts = modelId.split('-');
       return `Gemini ${parts[1]} ${parts[2].charAt(0).toUpperCase() + parts[2].slice(1)}`;
+    } else if (modelId.includes('llama')) {
+      // For Llama models, capitalize and format
+      return `Llama ${modelId.replace('llama', '')}`;
+    } else if (modelId.includes('Qwen')) {
+      // For Qwen models, format nicely
+      return modelId.replace('-Instruct', '');
     }
     return modelId;
   };

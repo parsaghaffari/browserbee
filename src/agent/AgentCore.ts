@@ -196,6 +196,14 @@ export async function createBrowserAgent(
     };
   }
   
+  // Special case for Ollama: it doesn't require an API key
+  if (providerConfig.provider === 'ollama') {
+    // Use a dummy API key if none is provided
+    if (!providerConfig.apiKey) {
+      providerConfig.apiKey = 'dummy-key';
+    }
+  }
+  
   // Use the provided API key as a fallback if the stored one is empty
   if (!providerConfig.apiKey) {
     providerConfig.apiKey = apiKey;

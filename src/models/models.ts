@@ -1,5 +1,29 @@
 import { ModelInfo } from './providers/types';
 
+// Ollama Models
+export type OllamaModelId = keyof typeof ollamaModels;
+export const ollamaDefaultModelId: OllamaModelId = "llama3.1";
+export const ollamaModels = {
+  "llama3.1": {
+    name: "Llama 3.1",
+    inputPrice: 0.0,
+    outputPrice: 0.0,
+    maxTokens: 4096,
+    contextWindow: 16000,
+    supportsImages: false,
+    supportsPromptCache: false,
+  },
+  "qwen3": {
+    name: "Qwen3",
+    inputPrice: 0.0,
+    outputPrice: 0.0,
+    maxTokens: 128000,
+    contextWindow: 128000,
+    supportsImages: false,
+    supportsPromptCache: false,
+  },
+};
+
 // Anthropic Models
 export type AnthropicModelId = keyof typeof anthropicModels;
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219";

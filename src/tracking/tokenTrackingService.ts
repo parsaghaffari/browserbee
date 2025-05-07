@@ -1,4 +1,4 @@
-import { anthropicModels, openaiModels, geminiModels } from "../models/models";
+import { anthropicModels, openaiModels, geminiModels, ollamaModels } from "../models/models";
 import { ConfigManager } from "../background/configManager";
 
 export interface TokenUsage {
@@ -118,6 +118,13 @@ export class TokenTrackingService {
       case 'gemini':
         if (this.currentModelId && this.currentModelId in geminiModels) {
           const model = geminiModels[this.currentModelId as keyof typeof geminiModels];
+          inputPrice = model.inputPrice;
+          outputPrice = model.outputPrice;
+        }
+        break;
+      case 'ollama':
+        if (this.currentModelId && this.currentModelId in ollamaModels) {
+          const model = ollamaModels[this.currentModelId as keyof typeof ollamaModels];
           inputPrice = model.inputPrice;
           outputPrice = model.outputPrice;
         }

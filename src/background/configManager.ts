@@ -1,9 +1,10 @@
 import { AnthropicProvider } from '../models/providers/anthropic';
 import { OpenAIProvider } from '../models/providers/openai';
 import { GeminiProvider } from '../models/providers/gemini';
+import { OllamaProvider } from '../models/providers/ollama';
 
 export interface ProviderConfig {
-  provider: 'anthropic' | 'openai' | 'gemini';
+  provider: 'anthropic' | 'openai' | 'gemini' | 'ollama';
   apiKey: string;
   apiModelId?: string;
   baseUrl?: string;
@@ -34,6 +35,9 @@ export class ConfigManager {
       geminiApiKey: '',
       geminiModelId: 'gemini-1.5-pro',
       geminiBaseUrl: '',
+      ollamaApiKey: '',
+      ollamaModelId: 'llama3.1',
+      ollamaBaseUrl: 'http://localhost:11434',
       thinkingBudgetTokens: 0,
     });
     
@@ -61,6 +65,13 @@ export class ConfigManager {
           apiModelId: result.geminiModelId,
           baseUrl: result.geminiBaseUrl,
         };
+      case 'ollama':
+        return {
+          provider: 'ollama',
+          apiKey: result.ollamaApiKey,
+          apiModelId: result.ollamaModelId,
+          baseUrl: result.ollamaBaseUrl,
+        };
       default:
         throw new Error(`Provider ${result.provider} not supported`);
     }
@@ -79,12 +90,14 @@ export class ConfigManager {
       anthropicApiKey: '',
       openaiApiKey: '',
       geminiApiKey: '',
+      ollamaApiKey: '',
     });
     
     const providers = [];
     if (result.anthropicApiKey) providers.push('anthropic');
     if (result.openaiApiKey) providers.push('openai');
     if (result.geminiApiKey) providers.push('gemini');
+    if (result.ollamaApiKey || true) providers.push('ollama'); // Ollama doesn't require an API key
     
     return providers;
   }
@@ -100,6 +113,8 @@ export class ConfigManager {
         return OpenAIProvider.getAvailableModels();
       case 'gemini':
         return GeminiProvider.getAvailableModels();
+      case 'ollama':
+        return OllamaProvider.getAvailableModels();
       default:
         return [];
     }
@@ -115,6 +130,7 @@ export class ConfigManager {
       anthropicModelId: 'claude-3-7-sonnet-20250219',
       openaiModelId: 'gpt-4o',
       geminiModelId: 'gemini-1.5-pro',
+      ollamaModelId: 'llama3.1',
     });
     
     // Update provider
@@ -130,6 +146,9 @@ export class ConfigManager {
         break;
       case 'gemini':
         await chrome.storage.sync.set({ geminiModelId: modelId });
+        break;
+      case 'ollama':
+        await chrome.storage.sync.set({ ollamaModelId: modelId });
         break;
     }
   }

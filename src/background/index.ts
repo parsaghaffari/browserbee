@@ -32,9 +32,11 @@ function setupEventListeners(): void {
         key === 'anthropicApiKey' || 
         key === 'openaiApiKey' || 
         key === 'geminiApiKey' ||
+        key === 'ollamaApiKey' ||
         key === 'anthropicBaseUrl' ||
         key === 'openaiBaseUrl' ||
-        key === 'geminiBaseUrl'
+        key === 'geminiBaseUrl' ||
+        key === 'ollamaBaseUrl'
       );
       
       if (providerConfigChanged) {

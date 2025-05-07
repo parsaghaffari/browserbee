@@ -208,6 +208,18 @@ function convertMessagesToProviderFormat(messages: GenericMessage[], provider: P
         };
       });
       
+    case 'ollama':
+      // Convert to Ollama format (which is compatible with Anthropic's format for our purposes)
+      return messages.map(msg => {
+        // Map roles: system -> user, user -> user, assistant -> assistant
+        const role = msg.role === "assistant" ? "assistant" : "user";
+        
+        return {
+          role,
+          content: msg.content
+        };
+      });
+      
     default:
       // Default to Anthropic format
       return messages.map(msg => {
@@ -324,9 +336,10 @@ export async function initializeAgent(tabId: number, forceReinit: boolean = fals
   
   if (needsInit || needsReinit) {
     try {
-      if (providerConfig.apiKey) {
+      // Make API key optional for Ollama
+      if (providerConfig.apiKey || providerConfig.provider === 'ollama') {
         logWithTimestamp(`Creating LLM agent for window ${windowId} with ${providerConfig.provider} provider...`);
-        const agent = await createBrowserAgent(tabState.page, providerConfig.apiKey);
+        const agent = await createBrowserAgent(tabState.page, providerConfig.apiKey || 'dummy-key-for-ollama');
         
         // Store the agent by window ID
         setAgentForWindow(windowId, agent);
@@ -399,7 +412,8 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
     const configManager = ConfigManager.getInstance();
     const providerConfig = await configManager.getProviderConfig();
     
-    if (!providerConfig.apiKey) {
+    // Make API key optional for Ollama
+    if (!providerConfig.apiKey && providerConfig.provider !== 'ollama') {
       sendUIMessage('updateOutput', {
         type: 'system',
         content: `Error: API key not found for ${providerConfig.provider}. Please set your API key in the extension options.`

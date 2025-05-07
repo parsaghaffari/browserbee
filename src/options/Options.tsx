@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { anthropicModels, openaiModels, geminiModels } from '../models/models';
+import { anthropicModels, openaiModels, geminiModels, ollamaModels } from '../models/models';
 
 export function Options() {
   // Function to process and sort model pricing data
@@ -13,6 +13,9 @@ export function Options() {
       })),
       ...Object.entries(geminiModels).map(([id, model]) => ({ 
         id, provider: 'Google', ...model 
+      })),
+      ...Object.entries(ollamaModels).map(([id, model]) => ({ 
+        id, provider: 'Ollama', ...model 
       }))
     ];
     
@@ -35,10 +38,15 @@ export function Options() {
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [geminiBaseUrl, setGeminiBaseUrl] = useState('');
   
+  // Ollama settings
+  const [ollamaApiKey, setOllamaApiKey] = useState('');
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('http://localhost:11434');
+  
   // Hidden model IDs (kept for compatibility)
   const [anthropicModelId, setAnthropicModelId] = useState('claude-3-7-sonnet-20250219');
   const [openaiModelId, setOpenaiModelId] = useState('gpt-4o');
   const [geminiModelId, setGeminiModelId] = useState('gemini-1.5-pro');
+  const [ollamaModelId, setOllamaModelId] = useState('llama3.1');
   
   // Common settings
   const [thinkingBudgetTokens, setThinkingBudgetTokens] = useState(0);
@@ -60,6 +68,9 @@ export function Options() {
       geminiApiKey: '',
       geminiModelId: 'gemini-1.5-pro',
       geminiBaseUrl: '',
+      ollamaApiKey: '',
+      ollamaModelId: 'llama3.1',
+      ollamaBaseUrl: 'http://localhost:11434',
       thinkingBudgetTokens: 0,
     }, (result) => {
       setProvider(result.provider);
@@ -72,6 +83,9 @@ export function Options() {
       setGeminiApiKey(result.geminiApiKey);
       setGeminiModelId(result.geminiModelId);
       setGeminiBaseUrl(result.geminiBaseUrl);
+      setOllamaApiKey(result.ollamaApiKey);
+      setOllamaModelId(result.ollamaModelId);
+      setOllamaBaseUrl(result.ollamaBaseUrl || 'http://localhost:11434');
       setThinkingBudgetTokens(result.thinkingBudgetTokens);
     });
   }, []);
@@ -91,6 +105,9 @@ export function Options() {
       geminiApiKey,
       geminiModelId,
       geminiBaseUrl,
+      ollamaApiKey,
+      ollamaModelId,
+      ollamaBaseUrl,
       thinkingBudgetTokens,
     }, () => {
       setIsSaving(false);
@@ -140,6 +157,7 @@ export function Options() {
               <option value="anthropic">Anthropic (Claude)</option>
               <option value="openai">OpenAI (GPT)</option>
               <option value="gemini">Google (Gemini)</option>
+              <option value="ollama">Ollama (Local)</option>
             </select>
           </div>
           
@@ -266,12 +284,55 @@ export function Options() {
             </div>
           )}
           
+          {/* Ollama settings */}
+          {provider === 'ollama' && (
+            <div className="border rounded-lg p-4 mb-4">
+              <h3 className="font-bold mb-2">Ollama Settings</h3>
+              
+              <div className="form-control mb-4">
+                <label htmlFor="ollama-api-key" className="label">
+                  <span className="label-text">API Key (optional):</span>
+                </label>
+                <input
+                  type="password"
+                  id="ollama-api-key"
+                  value={ollamaApiKey}
+                  onChange={(e) => setOllamaApiKey(e.target.value)}
+                  placeholder="Enter your Ollama API key if required"
+                  className="input input-bordered w-full"
+                />
+                <label className="label">
+                  <span className="label-text-alt">Ollama typically doesn't require an API key</span>
+                </label>
+              </div>
+              
+              <div className="form-control mb-4">
+                <label htmlFor="ollama-base-url" className="label">
+                  <span className="label-text">Base URL:</span>
+                </label>
+                <input
+                  type="text"
+                  id="ollama-base-url"
+                  value={ollamaBaseUrl}
+                  onChange={(e) => setOllamaBaseUrl(e.target.value)}
+                  placeholder="Ollama server URL (default: http://localhost:11434)"
+                  className="input input-bordered w-full"
+                />
+                <span className="label-text-alt">
+                    If running Ollama locally, you need to enable CORS by setting <code>OLLAMA_ORIGINS=*</code> environment variable. 
+                    <a href="https://objectgraph.com/blog/ollama-cors/" target="_blank" className="link link-primary ml-1">Learn more</a>
+                  </span>
+              </div>
+            </div>
+          )}
+          
           <button 
             onClick={handleSave} 
             disabled={isSaving || (
               (provider === 'anthropic' && !anthropicApiKey.trim()) ||
               (provider === 'openai' && !openaiApiKey.trim()) ||
-              (provider === 'gemini' && !geminiApiKey.trim())
+              (provider === 'gemini' && !geminiApiKey.trim()) ||
+              (provider === 'ollama' && !ollamaBaseUrl.trim())
             )}
             className="btn btn-primary"
           >

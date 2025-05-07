@@ -29,6 +29,7 @@ HN launch (0.2.0):
 - [ ] max llm calls: allow user to configure, ask for user permission to exceed
 - [ ] create docs
 - [ ] upload to Chrome web store
+- [x] add integration with Ollama
 
 later:
 - [ ] session replay feature
