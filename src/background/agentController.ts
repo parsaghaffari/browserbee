@@ -131,9 +131,31 @@ export async function getMessageHistory(tabId: number): Promise<Anthropic.Messag
     windowMessageHistories.set(windowId, history);
   }
   
+  // Check if we need to avoid duplication of the first message
+  let messagesToConvert: GenericMessage[] = [];
+  
+  if (history.originalRequest) {
+    // Check if the first message in conversationHistory is the same as originalRequest
+    const isDuplicate = history.conversationHistory.length > 0 && 
+                        history.conversationHistory[0].role === history.originalRequest.role &&
+                        history.conversationHistory[0].content === history.originalRequest.content;
+    
+    if (isDuplicate) {
+      // If duplicate, only use conversationHistory
+      messagesToConvert = history.conversationHistory;
+      logWithTimestamp(`Avoided duplicate first message for tab ${tabId}`);
+    } else {
+      // If not duplicate, combine originalRequest with conversationHistory
+      messagesToConvert = [history.originalRequest, ...history.conversationHistory];
+    }
+  } else {
+    // If no originalRequest, just use conversationHistory
+    messagesToConvert = history.conversationHistory;
+  }
+  
   // Convert generic messages to provider-specific format
   const convertedMessages = convertMessagesToProviderFormat(
-    history.originalRequest ? [history.originalRequest, ...history.conversationHistory] : history.conversationHistory,
+    messagesToConvert,
     provider
   );
   
