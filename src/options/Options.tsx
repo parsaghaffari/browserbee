@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react';
-import { anthropicModels, openaiModels, geminiModels, ollamaModels } from '../models/models';
+import { 
+  anthropicModels, 
+  openaiModels, 
+  geminiModels, 
+  ollamaModels,
+  anthropicDefaultModelId,
+  openaiDefaultModelId,
+  geminiDefaultModelId,
+  ollamaDefaultModelId
+} from '../models/models';
 
 export function Options() {
   // Function to process and sort model pricing data
@@ -42,11 +51,11 @@ export function Options() {
   const [ollamaApiKey, setOllamaApiKey] = useState('');
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState('');
   
-  // Hidden model IDs (kept for compatibility)
-  const [anthropicModelId, setAnthropicModelId] = useState('claude-3-7-sonnet-20250219');
-  const [openaiModelId, setOpenaiModelId] = useState('gpt-4o');
-  const [geminiModelId, setGeminiModelId] = useState('gemini-1.5-pro');
-  const [ollamaModelId, setOllamaModelId] = useState('llama3.1');
+  // Model IDs - using defaults from models.ts
+  const [anthropicModelId, setAnthropicModelId] = useState(anthropicDefaultModelId);
+  const [openaiModelId, setOpenaiModelId] = useState(openaiDefaultModelId);
+  const [geminiModelId, setGeminiModelId] = useState(geminiDefaultModelId);
+  const [ollamaModelId, setOllamaModelId] = useState(ollamaDefaultModelId);
   
   // Common settings
   const [thinkingBudgetTokens, setThinkingBudgetTokens] = useState(0);
@@ -60,16 +69,16 @@ export function Options() {
     chrome.storage.sync.get({
       provider: 'anthropic',
       anthropicApiKey: '',
-      anthropicModelId: 'claude-3-7-sonnet-20250219',
+      anthropicModelId: anthropicDefaultModelId,
       anthropicBaseUrl: '',
       openaiApiKey: '',
-      openaiModelId: 'gpt-4o',
+      openaiModelId: openaiDefaultModelId,
       openaiBaseUrl: '',
       geminiApiKey: '',
-      geminiModelId: 'gemini-1.5-pro',
+      geminiModelId: geminiDefaultModelId,
       geminiBaseUrl: '',
       ollamaApiKey: '',
-      ollamaModelId: 'llama3.1',
+      ollamaModelId: ollamaDefaultModelId,
       ollamaBaseUrl: '',
       thinkingBudgetTokens: 0,
     }, (result) => {
