@@ -11,17 +11,19 @@ export const LlmContent: React.FC<LlmContentProps> = ({ content }) => {
   const parts: Array<{ type: 'text' | 'tool', content: string }> = [];
   
   // Process the content to identify tool calls
-  const toolCallRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/g;
+  // Create a combined regex that handles both direct tool calls and those wrapped in code blocks
+  const combinedToolCallRegex = /(```xml\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)?(\s*```)?/g;
   let lastIndex = 0;
   
   // Create a copy of the content to work with
   const contentCopy = content.toString();
   
   // Reset regex lastIndex
-  toolCallRegex.lastIndex = 0;
+  combinedToolCallRegex.lastIndex = 0;
   
+  // Process all tool calls (both direct and code block) in a single pass
   let match;
-  while ((match = toolCallRegex.exec(contentCopy)) !== null) {
+  while ((match = combinedToolCallRegex.exec(contentCopy)) !== null) {
     // Add text before the tool call
     if (match.index > lastIndex) {
       parts.push({
@@ -92,16 +94,8 @@ export const LlmContent: React.FC<LlmContentProps> = ({ content }) => {
           );
         } else {
           // Render tool calls with special styling
-          // Extract tool name and input for better display
-          const toolMatch = part.content.match(/<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/);
-          if (toolMatch) {
-            const [, toolName, toolInput] = toolMatch;
-            return (
-              <div key={index} className="hidden">
-                {/* Tool call is hidden since it will be shown in the system message */}
-              </div>
-            );
-          }
+          // We don't need to check for specific formats anymore since we're using a combined regex
+          // Just return null for all tool calls to prevent empty bubbles
           return null;
         }
       })}

@@ -186,15 +186,24 @@ export class ExecutionEngine {
               
               // Check if we've detected a complete tool call in the buffer
               // Include the optional requires_approval tag in the pattern
-              const toolCallMatch = streamBuffer.match(/<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)/);
+              // Use a combined regex that handles both direct tool calls and those wrapped in code blocks
+              const combinedToolCallRegex = /(```xml\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)?(\s*```)?/;
+              
+              // Try to match the combined pattern
+              const toolCallMatch = streamBuffer.match(combinedToolCallRegex);
               
               if (toolCallMatch && !toolCallDetected) {
                 toolCallDetected = true;
                 console.log("Tool call detected:", toolCallMatch);
                 
                 // Extract the tool call, including the optional requires_approval value
-                const [fullMatch, toolName, toolInput, requiresApprovalRaw] = toolCallMatch;
-                const matchIndex = streamBuffer.indexOf(fullMatch);
+                // The combined regex has different group indices
+                const [fullMatch, codeBlockStart, toolName, toolInput, requiresApprovalRaw] = toolCallMatch;
+                
+                // Find the start of the tool call (either the code block or the tool tag)
+                const matchIndex = codeBlockStart 
+                  ? streamBuffer.indexOf("```xml") 
+                  : streamBuffer.indexOf("<tool>");
                 
                 // Get text before the tool call
                 const textBeforeToolCall = streamBuffer.substring(0, matchIndex);

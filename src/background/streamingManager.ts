@@ -2,7 +2,7 @@ import { sendUIMessage } from './utils';
 
 // Streaming buffer and regex patterns
 let streamingBuffer = '';
-const toolCallRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/;
+const combinedToolCallRegex = /(```xml\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)?(\s*```)?/;
 const sentenceEndRegex = /[.!?]\s+/;
 
 // Current streaming segment ID
@@ -38,8 +38,8 @@ export function incrementSegmentId(): number {
  * @param windowId The window ID to send messages to
  */
 export function processStreamingBuffer(tabId?: number, windowId?: number): void {
-  // Check if buffer contains a complete tool call
-  const toolCallMatch = streamingBuffer.match(toolCallRegex);
+  // Check if buffer contains a complete tool call (either direct or in a code block)
+  const toolCallMatch = streamingBuffer.match(combinedToolCallRegex);
   
   if (toolCallMatch) {
     // When a tool call is detected, we don't send any more streaming chunks
