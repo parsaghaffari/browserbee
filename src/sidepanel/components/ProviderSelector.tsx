@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ConfigManager } from '../../background/configManager';
 import { TokenTrackingService } from '../../tracking/tokenTrackingService';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRobot } from '@fortawesome/free-solid-svg-icons';
+import { faRobot, faCog } from '@fortawesome/free-solid-svg-icons';
 
 interface ProviderOption {
   provider: string;
@@ -126,10 +126,24 @@ export function ProviderSelector({ isProcessing }: ProviderSelectorProps) {
     return null;
   }
   
+  // Function to open options page in a new tab
+  const openOptionsPage = () => {
+    chrome.runtime.openOptionsPage();
+  };
+
   return (
-    <div className="flex justify-end items-center mb-2 px-0">
+    <div className="flex items-center mb-2 px-0">
+      <button 
+        className="btn btn-ghost btn-xs p-1" 
+        onClick={openOptionsPage}
+        title="Open Settings"
+        disabled={isProcessing}
+      >
+        <FontAwesomeIcon icon={faCog} className="text-gray-500 hover:text-gray-700" />
+      </button>
       <select 
         className="select select-ghost select-xs select-bordered w-auto focus:outline-none focus:ring-0"
+        style={{ paddingLeft: '0' }}
         value={`${currentProvider}|${currentModel}`}
         onChange={handleChange}
         disabled={isProcessing}
