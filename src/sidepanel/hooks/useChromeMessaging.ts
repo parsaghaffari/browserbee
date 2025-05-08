@@ -20,6 +20,7 @@ interface UseChromeMessagingProps {
   onTargetCreated?: (tabId: number, targetInfo: any) => void;
   onTargetDestroyed?: (tabId: number, url: string) => void;
   onTargetChanged?: (tabId: number, url: string) => void;
+  onActiveTabChanged?: (oldTabId: number, newTabId: number, title: string, url: string) => void;
   onPageDialog?: (tabId: number, dialogInfo: any) => void;
   onPageConsole?: (tabId: number, consoleInfo: any) => void;
   onPageError?: (tabId: number, error: string) => void;
@@ -44,6 +45,7 @@ export const useChromeMessaging = ({
   onTargetCreated,
   onTargetDestroyed,
   onTargetChanged,
+  onActiveTabChanged,
   onPageDialog,
   onPageConsole,
   onPageError
@@ -128,6 +130,34 @@ export const useChromeMessaging = ({
         onTargetDestroyed(message.tabId, message.url);
       } else if (message.action === 'targetChanged' && onTargetChanged && message.tabId && message.url) {
         onTargetChanged(message.tabId, message.url);
+      } else if (message.action === 'activeTabChanged' && message.oldTabId && message.newTabId) {
+        // Special handling for active tab changed message
+        // This message is sent when the agent switches tabs
+        console.log(`Active tab changed from ${message.oldTabId} to ${message.newTabId}`);
+        
+        // Update the UI's tabId state by sending a special message to SidePanel
+        chrome.runtime.sendMessage({
+          action: 'updateActiveTab',
+          oldTabId: message.oldTabId,
+          newTabId: message.newTabId,
+          title: message.title || 'Unknown Tab',
+          url: message.url || 'about:blank'
+        });
+        
+        // If there's a callback for this event, call it
+        if (onActiveTabChanged) {
+          onActiveTabChanged(
+            message.oldTabId, 
+            message.newTabId, 
+            message.title || 'Unknown Tab', 
+            message.url || 'about:blank'
+          );
+        }
+        
+        // Update the tab title in the UI
+        if (setTabTitle && message.title) {
+          setTabTitle(message.title);
+        }
       } else if (message.action === 'tabTitleChanged' && setTabTitle && message.title) {
         setTabTitle(message.title);
       } else if (message.action === 'pageDialog' && onPageDialog && message.tabId && message.dialogInfo) {
@@ -164,6 +194,7 @@ export const useChromeMessaging = ({
     onTargetCreated,
     onTargetDestroyed,
     onTargetChanged,
+    onActiveTabChanged,
     onPageDialog,
     onPageConsole,
     onPageError

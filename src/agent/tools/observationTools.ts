@@ -1,7 +1,7 @@
 import { DynamicTool } from "langchain/tools";
 import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
-import { truncate, MAX_RETURN_CHARS, MAX_SCREENSHOT_CHARS, withActivePage } from "./utils";
+import { truncate, MAX_RETURN_CHARS, MAX_SCREENSHOT_CHARS, withActivePage, getCurrentTabId } from "./utils";
 
 export const browserGetTitle: ToolFactory = (page: Page) =>
   new DynamicTool({
@@ -11,6 +11,24 @@ export const browserGetTitle: ToolFactory = (page: Page) =>
       try {
         return await withActivePage(page, async (activePage) => {
           const title = await activePage.title();
+          
+          // Get the tab ID and send a tabTitleChanged message
+          try {
+            const tabId = await getCurrentTabId(activePage);
+            
+            // Send a message to update the UI with the tab title
+            if (tabId) {
+              chrome.runtime.sendMessage({
+                action: 'tabTitleChanged',
+                tabId: tabId,
+                title: title
+              });
+              console.log(`Sent tabTitleChanged message for tab ${tabId} with title "${title}" from browser_get_title`);
+            }
+          } catch (titleError) {
+            console.error("Error updating UI with tab title:", titleError);
+          }
+          
           return `Current page title: ${title}`;
         });
       } catch (error) {

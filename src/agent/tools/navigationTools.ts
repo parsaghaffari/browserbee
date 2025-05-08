@@ -1,7 +1,7 @@
 import { DynamicTool } from "langchain/tools";
 import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
-import { withActivePage } from "./utils";
+import { withActivePage, getCurrentTabId } from "./utils";
 
 export const browserNavigate: ToolFactory = (page: Page) =>
   new DynamicTool({
@@ -11,7 +11,34 @@ export const browserNavigate: ToolFactory = (page: Page) =>
     func: async (url: string) => {
       try {
         return await withActivePage(page, async (activePage) => {
+          // Navigate to the URL
           await activePage.goto(url);
+          
+          // Get the tab ID and title after navigation
+          try {
+            const tabId = await getCurrentTabId(activePage);
+            const newTitle = await activePage.title();
+            
+            // Send a message to update the UI with the new tab title
+            if (tabId) {
+              chrome.runtime.sendMessage({
+                action: 'tabTitleChanged',
+                tabId: tabId,
+                title: newTitle
+              });
+              console.log(`Sent tabTitleChanged message for tab ${tabId} with title "${newTitle}" after navigation to ${url}`);
+              
+              // Also send a targetChanged message
+              chrome.runtime.sendMessage({
+                action: 'targetChanged',
+                tabId: tabId,
+                url: url
+              });
+            }
+          } catch (titleError) {
+            console.error("Error updating UI after navigation:", titleError);
+          }
+          
           return `Successfully navigated to ${url}`;
         });
       } catch (error) {

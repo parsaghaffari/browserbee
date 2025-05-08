@@ -64,7 +64,7 @@ export const useTabManagement = () => {
     };
   }, [tabId]);
   
-  // Listen for tab replacement events
+  // Listen for tab replacement and active tab change events
   useEffect(() => {
     if (!tabId) return;
     
@@ -80,6 +80,27 @@ export const useTabManagement = () => {
         // Update the tab ID and title
         setTabId(message.newTabId);
         setTabTitle(message.title || "New BrowserBee Tab");
+        
+        sendResponse({ received: true });
+        return true;
+      }
+      
+      // Handle active tab changed by the agent
+      if (message.action === 'updateActiveTab' && message.oldTabId === tabId) {
+        console.log(`Active tab changed from ${message.oldTabId} to ${message.newTabId}`);
+        
+        // Update the tab ID and title
+        setTabId(message.newTabId);
+        setTabTitle(message.title || "Unknown Tab");
+        
+        // Add a system message to indicate the tab change
+        chrome.runtime.sendMessage({
+          action: 'updateOutput',
+          content: {
+            type: 'system',
+            content: `Switched to tab: ${message.title} (${message.url})`
+          }
+        });
         
         sendResponse({ received: true });
         return true;

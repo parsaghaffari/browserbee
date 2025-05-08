@@ -2,6 +2,7 @@ import { DynamicTool } from "langchain/tools";
 import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
 import { getCurrentPage } from "../PageContextManager";
+import { getCurrentTabId } from "./utils";
 
 /**
  * Tool to get information about the currently active tab
@@ -24,6 +25,23 @@ export const browserGetActiveTab: ToolFactory = (page: Page) =>
         // Get the URL and title of the current page
         const url = activePage.url();
         const title = await activePage.title();
+        
+        // Get the tab ID for the active page
+        try {
+          const tabId = await getCurrentTabId(activePage);
+          
+          // Send a message to update the UI with the active tab title
+          if (tabId) {
+            chrome.runtime.sendMessage({
+              action: 'tabTitleChanged',
+              tabId: tabId,
+              title: title
+            });
+            console.log(`Sent tabTitleChanged message for active tab ${tabId} with title "${title}"`);
+          }
+        } catch (error) {
+          console.error("Error updating UI with active tab info:", error);
+        }
         
         // Return a JSON object with the information
         return JSON.stringify({
@@ -77,6 +95,33 @@ export const browserNavigateTab: ToolFactory = (page: Page) =>
         
         // Navigate the specified tab to the URL
         await pages[idx].goto(url);
+        
+        // Get the tab ID and new title
+        try {
+          const tabId = await getCurrentTabId(pages[idx]);
+          const newTitle = await pages[idx].title();
+          
+          // Send a message to update the UI if this is the active tab
+          if (tabId && pages[idx] === getCurrentPage(page)) {
+            chrome.runtime.sendMessage({
+              action: 'tabTitleChanged',
+              tabId: tabId,
+              title: newTitle
+            });
+            console.log(`Sent tabTitleChanged message for tab ${tabId} after navigation to ${url}`);
+          }
+          
+          // Also send a targetChanged message
+          if (tabId) {
+            chrome.runtime.sendMessage({
+              action: 'targetChanged',
+              tabId: tabId,
+              url: url
+            });
+          }
+        } catch (error) {
+          console.error("Error updating UI after tab navigation:", error);
+        }
         
         return `Successfully navigated tab ${idx} to ${url}`;
       } catch (error) {

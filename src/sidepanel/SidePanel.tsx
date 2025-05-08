@@ -149,6 +149,14 @@ export function SidePanel() {
     onTargetChanged: (tabId, url) => {
       // We don't need to do anything here as TabStatusBar handles this
     },
+    onActiveTabChanged: (oldTabId, newTabId, title, url) => {
+      // Update the tab title when the agent switches tabs
+      console.log(`SidePanel: Active tab changed from ${oldTabId} to ${newTabId}`);
+      setTabTitle(title);
+      
+      // Add a system message to indicate the tab change
+      addSystemMessage(`Switched to tab: ${title} (${url})`);
+    },
     onPageDialog: (tabId, dialogInfo) => {
       // Add a system message about the dialog
       addSystemMessage(`📢 Dialog: ${dialogInfo.type} - ${dialogInfo.message}`);

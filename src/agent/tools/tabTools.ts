@@ -3,6 +3,7 @@ import type { Page } from "playwright-crx";
 import { ToolFactory } from "./types";
 import { createNewTab, getWindowForTab, getCrxAppForTab } from "../../background/tabManager";
 import { setCurrentPage } from "../PageContextManager";
+import { getCurrentTabId } from "./utils";
 
 export const browserTabList: ToolFactory = (page: Page) =>
   new DynamicTool({
@@ -52,6 +53,29 @@ export const browserTabNew: ToolFactory = (page: Page) =>
         const pages = crxApp.context().pages();
         const newTabIndex = pages.length - 1;
         
+        // Get the title of the new tab
+        let newTitle = "New Tab";
+        try {
+          // Wait a moment for the page to load
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Get the title
+          newTitle = await pages[newTabIndex].title();
+          
+          // Send a message to notify about the new tab (but don't update the UI title yet)
+          chrome.runtime.sendMessage({
+            action: 'targetCreated',
+            tabId: newTabId,
+            targetInfo: {
+              title: newTitle,
+              url: await pages[newTabIndex].url()
+            }
+          });
+          console.log(`Sent targetCreated message for new tab ${newTabId} with title "${newTitle}"`);
+        } catch (titleError) {
+          console.error("Error getting new tab title:", titleError);
+        }
+        
         // Note: We don't update the PageContextManager here because we're not switching to the new tab
         // The user must explicitly call browser_tab_select to switch to the new tab
         
@@ -89,8 +113,37 @@ export const browserTabSelect: ToolFactory = (page: Page) =>
         let newTitle = "Unknown";
         try {
           newTitle = await pages[idx].title();
+          
+          // Get the tab ID for the selected page
+          const selectedTabId = await getCurrentTabId(pages[idx]);
+          
+          // Get the original tab ID (the one that was active before switching)
+          const originalTabId = await getCurrentTabId(page);
+          
+          // Send a message to update the UI with the new tab title
+          if (selectedTabId) {
+            // First, send a message to notify that the active tab has changed
+            // This will allow the UI to update its tabId state
+            chrome.runtime.sendMessage({
+              action: 'activeTabChanged',
+              oldTabId: originalTabId,
+              newTabId: selectedTabId,
+              title: newTitle,
+              url: newUrl
+            });
+            console.log(`Sent activeTabChanged message from tab ${originalTabId} to ${selectedTabId}`);
+            
+            // Then send the regular tabTitleChanged message
+            chrome.runtime.sendMessage({
+              action: 'tabTitleChanged',
+              tabId: selectedTabId,
+              title: newTitle
+            });
+            console.log(`Sent tabTitleChanged message for tab ${selectedTabId} with title "${newTitle}"`);
+          }
         } catch (titleError) {
           // Ignore errors getting title
+          console.error("Error getting tab title:", titleError);
         }
         
         return `Switched to tab ${idx}. Now active: "${newTitle}" (${newUrl}). Use browser_get_active_tab for more details.`;
@@ -114,7 +167,51 @@ export const browserTabClose: ToolFactory = (page: Page) =>
           input.trim() === "" ? pages.indexOf(page) : Number(input.trim());
         if (Number.isNaN(idx) || idx < 0 || idx >= pages.length)
           return "Error: invalid tab index.";
-        await pages[idx].close();
+        
+        // Get the tab ID before closing
+        const tabToClose = pages[idx];
+        const tabId = await getCurrentTabId(tabToClose);
+        
+        // Close the tab
+        await tabToClose.close();
+        
+        // If we closed the current tab, we need to update the PageContextManager
+        // with a new active page (if available)
+        if (pages.indexOf(page) === idx && pages.length > 1) {
+          // Find the new active page (usually the one to the left)
+          const newActiveIdx = Math.max(0, idx - 1);
+          if (pages[newActiveIdx]) {
+            setCurrentPage(pages[newActiveIdx]);
+            
+            // Get the title of the new active tab
+            try {
+              const newActiveTabId = await getCurrentTabId(pages[newActiveIdx]);
+              const newActiveTitle = await pages[newActiveIdx].title();
+              
+              // Send a message to update the UI with the new active tab title
+              if (newActiveTabId) {
+                chrome.runtime.sendMessage({
+                  action: 'tabTitleChanged',
+                  tabId: newActiveTabId,
+                  title: newActiveTitle
+                });
+                console.log(`Tab ${idx} closed, switched to tab ${newActiveIdx} with title "${newActiveTitle}"`);
+              }
+            } catch (titleError) {
+              console.error("Error getting new active tab title:", titleError);
+            }
+          }
+        }
+        
+        // Notify that the tab was closed
+        if (tabId) {
+          chrome.runtime.sendMessage({
+            action: 'targetDestroyed',
+            tabId: tabId,
+            url: 'about:blank' // We don't have the URL anymore since the tab is closed
+          });
+        }
+        
         return `Closed tab ${idx}.`;
       } catch (err) {
         return `Error closing tab: ${
@@ -124,44 +221,7 @@ export const browserTabClose: ToolFactory = (page: Page) =>
     },
   });
 
-/**
- * Helper function to get the current tab ID from a page
- */
-async function getCurrentTabId(page: Page): Promise<number | undefined> {
-  try {
-    // Try to use internal Playwright-CRX APIs to get the tab ID
-    if ((page as any)._session && (page as any)._session._connection && (page as any)._session._connection._transport) {
-      const transport = (page as any)._session._connection._transport;
-      
-      // If this is a CrxTransport, it might have a _tabId property
-      if (transport._tabId) {
-        return transport._tabId;
-      }
-    }
-    
-    // If that fails, try to get the tab ID from Chrome
-    // This is a fallback method that might not always work
-    const pages = page.context().pages();
-    const pageIndex = pages.indexOf(page);
-    
-    if (pageIndex >= 0) {
-      // Get all Chrome tabs
-      const chromeTabs = await chrome.tabs.query({});
-      
-      // Try to match by URL
-      const pageUrl = page.url();
-      const matchingTab = chromeTabs.find(tab => tab.url === pageUrl);
-      
-      if (matchingTab && matchingTab.id) {
-        return matchingTab.id;
-      }
-    }
-  } catch (error) {
-    console.error('Error getting current tab ID:', error);
-  }
-  
-  return undefined;
-}
+// getCurrentTabId is now imported from utils.ts
 
 /**
  * Helper function to get the window ID for a tab
