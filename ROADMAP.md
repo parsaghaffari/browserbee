@@ -25,18 +25,20 @@ HN launch (0.2.0):
 - [x] marketing videos
 - [x] llm adaptors (config in options, show active LLM)
 -- [x] automatically refresh model list upon change in configuration
-- [ ] add saved prompts with persistence in local DB
-- [ ] max llm calls: allow user to configure, ask for user permission to exceed
-- [ ] create docs
+- [ ] write user docs
 - [ ] upload to Chrome web store
 - [x] add integration with Ollama
-
-later:
-- [ ] session replay feature
+-- [ ] better handling for <think> tokens when using thinking models
+-- [ ] improve configuration to accept model, max tokens, etc as parameters
 - [x] task memory using indexedDB (<website, task, steps>) 
 -- [x] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
 -- [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
+
+later:
+- [ ] add saved prompts with persistence in local DB
+- [ ] max llm calls: allow user to configure, ask for user permission to exceed
 -- [ ] include pre-built memories for major websites
+-- [ ] retain memories after an uninstall or allow the user to export them
 - [ ] scheduler for recurring tasks using chrome.alarms
 - [ ] test and enhance prompt caching
 - [ ] add user memory component
