@@ -16,20 +16,34 @@ export class OllamaProvider implements LLMProvider {
   private options: ProviderOptions;
   private client: Ollama;
 
-  constructor(options: ProviderOptions) {
-    this.options = options;
-    this.client = new Ollama({ 
-      host: this.options.baseUrl || "http://localhost:11434" 
-    });
-  }
+	constructor(options: ProviderOptions) {
+		this.options = options;
+		
+		// Only create the client if a base URL is provided
+		if (this.options.baseUrl) {
+			this.client = new Ollama({ 
+				host: this.options.baseUrl
+			});
+		} else {
+			// Use a default URL for the client, but it won't be used unless a base URL is configured
+			this.client = new Ollama({ 
+				host: "http://localhost:11434" 
+			});
+		}
+	}
 
-  async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: any[]): ApiStream {
-    const ollamaMessages: Message[] = [
-      { role: "system", content: systemPrompt }, 
-      ...convertToOllamaMessages(messages)
-    ];
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: any[]): ApiStream {
+		// Check if a base URL is configured
+		if (!this.options.baseUrl) {
+			throw new Error("Ollama base URL not configured. Please set the Ollama server URL in the extension options.");
+		}
+		
+		const ollamaMessages: Message[] = [
+			{ role: "system", content: systemPrompt }, 
+			...convertToOllamaMessages(messages)
+		];
 
-    try {
+		try {
       // Create a promise that rejects after timeout
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error("Ollama request timed out after 120 seconds")), 120000);

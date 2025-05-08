@@ -40,7 +40,7 @@ export function Options() {
   
   // Ollama settings
   const [ollamaApiKey, setOllamaApiKey] = useState('');
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('http://localhost:11434');
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('');
   
   // Hidden model IDs (kept for compatibility)
   const [anthropicModelId, setAnthropicModelId] = useState('claude-3-7-sonnet-20250219');
@@ -70,7 +70,7 @@ export function Options() {
       geminiBaseUrl: '',
       ollamaApiKey: '',
       ollamaModelId: 'llama3.1',
-      ollamaBaseUrl: 'http://localhost:11434',
+      ollamaBaseUrl: '',
       thinkingBudgetTokens: 0,
     }, (result) => {
       setProvider(result.provider);
@@ -85,7 +85,7 @@ export function Options() {
       setGeminiBaseUrl(result.geminiBaseUrl);
       setOllamaApiKey(result.ollamaApiKey);
       setOllamaModelId(result.ollamaModelId);
-      setOllamaBaseUrl(result.ollamaBaseUrl || 'http://localhost:11434');
+      setOllamaBaseUrl(result.ollamaBaseUrl || '');
       setThinkingBudgetTokens(result.thinkingBudgetTokens);
     });
   }, []);
@@ -128,7 +128,7 @@ export function Options() {
           <h2 className="card-title text-xl">About</h2>
           <p className="mb-3">
             BrowserBee 🐝 is a Chrome extension that allows you to control your browser using natural language.
-            It supports multiple LLM providers including Anthropic Claude, OpenAI GPT, and Google Gemini to interpret your instructions and uses Playwright to execute them.
+            It supports multiple LLM providers including Anthropic, OpenAI, Google Gemini, and Ollama to interpret your instructions and uses Playwright to execute them.
           </p>
           <p>
             To use the extension, click on the extension icon to open the side panel, then enter your instructions
@@ -157,7 +157,7 @@ export function Options() {
               <option value="anthropic">Anthropic (Claude)</option>
               <option value="openai">OpenAI (GPT)</option>
               <option value="gemini">Google (Gemini)</option>
-              <option value="ollama">Ollama (Local)</option>
+              <option value="ollama">Ollama</option>
             </select>
           </div>
           
@@ -331,8 +331,7 @@ export function Options() {
             disabled={isSaving || (
               (provider === 'anthropic' && !anthropicApiKey.trim()) ||
               (provider === 'openai' && !openaiApiKey.trim()) ||
-              (provider === 'gemini' && !geminiApiKey.trim()) ||
-              (provider === 'ollama' && !ollamaBaseUrl.trim())
+              (provider === 'gemini' && !geminiApiKey.trim())
             )}
             className="btn btn-primary"
           >

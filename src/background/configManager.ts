@@ -37,7 +37,7 @@ export class ConfigManager {
       geminiBaseUrl: '',
       ollamaApiKey: '',
       ollamaModelId: 'llama3.1',
-      ollamaBaseUrl: 'http://localhost:11434',
+      ollamaBaseUrl: '',
       thinkingBudgetTokens: 0,
     });
     
@@ -97,7 +97,10 @@ export class ConfigManager {
     if (result.anthropicApiKey) providers.push('anthropic');
     if (result.openaiApiKey) providers.push('openai');
     if (result.geminiApiKey) providers.push('gemini');
-    if (result.ollamaApiKey || true) providers.push('ollama'); // Ollama doesn't require an API key
+    
+    // For Ollama, check if the base URL is configured
+    const ollamaBaseUrl = await this.getOllamaBaseUrl();
+    if (ollamaBaseUrl) providers.push('ollama');
     
     return providers;
   }
@@ -121,8 +124,15 @@ export class ConfigManager {
   }
   
   /**
-   * Update the current provider and model
+   * Get the Ollama base URL from storage
    */
+  async getOllamaBaseUrl(): Promise<string> {
+    const result = await chrome.storage.sync.get({
+      ollamaBaseUrl: '',
+    });
+    return result.ollamaBaseUrl;
+  }
+  
   async updateProviderAndModel(provider: string, modelId: string): Promise<void> {
     // Get current config
     const result = await chrome.storage.sync.get({
