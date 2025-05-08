@@ -233,6 +233,7 @@ export function SidePanel() {
               <OutputHeader 
                 onClearHistory={handleClearHistory}
                 onReflectAndLearn={handleReflectAndLearn}
+                isProcessing={isProcessing}
               />
               <div 
                 ref={outputRef}
@@ -269,7 +270,7 @@ export function SidePanel() {
             isProcessing={isProcessing}
             tabStatus={tabStatus}
           />
-          <ProviderSelector />
+          <ProviderSelector isProcessing={isProcessing} />
         </>
       ) : (
         <div className="flex flex-col flex-grow items-center justify-center">

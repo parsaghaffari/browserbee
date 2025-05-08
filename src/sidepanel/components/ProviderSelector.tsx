@@ -10,7 +10,11 @@ interface ProviderOption {
   models: {id: string, name: string}[];
 }
 
-export function ProviderSelector() {
+interface ProviderSelectorProps {
+  isProcessing: boolean;
+}
+
+export function ProviderSelector({ isProcessing }: ProviderSelectorProps) {
   const [options, setOptions] = useState<ProviderOption[]>([]);
   const [currentProvider, setCurrentProvider] = useState<string>('');
   const [currentModel, setCurrentModel] = useState<string>('');
@@ -128,6 +132,7 @@ export function ProviderSelector() {
         className="select select-ghost select-xs select-bordered w-auto focus:outline-none focus:ring-0"
         value={`${currentProvider}|${currentModel}`}
         onChange={handleChange}
+        disabled={isProcessing}
       >
         {options.map(option => (
           option.models.map(model => (

@@ -5,11 +5,13 @@ import { faTrash, faBrain } from '@fortawesome/free-solid-svg-icons';
 interface OutputHeaderProps {
   onClearHistory: () => void;
   onReflectAndLearn: () => void;
+  isProcessing: boolean;
 }
 
 export const OutputHeader: React.FC<OutputHeaderProps> = ({
   onClearHistory,
-  onReflectAndLearn
+  onReflectAndLearn,
+  isProcessing
 }) => {
   return (
     <div className="flex justify-between items-center bg-base-300 p-3">
@@ -21,6 +23,7 @@ export const OutputHeader: React.FC<OutputHeaderProps> = ({
           <button 
             onClick={onReflectAndLearn}
             className="btn btn-sm btn-outline btn-primary"
+            disabled={isProcessing}
           >
             <FontAwesomeIcon icon={faBrain} />
           </button>
@@ -29,6 +32,7 @@ export const OutputHeader: React.FC<OutputHeaderProps> = ({
           <button 
             onClick={onClearHistory}
             className="btn btn-sm btn-outline"
+            disabled={isProcessing}
           >
             <FontAwesomeIcon icon={faTrash} />
           </button>
