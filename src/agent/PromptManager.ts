@@ -125,6 +125,8 @@ Remember to follow the verification-first workflow: navigate → observe → ana
   Set **requires_approval = true** for purchases, data deletion,  
   messages visible to others, sensitive-data forms, or any risky action.  
   If unsure, choose **true**.
+
+  Note: The user is on a ${navigator.userAgent.indexOf('Mac') !== -1 ? 'macOS' : navigator.userAgent.indexOf('Win') !== -1 ? 'Windows' : 'Linux'} system, so when using keyboard tools, use appropriate keyboard shortcuts (${navigator.userAgent.indexOf('Mac') !== -1 ? 'Command' : 'Control'} for modifier keys).
   
   ────────────────────────────────────────
   Always wait for each tool result before the next step.  
