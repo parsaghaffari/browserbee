@@ -59,7 +59,6 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
             position: 'left',
             label: 'User Guide',
           },
-          {to: '/blog', label: 'Blog', position: 'left'},
           {
             href: 'https://github.com/parsaghaffari/browserbee',
             label: 'GitHub',
@@ -103,10 +102,6 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
           {
             title: 'More',
             items: [
-              {
-                label: 'Blog',
-                to: '/blog',
-              },
               {
                 label: 'GitHub',
                 href: 'https://github.com/parsaghaffari/browserbee',
