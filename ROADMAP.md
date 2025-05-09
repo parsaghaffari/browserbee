@@ -1,4 +1,4 @@
-friends launch (0.1.0):
+[0.1.0]
 - [x] render markdown in output
 - [x] add streaming output
 - [x] add button to clear context (otherwise continue with previous context)
@@ -12,7 +12,7 @@ friends launch (0.1.0):
 - [x] better handling of when user cancels the debugging session
 - [x] put on github
 
-HN launch (0.2.0):
+[0.2.0]
 - [ ] write tests 
 - [x] add "requires approval" flag to irreversible tools, and seek explicit approval from user
 - [x] better handling of multiple Chrome windows
@@ -37,7 +37,7 @@ HN launch (0.2.0):
 -- [ ] retain memories after an uninstall or allow the user to export them
 -- [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
 
-later:
+[0.3.0]
 - [ ] add saved prompts with persistence in local DB
 - [ ] max llm calls: allow user to configure, ask for user permission to exceed
 - [ ] scheduler for recurring tasks using chrome.alarms
