@@ -115,9 +115,6 @@ export class GeminiProvider implements LLMProvider {
       
       // Use the processed messages
       contents = processedMessages;
-      
-      // Log the processed contents for debugging
-      console.log("Processed conversation history:", JSON.stringify(contents));
 
     try {
       // Configure options

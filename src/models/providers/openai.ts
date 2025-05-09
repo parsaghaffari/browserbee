@@ -40,9 +40,6 @@ export class OpenAIProvider implements LLMProvider {
         content: msg.content,
       })),
     ];
-    
-    // Log the processed messages for debugging
-    console.log("Processed OpenAI messages:", JSON.stringify(openaiMessages));
 
     // Configure options for the API request
     const options: any = {
