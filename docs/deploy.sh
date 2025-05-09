@@ -4,4 +4,5 @@
 npm run build
 
 # Deploy to GitHub Pages
-GIT_USER=parsaghaffari npm run deploy
+# Note: Replace 'parsaghaffari' with your GitHub username
+GIT_USER=parsaghaffari USE_SSH=true npm run deploy
