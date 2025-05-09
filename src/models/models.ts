@@ -125,8 +125,8 @@ export const geminiModels = {
   },
   "gemini-2.0-flash-lite-preview-02-05": {
     name: "Gemini 2.0 Flash Lite",
-    inputPrice: 0.0,
-    outputPrice: 0.0,
+    inputPrice: 0.075,
+    outputPrice: 0.30,
     maxTokens: 8192,
     contextWindow: 1048576,
     supportsImages: true,
