@@ -345,16 +345,11 @@ export async function attachToTab(tabId: number, windowId?: number, retryCount: 
         
         logWithTimestamp(`Detected detached frame for tab ${tabId}, attempting recovery...`, 'warn');
         
-        // Use crx.forceReset() to reset the Playwright instance
-        // Use type assertion to tell TypeScript that forceReset exists
-        await (crx as any).forceReset();
+        // IMPORTANT: Remove the tab from attachedTabIds to allow proper reattachment
+        removeAttachedTab(tabId);
         
-        // Wait a moment for things to stabilize
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Clear our internal state
-        windowToCrxAppMap.clear();
-        defaultCrxAppPromise = null;
+        // Also clear the tab state to ensure a fresh start
+        tabStates.delete(tabId);
         
         // Notify UI that recovery is in progress
         chrome.runtime.sendMessage({
@@ -366,8 +361,67 @@ export async function attachToTab(tabId: number, windowId?: number, retryCount: 
           tabId
         });
         
-        // Try again with incremented retry count
-        return attachToTab(tabId, windowId, retryCount + 1);
+        // Get the URL of the original tab
+        let originalUrl = "about:blank";
+        try {
+          const tab = await chrome.tabs.get(tabId);
+          if (tab && tab.url) {
+            originalUrl = tab.url;
+          }
+        } catch (urlError) {
+          logWithTimestamp(`Error getting URL of original tab: ${urlError}`, 'warn');
+        }
+        
+        // Create a new tab in the same window
+        if (windowId) {
+          try {
+            // Create a new tab using Chrome API
+            const newTab = await chrome.tabs.create({ 
+              windowId: windowId,
+              url: originalUrl,
+              active: true
+            });
+            
+            if (newTab && newTab.id) {
+              const newTabId = newTab.id;
+              logWithTimestamp(`Created new tab ${newTabId} with URL ${originalUrl}`);
+              
+              // Store the window ID for the new tab
+              storeWindowForTab(newTabId, windowId);
+              
+              // Notify UI about the new tab
+              chrome.runtime.sendMessage({
+                action: 'updateOutput',
+                content: {
+                  type: 'system',
+                  content: `Created new tab with URL ${originalUrl}`
+                },
+                tabId: newTabId
+              });
+              
+              // Wait for the tab to load
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              // Try to close the original tab
+              try {
+                await chrome.tabs.remove(tabId);
+                logWithTimestamp(`Closed original tab ${tabId}`);
+              } catch (closeError) {
+                logWithTimestamp(`Error closing original tab: ${closeError}`, 'warn');
+              }
+              
+              // Set the new tab as the current tab
+              setCurrentTabId(newTabId);
+              return true;
+            }
+          } catch (newTabError) {
+            logWithTimestamp(`Error creating new tab: ${newTabError}`, 'error');
+            return false;
+          }
+        }
+        
+        // If we couldn't create a new tab (no window ID or other error), return false
+        return false;
       }
       
       // For other errors or if we've exceeded retry attempts, just handle normally
@@ -464,7 +518,27 @@ export async function resetPlaywright(): Promise<boolean> {
   
   // Reset state
   currentTabId = null;
+  
+  // IMPORTANT: Clear the attachedTabIds set to ensure tabs are properly marked as detached
+  const tabsToDetach = [...attachedTabIds];
   attachedTabIds.clear();
+  
+  // Log the detachment for each tab
+  for (const tabId of tabsToDetach) {
+    logWithTimestamp(`Tab ${tabId} marked as detached during reset`);
+    
+    // Notify UI components about the detachment
+    chrome.runtime.sendMessage({
+      action: 'tabStatusChanged',
+      status: 'detached',
+      tabId,
+      reason: 'reset'
+    });
+  }
+  
+  // Also clear tab states
+  tabStates.clear();
+  
   // Don't clear tabToWindowMap as it might be needed later
   // Don't clear windowToAgentMap as agents are managed separately
   
@@ -636,25 +710,67 @@ export function isFallbackTab(tabId: number): boolean {
  */
 export async function forceResetPlaywright(): Promise<boolean> {
   try {
-    logWithTimestamp('Force resetting Playwright instance using crx.forceReset()');
+    logWithTimestamp('Force resetting Playwright instance');
     
-    // Use crx.forceReset() to reset the Playwright instance
-    await (crx as any).forceReset();
+    // Reset BrowserBee-specific state
+    currentTabId = null;
     
-    // Wait a moment for things to stabilize
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // IMPORTANT: Clear the attachedTabIds set to ensure tabs are properly marked as detached
+    const tabsToDetach = [...attachedTabIds];
+    attachedTabIds.clear();
     
-    // Clear our internal state
-    windowToCrxAppMap.clear();
-    defaultCrxAppPromise = null;
+    // Log the detachment for each tab
+    for (const tabId of tabsToDetach) {
+      logWithTimestamp(`Tab ${tabId} marked as detached during force reset`);
+      
+      // Notify UI components about the detachment
+      chrome.runtime.sendMessage({
+        action: 'tabStatusChanged',
+        status: 'detached',
+        tabId,
+        reason: 'force_reset'
+      });
+    }
     
-    // Create a new default instance
-    await getCrxApp(undefined, true);
+    // Also clear tab states
+    tabStates.clear();
     
-    logWithTimestamp('Playwright instance force reset successful');
-    return true;
+    // Check if the forceReset method is available
+    if (typeof (crx as any).forceReset === 'function') {
+      logWithTimestamp('Using crx.forceReset() method');
+      await (crx as any).forceReset();
+      logWithTimestamp('Successfully reset Playwright instance using crx.forceReset()');
+      
+      // Wait a moment for things to stabilize - increased from 500ms to 1000ms
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Clear our internal state
+      windowToCrxAppMap.clear();
+      defaultCrxAppPromise = null;
+      
+      // Create a new instance after reset - using a simpler approach
+      await getCrxApp(undefined, true);
+      return true;
+    } else {
+      logWithTimestamp('crx.forceReset method not available, falling back to basic reset', 'warn');
+      
+      // Basic reset - clear maps and create new instance
+      windowToCrxAppMap.clear();
+      defaultCrxAppPromise = null;
+      
+      // Create a new instance
+      await getCrxApp(undefined, true);
+      return true;
+    }
   } catch (error) {
     handleError(error, 'force resetting Playwright instance');
+    
+    // If there's an error, reload the extension as a last resort
+    logWithTimestamp('Error during reset, reloading extension as last resort', 'warn');
+    setTimeout(() => {
+      chrome.runtime.reload();
+    }, 500);
+    
     return false;
   }
 }
