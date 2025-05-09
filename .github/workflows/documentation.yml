@@ -16,7 +16,8 @@ jobs:
           # Using the latest LTS version of Node.js
 
       - name: Install dependencies
-        run: cd docs && npm ci
+        run: cd docs && npm install
+        # Using npm install instead of npm ci since package-lock.json might not exist
 
       - name: Build website
         run: cd docs && npm run build
