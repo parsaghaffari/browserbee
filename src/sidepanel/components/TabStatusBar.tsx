@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRotateRight } from '@fortawesome/free-solid-svg-icons';
+import { faSync } from '@fortawesome/free-solid-svg-icons';
 
 interface TabStatusBarProps {
   tabId: number | null;
@@ -94,38 +94,37 @@ export const TabStatusBar: React.FC<TabStatusBarProps> = ({
   };
   
   return (
-    <div className="text-sm bg-base-300 rounded-md px-2 py-1 border border-base-content border-opacity-10 flex items-center max-w-[200px]">
-      <div className={`w-2 h-2 rounded-full mr-2 flex-shrink-0 ${
-        tabStatus === 'attached' ? 'bg-green-500 animate-pulse' : 
-        tabStatus === 'detached' ? 'bg-red-500' : 'bg-yellow-500'
-      }`} title={
-        tabStatus === 'attached' ? 'Connected' : 
-        tabStatus === 'detached' ? 'Disconnected' : 'Unknown'
-      }></div>
-      <span 
-        className="cursor-pointer hover:underline hover:text-primary truncate"
-        onClick={handleTabClick}
-        title={`${tabTitle}${tabUrl ? `\n${tabUrl}` : ''}`}
-      > 
-        {tabTitle}
-      </span>
+    <div className="text-sm bg-base-300 rounded-md px-2 py-1 border border-base-content border-opacity-10 flex items-center justify-between max-w-[200px]">
+      <div className="flex items-center flex-grow overflow-hidden">
+        <div className={`w-2 h-2 rounded-full mr-2 flex-shrink-0 ${
+          tabStatus === 'attached' ? 'bg-green-500 animate-pulse' : 
+          tabStatus === 'detached' ? 'bg-red-500' : 'bg-yellow-500'
+        }`} title={
+          tabStatus === 'attached' ? 'Connected' : 
+          tabStatus === 'detached' ? 'Disconnected' : 'Unknown'
+        }></div>
+        <span 
+          className="cursor-pointer hover:underline hover:text-primary truncate"
+          onClick={handleTabClick}
+          title={`${tabTitle}${tabUrl ? `\n${tabUrl}` : ''}`}
+        > 
+          {tabTitle}
+        </span>
+      </div>
       
-      {/* Only show refresh button when detached */}
-      <div className="flex items-center">
-        {tabStatus === 'detached' && (
+      <div className="flex items-center ml-2">
           <button 
-            className="ml-1 text-xs text-primary hover:text-primary-focus"
+            className="px-1.5 py-0.5 bg-base-200 hover:bg-primary hover:text-primary-content rounded text-xs border border-base-content border-opacity-20"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            title="Refresh connection"
+            title="Attach to current tab"
           >
             <FontAwesomeIcon 
-              icon={faRotateRight} 
+              icon={faSync} 
               className={isRefreshing ? 'animate-spin' : ''} 
               size="xs"
             />
           </button>
-        )}
       </div>
     </div>
   );
