@@ -32,9 +32,8 @@
 -- [ ] improve configuration to accept model, max tokens, etc as parameters
 - [x] task memory using indexedDB (<website, task, steps>) 
 -- [x] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
--- [ ] add memory import/export functions
+-- [x] add memory import/export functions
 -- [ ] include pre-built memories for major websites
--- [ ] retain memories after an uninstall or allow the user to export them
 -- [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
 
 [0.3.0]
