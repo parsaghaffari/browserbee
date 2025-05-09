@@ -305,25 +305,31 @@ export class ExecutionEngine {
             const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
             const tabId = tabs[0]?.id || 0;
             
-            // Request approval from the user
-            const approved = await requestApproval(tabId, toolName, toolInput, reason);
-            
-            if (approved) {
-              // User approved, execute the tool
-              callbacks.onToolOutput(`✅ Action approved by user. Executing...`);
+            try {
+              // Request approval from the user
+              const approved = await requestApproval(tabId, toolName, toolInput, reason);
               
-              // Create a context object to pass to the tool
-              const context = {
-                requiresApproval: true,
-                approvalReason: reason
-              };
-              
-              // Execute the tool with the context
-              result = await tool.func(toolInput, context);
-            } else {
-              // User rejected, skip execution
-              result = "Action cancelled by user.";
-              callbacks.onToolOutput(`❌ Action rejected by user.`);
+              if (approved) {
+                // User approved, execute the tool
+                callbacks.onToolOutput(`✅ Action approved by user. Executing...`);
+                
+                // Create a context object to pass to the tool
+                const context = {
+                  requiresApproval: true,
+                  approvalReason: reason
+                };
+                
+                // Execute the tool with the context
+                result = await tool.func(toolInput, context);
+              } else {
+                // User rejected, skip execution
+                result = "Action cancelled by user.";
+                callbacks.onToolOutput(`❌ Action rejected by user.`);
+              }
+            } catch (approvalError) {
+              console.error(`Error in approval process:`, approvalError);
+              result = "Error in approval process. Action cancelled.";
+              callbacks.onToolOutput(`❌ Error in approval process: ${approvalError}`);
             }
           } else {
             // No approval required, execute the tool normally

@@ -105,15 +105,28 @@ export const useChromeMessaging = ({
         onUpdateScreenshot(message.content);
       } else if (message.action === 'processingComplete') {
         onProcessingComplete();
-      } else if (message.action === 'requestApproval' && onRequestApproval) {
+      } else if (message.action === 'requestApproval') {
         // Handle approval requests
-        if (message.requestId && message.toolName && message.toolInput) {
-          onRequestApproval({
-            requestId: message.requestId,
-            toolName: message.toolName,
-            toolInput: message.toolInput,
-            reason: message.reason || 'This action requires approval.'
-          });
+        // Check if the fields exist rather than if they're truthy
+        // This allows empty strings for toolInput which is valid in some cases
+        if ('requestId' in message && 
+            'toolName' in message && 
+            'toolInput' in message && 
+            typeof message.requestId === 'string' && 
+            typeof message.toolName === 'string' && 
+            typeof message.toolInput === 'string') {
+          
+          if (onRequestApproval) {
+            onRequestApproval({
+              requestId: message.requestId,
+              toolName: message.toolName,
+              toolInput: message.toolInput,
+              reason: message.reason || 'This action requires approval.'
+            });
+          } else {
+            console.error('onRequestApproval handler is not defined, cannot process approval request');
+          }
+          
           // Send a response to keep the message channel open
           sendResponse({ success: true });
           return true; // Keep the message channel open for async response
