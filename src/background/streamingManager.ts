@@ -2,7 +2,7 @@ import { sendUIMessage } from './utils';
 
 // Streaming buffer and regex patterns
 let streamingBuffer = '';
-const combinedToolCallRegex = /(```xml\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)?(\s*```)?/;
+const combinedToolCallRegex = /(```(?:xml|bash)\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)?(\s*```)?/;
 const sentenceEndRegex = /[.!?]\s+/;
 
 // Current streaming segment ID

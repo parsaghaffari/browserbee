@@ -11,8 +11,8 @@ export const LlmContent: React.FC<LlmContentProps> = ({ content }) => {
   const parts: Array<{ type: 'text' | 'tool', content: string }> = [];
   
   // Process the content to identify tool calls
-  // Create a combined regex that handles both direct tool calls and those wrapped in code blocks
-  const combinedToolCallRegex = /(```xml\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)?(\s*```)?/g;
+  // Create a combined regex that handles both direct tool calls and those wrapped in code blocks (xml or bash)
+  const combinedToolCallRegex = /(```(?:xml|bash)\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?:\s*<requires_approval>(.*?)<\/requires_approval>)?(\s*```)?/g;
   let lastIndex = 0;
   
   // Create a copy of the content to work with
