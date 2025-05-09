@@ -23,6 +23,16 @@
     "default_path": "sidepanel.html"
   },
   "options_page": "options.html",
-  "permissions": ["debugger", "tabs", "sidePanel", "storage", "activeTab"],
-  "host_permissions": ["<all_urls>"]
+  "permissions": ["debugger", "tabs", "sidePanel", "storage", "activeTab", "commands"],
+  "host_permissions": ["<all_urls>"],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+B",
+        "mac": "Alt+Shift+B"
+      },
+      "description": "Open the BrowserBee side panel",
+      "global": true
+    }
+  }
 }

@@ -17,6 +17,9 @@ function initializeExtension(): void {
   
   // Set up event listeners
   setupEventListeners();
+  
+  // Set up command listeners
+  setupCommandListeners();
 }
 
 /**
@@ -70,10 +73,19 @@ function setupEventListeners(): void {
     }
   });
   
-  // Open the side panel when the extension icon is clicked
+  // Open the side panel when the extension icon is clicked or Alt+Shift+B is pressed
   chrome.action.onClicked.addListener(async (tab) => {
     if (tab.id) {
-      await chrome.sidePanel.open({ tabId: tab.id });
+      logWithTimestamp(`Opening side panel for tab ${tab.id}`);
+      
+      try {
+        await chrome.sidePanel.open({ tabId: tab.id });
+        logWithTimestamp(`Side panel opened for tab ${tab.id}`);
+      } catch (error) {
+        logWithTimestamp(`Error opening side panel: ${String(error)}`, 'error');
+      }
+    } else {
+      logWithTimestamp('No tab ID available for action click', 'error');
     }
   });
   
@@ -179,11 +191,38 @@ function setupEventListeners(): void {
   }
 }
 
+/**
+ * Set up command listeners for keyboard shortcuts
+ */
+function setupCommandListeners(): void {
+  logWithTimestamp('Setting up command listeners for keyboard shortcuts');
+  
+  // Log all registered commands to verify our command is registered
+  chrome.commands.getAll().then(commands => {
+    logWithTimestamp(`Registered commands: ${JSON.stringify(commands)}`);
+  }).catch(error => {
+    logWithTimestamp(`Error getting registered commands: ${String(error)}`, 'error');
+  });
+  
+  // Listen for any commands (for future extensibility)
+  chrome.commands.onCommand.addListener(async (command) => {
+    logWithTimestamp(`Command received: ${command}`);
+    
+    // The _execute_action command is handled automatically by Chrome
+    // and will trigger the action.onClicked handler
+    
+    // This listener is kept for future custom commands and debugging
+  });
+  
+  logWithTimestamp('Command listeners set up');
+}
+
 // Initialize the extension
 initializeExtension();
 
 // Export for use in other modules
 export default {
   initializeExtension,
-  setupEventListeners
+  setupEventListeners,
+  setupCommandListeners
 };
