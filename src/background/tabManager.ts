@@ -604,6 +604,33 @@ export function setupTabListeners(): void {
         reason: 'closed'
       });
       
+      // Cancel any ongoing execution for this tab
+      try {
+        // Import messageHandler to handle the cancellation message
+        const { handleMessage } = await import('./messageHandler');
+        
+        // Create a cancellation message similar to what the UI would send
+        const cancelMessage = {
+          action: 'cancelExecution',
+          tabId
+        };
+        
+        // Use the same message handler that the UI uses
+        handleMessage(
+          cancelMessage,
+          {}, // Empty sender object
+          (response) => {
+            if (response && response.success) {
+              logWithTimestamp(`Successfully cancelled execution for closed tab ${tabId}`);
+            } else {
+              logWithTimestamp(`Failed to cancel execution for closed tab ${tabId}`, 'warn');
+            }
+          }
+        );
+      } catch (error) {
+        logWithTimestamp(`Error cancelling execution for closed tab: ${error instanceof Error ? error.message : String(error)}`, 'warn');
+      }
+      
       // Reset the current tab ID if this was the current tab
       if (tabId === currentTabId) {
         setCurrentTabId(null);
@@ -623,6 +650,42 @@ export function setupTabListeners(): void {
   // Listen for window removal events
   chrome.windows.onRemoved.addListener(async (windowId) => {
     logWithTimestamp(`Window ${windowId} was closed, cleaning up Playwright instance and agent`);
+    
+    // Find all tabs in this window and cancel their executions
+    const tabsInWindow = [...tabToWindowMap.entries()]
+      .filter(([_, wId]) => wId === windowId)
+      .map(([tabId, _]) => tabId);
+    
+    // Cancel execution for each tab in the window
+    if (tabsInWindow.length > 0) {
+      try {
+        // Import messageHandler to handle the cancellation message
+        const { handleMessage } = await import('./messageHandler');
+        
+        for (const tabId of tabsInWindow) {
+          // Create a cancellation message similar to what the UI would send
+          const cancelMessage = {
+            action: 'cancelExecution',
+            tabId
+          };
+          
+          // Use the same message handler that the UI uses
+          handleMessage(
+            cancelMessage,
+            {}, // Empty sender object
+            (response) => {
+              if (response && response.success) {
+                logWithTimestamp(`Successfully cancelled execution for tab ${tabId} in closed window ${windowId}`);
+              } else {
+                logWithTimestamp(`Failed to cancel execution for tab ${tabId} in closed window ${windowId}`, 'warn');
+              }
+            }
+          );
+        }
+      } catch (error) {
+        logWithTimestamp(`Error cancelling executions for closed window: ${error instanceof Error ? error.message : String(error)}`, 'warn');
+      }
+    }
     
     // Close the Playwright instance for this window if it exists
     if (windowToCrxAppMap.has(windowId)) {
