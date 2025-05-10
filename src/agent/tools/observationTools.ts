@@ -294,7 +294,7 @@ export const browserAccessibleTree: ToolFactory = (page: Page) =>
   new DynamicTool({
     name: "browser_accessible_tree",
     description:
-      "Return the AX accessibility tree JSON (default: interesting‑only). Input 'all' to dump full tree.",
+      "Return the AX accessibility tree JSON (default: interesting‑only). Input 'all' to dump full tree. Note: This tool can be useful when the DOM is too large to process.",
     func: async (input: string) => {
       try {
         return await withActivePage(page, async (activePage) => {
@@ -355,8 +355,8 @@ export const browserScreenshot: ToolFactory = (page: Page) =>
       "  • (none)  – capture viewport only, downscaled to 800px wide (default)\n" +
       "  • full    – capture the full scrolling page, downscaled to 1000px wide\n\n" +
       "Screenshots are automatically optimized for token limits." +
-      "Use `browser_snapshot_dom` for structured info; resort to screenshots only\n" +
-      "when you truly need pixels (e.g. images, charts, maps, or to show the user).",
+      "Important: Use `browser_snapshot_dom` or `browser_accessible_tree` for structured info; " +
+      "resort to screenshots only when you truly need pixels (e.g. images, charts, maps, or to show the user).",
     func: async (input: string) => {
       try {
         return await withActivePage(page, async (activePage) => {
