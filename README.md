@@ -7,7 +7,7 @@ BrowserBee is a privacy-first open source Chrome extension that lets you control
 
 Since BrowserBee runs entirely within your browser (with the exception of the LLM), it can interact with logged-in websites, like your social media accounts or email, without compromising security or requiring backend infrastructure. This makes it more convenient for personal use than other "browser use" type products out there.
 
-## 🎲 Features
+## 🎲 Features 
 
 - Supports major LLM providers such as **Anthropic**, **OpenAI**, and **Gemini**, with more coming soon
 - Tracks **token use** and **price** so you know how much you're spending on each task
