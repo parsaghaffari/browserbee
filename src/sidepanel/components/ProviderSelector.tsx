@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ConfigManager } from '../../background/configManager';
 import { TokenTrackingService } from '../../tracking/tokenTrackingService';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRobot, faCog } from '@fortawesome/free-solid-svg-icons';
+import { faCog, faCircleInfo } from '@fortawesome/free-solid-svg-icons';
 
 interface ProviderOption {
   provider: string;
@@ -130,35 +130,49 @@ export function ProviderSelector({ isProcessing }: ProviderSelectorProps) {
   const openOptionsPage = () => {
     chrome.runtime.openOptionsPage();
   };
+  
+  // Function to open help documentation
+  const openHelpPage = () => {
+    window.open('https://parsaghaffari.github.io/browserbee/', '_blank');
+  };
 
   return (
-    <div className="flex items-center mb-2 px-0">
+    <div className="flex items-center justify-between mb-2 px-0">
+      <div className="flex items-center">
+        <button 
+          className="btn btn-ghost btn-xs p-1" 
+          onClick={openOptionsPage}
+          title="Open Settings"
+          disabled={isProcessing}
+        >
+          <FontAwesomeIcon icon={faCog} className="text-gray-500 hover:text-gray-700" />
+        </button>
+        <select 
+          className="select select-ghost select-xs select-bordered w-auto focus:outline-none focus:ring-0 pl-0"
+          value={`${currentProvider}|${currentModel}`}
+          onChange={handleChange}
+          disabled={isProcessing}
+        >
+          {options.map(option => (
+            option.models.map(model => (
+              <option 
+                key={`${option.provider}|${model.id}`} 
+                value={`${option.provider}|${model.id}`}
+              >
+                {option.displayName} - {model.name}
+              </option>
+            ))
+          ))}
+        </select>
+      </div>
       <button 
         className="btn btn-ghost btn-xs p-1" 
-        onClick={openOptionsPage}
-        title="Open Settings"
+        onClick={openHelpPage}
+        title="Open Help"
         disabled={isProcessing}
       >
-        <FontAwesomeIcon icon={faCog} className="text-gray-500 hover:text-gray-700" />
+        <FontAwesomeIcon icon={faCircleInfo} className="text-gray-500 hover:text-gray-700" />
       </button>
-      <select 
-        className="select select-ghost select-xs select-bordered w-auto focus:outline-none focus:ring-0"
-        style={{ paddingLeft: '0' }}
-        value={`${currentProvider}|${currentModel}`}
-        onChange={handleChange}
-        disabled={isProcessing}
-      >
-        {options.map(option => (
-          option.models.map(model => (
-            <option 
-              key={`${option.provider}|${model.id}`} 
-              value={`${option.provider}|${model.id}`}
-            >
-              {option.displayName} - {model.name}
-            </option>
-          ))
-        ))}
-      </select>
     </div>
   );
 }
