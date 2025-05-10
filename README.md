@@ -47,7 +47,7 @@ If you're interested in contributing to build any of these features or to improv
 
 ## 🏃‍♂️ Usage
 
-1. Click the BrowserBee icon in your Chrome toolbar, or press Alt+Shift+B, to open the side panel  
+1. Click the BrowserBee icon in your Chrome toolbar, or press *Alt+Shift+B*, to open the side panel  
 2. Type your instruction (e.g., *"Go to Google, search for Cicero, and click the first result"*)  
 3. Hit Enter and watch BrowserBee go to work 🐝
 
