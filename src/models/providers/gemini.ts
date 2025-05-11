@@ -27,6 +27,45 @@ export class GeminiProvider implements LLMProvider {
     this.client = new GoogleGenAI({ apiKey: this.options.apiKey });
   }
 
+  /**
+   * Helper function to decode escaped HTML entities in a string
+   * @param text The text to decode
+   * @returns The decoded text
+   */
+  private decodeHtmlEntities(text: string): string {
+    // Replace Unicode escape sequences with actual characters
+    return text
+      .replace(/\\u003c/g, '<')
+      .replace(/\\u003e/g, '>')
+      .replace(/\u003c/g, '<')
+      .replace(/\u003e/g, '>');
+  }
+  
+  /**
+   * Helper function to detect and extract tool calls from text with escaped HTML entities
+   * @param text The text to check for tool calls
+   * @returns An object with the extracted tool call if found, or null if not found
+   */
+  private extractToolCallFromText(text: string): { name: string, input: string, requiresApproval: boolean } | null {
+    // Decode HTML entities first
+    const decodedText = this.decodeHtmlEntities(text);
+    
+    // Check for tool call pattern
+    const toolCallRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires_approval>(.*?)<\/requires_approval>/;
+    const match = decodedText.match(toolCallRegex);
+    
+    if (match) {
+      const [, name, input, requiresApprovalRaw] = match;
+      return {
+        name: name.trim(),
+        input: input.trim(),
+        requiresApproval: requiresApprovalRaw.trim().toLowerCase() === 'true'
+      };
+    }
+    
+    return null;
+  }
+  
   async *createMessage(systemPrompt: string, messages: any[], tools?: any[]): ApiStream {
     // Get model info to check for thinking config
     const model = this.getModel();
@@ -234,10 +273,25 @@ export class GeminiProvider implements LLMProvider {
         }
         // Handle text chunks
         else if (chunk.text) {
-          yield {
-            type: "text",
-            text: chunk.text,
-          };
+          // Check if the text contains a tool call with escaped HTML entities
+          const toolCall = this.extractToolCallFromText(chunk.text);
+          
+          if (toolCall) {
+            // If a tool call is found, convert it to our XML format
+            console.log("Found tool call in text with escaped HTML entities:", toolCall);
+            const xmlToolCall = `<tool>${toolCall.name}</tool>\n<input>${toolCall.input}</input>\n<requires_approval>${toolCall.requiresApproval ? 'true' : 'false'}</requires_approval>`;
+            
+            yield {
+              type: "text",
+              text: xmlToolCall,
+            };
+          } else {
+            // Otherwise, just yield the text as is
+            yield {
+              type: "text",
+              text: chunk.text,
+            };
+          }
         }
         // Handle candidates with parts (which may contain executableCode or functionCall)
         else if (chunk.candidates && chunk.candidates.length > 0) {
@@ -294,10 +348,25 @@ export class GeminiProvider implements LLMProvider {
                     console.log("Ignoring non-XML executableCode:", part.executableCode.code);
                   }
                 } else if (part.text) {
-                  yield {
-                    type: "text",
-                    text: part.text,
-                  };
+                  // Check if the text contains a tool call with escaped HTML entities
+                  const toolCall = this.extractToolCallFromText(part.text);
+                  
+                  if (toolCall) {
+                    // If a tool call is found, convert it to our XML format
+                    console.log("Found tool call in part text with escaped HTML entities:", toolCall);
+                    const xmlToolCall = `<tool>${toolCall.name}</tool>\n<input>${toolCall.input}</input>\n<requires_approval>${toolCall.requiresApproval ? 'true' : 'false'}</requires_approval>`;
+                    
+                    yield {
+                      type: "text",
+                      text: xmlToolCall,
+                    };
+                  } else {
+                    // Otherwise, just yield the text as is
+                    yield {
+                      type: "text",
+                      text: part.text,
+                    };
+                  }
                 }
               }
             }
