@@ -51,17 +51,6 @@ If you're interested in contributing to build any of these features or to improv
 2. Type your instruction (e.g., *"Go to Google, search for Cicero, and click the first result"*)  
 3. Hit Enter and watch BrowserBee go to work 🐝
 
-## ⚙️ Development
-
-- `npm run dev`: Start the development server
-- `npm run build`: Build the extension for production
-
-For detailed information about the architecture, component structure, and code organization, please see [ARCHITECTURE.md](ARCHITECTURE.md).
-
-## 📜 License
-
-[Apache 2.0](LICENSE)
-
 ## 🫂 Acknowledgements
 
 BrowserBee is built using these amazing open source projects:
@@ -69,3 +58,7 @@ BrowserBee is built using these amazing open source projects:
 - [Cline](https://github.com/cline/cline) enabled us to vibe-code the first version of BrowserBee and inspired us to build a "Cline for the web"
 - [playwright-crx](https://github.com/ruifigueira/playwright-crx) by [@ruifigueira](https://github.com/ruifigueira) for in-browser use of Playwright
 - [playwright-mcp](https://github.com/microsoft/playwright-mcp) for the browser tool implementations
+
+## 📜 License
+
+[Apache 2.0](LICENSE)
