@@ -165,7 +165,8 @@ export class BrowserAgent {
     return this.executionEngine.executePrompt(
       prompt,
       callbacks,
-      initialMessages
+      initialMessages,
+      false // Non-streaming mode
     );
   }
 }
@@ -247,6 +248,8 @@ export async function executePrompt(
   initialMessages: any[] = []
 ): Promise<void> {
   return agent.executePrompt(prompt, callbacks, initialMessages);
+  // Note: The agent's executePrompt method now includes the isStreaming parameter
+  // with a default value of false, so we don't need to pass it here
 }
 
 /**

@@ -29,6 +29,54 @@ export interface ExecutionCallbacks {
 }
 
 /**
+ * Adapter for handling callbacks in both streaming and non-streaming modes
+ */
+class CallbackAdapter {
+  private originalCallbacks: ExecutionCallbacks;
+  private isStreaming: boolean;
+  private buffer: string = '';
+  
+  constructor(callbacks: ExecutionCallbacks, isStreaming: boolean) {
+    this.originalCallbacks = callbacks;
+    this.isStreaming = isStreaming;
+  }
+  
+  get adaptedCallbacks(): ExecutionCallbacks {
+    return {
+      onLlmChunk: this.handleLlmChunk.bind(this),
+      onLlmOutput: this.originalCallbacks.onLlmOutput,
+      onToolOutput: this.originalCallbacks.onToolOutput,
+      onComplete: this.handleComplete.bind(this),
+      onError: this.originalCallbacks.onError,
+      onToolStart: this.originalCallbacks.onToolStart,
+      onToolEnd: this.originalCallbacks.onToolEnd,
+      onSegmentComplete: this.originalCallbacks.onSegmentComplete,
+      onFallbackStarted: this.originalCallbacks.onFallbackStarted
+    };
+  }
+  
+  private handleLlmChunk(chunk: string): void {
+    if (this.isStreaming && this.originalCallbacks.onLlmChunk) {
+      // Pass through in streaming mode
+      this.originalCallbacks.onLlmChunk(chunk);
+    } else {
+      // Buffer in non-streaming mode
+      this.buffer += chunk;
+    }
+  }
+  
+  private handleComplete(): void {
+    // In non-streaming mode, emit the full buffer at completion
+    if (!this.isStreaming && this.buffer.length > 0) {
+      this.originalCallbacks.onLlmOutput(this.buffer);
+      this.buffer = '';
+    }
+    
+    this.originalCallbacks.onComplete();
+  }
+}
+
+/**
  * ExecutionEngine handles streaming execution logic, non-streaming execution logic,
  * and fallback mechanisms.
  */
@@ -62,33 +110,30 @@ export class ExecutionEngine {
     initialMessages: any[] = []
   ): Promise<void> {
     const streamingSupported = await this.errorHandler.isStreamingSupported();
+    const isStreaming = streamingSupported && callbacks.onLlmChunk !== undefined;
     
-    if (streamingSupported && callbacks.onLlmChunk) {
-      try {
-        await this.executePromptWithStreaming(prompt, callbacks, initialMessages);
-      } catch (error) {
-        console.warn("Streaming failed, falling back to non-streaming mode:", error);
-        
-        // Notify about fallback before switching modes
-        if (callbacks.onFallbackStarted) {
-          callbacks.onFallbackStarted();
-        }
-        
-        // Check if this is a retryable error (rate limit or overloaded)
-        if (this.errorHandler.isRetryableError(error)) {
-          console.log("Retryable error detected in fallback handler:", error);
-          // Ensure the error callback is called even during fallback
-          if (callbacks.onError) {
-            callbacks.onError(error);
-          }
-        }
-        
-        // Continue with fallback
-        await this.executePrompt(prompt, callbacks, initialMessages);
+    try {
+      // Use the execution method with appropriate streaming mode
+      await this.executePrompt(prompt, callbacks, initialMessages, isStreaming);
+    } catch (error) {
+      console.warn("Execution failed, attempting fallback:", error);
+      
+      // Notify about fallback before switching modes
+      if (callbacks.onFallbackStarted) {
+        callbacks.onFallbackStarted();
       }
-    } else {
-      // Directly use non-streaming mode
-      await this.executePrompt(prompt, callbacks, initialMessages);
+      
+      // Check if this is a retryable error (rate limit or overloaded)
+      if (this.errorHandler.isRetryableError(error)) {
+        console.log("Retryable error detected in fallback handler:", error);
+        // Ensure the error callback is called even during fallback
+        if (callbacks.onError) {
+          callbacks.onError(error);
+        }
+      }
+      
+      // Continue with fallback using non-streaming mode
+      await this.executePrompt(prompt, callbacks, initialMessages, false);
     }
   }
   
@@ -107,13 +152,18 @@ export class ExecutionEngine {
   }
   
   /**
-   * Streaming version of the prompt execution
+   * Execute prompt with support for both streaming and non-streaming modes
    */
-  async executePromptWithStreaming(
+  async executePrompt(
     prompt: string,
     callbacks: ExecutionCallbacks,
-    initialMessages: any[] = []
+    initialMessages: any[] = [],
+    isStreaming: boolean
   ): Promise<void> {
+    // Create adapter to handle streaming vs non-streaming
+    const adapter = new CallbackAdapter(callbacks, isStreaming);
+    const adaptedCallbacks = adapter.adaptedCallbacks;
+    
     // Reset cancel flag at the start of execution
     this.errorHandler.resetCancel();
     try {
@@ -204,24 +254,24 @@ export class ExecutionEngine {
               // Then, check for a basic tool call without requires_approval tag
               const basicToolCallRegex = /(```(?:xml|bash)\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(\s*```)?/;
               
-          // Check for a partial requires_approval tag (for streaming chunks that split mid-tag)
-          // This regex matches both complete <requires_approval> and partial tags like <requires
-          const partialApprovalRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires(_approval)?($|>)/;
-          
-          // Try to match the patterns in order of specificity
-          const completeToolCallMatch = streamBuffer.match(completeToolCallRegex);
-          
-          // Only try to match basic tool call if complete match failed
-          let basicToolCallMatch: RegExpMatchArray | null = null;
-          if (!completeToolCallMatch) {
-            basicToolCallMatch = streamBuffer.match(basicToolCallRegex);
-          }
-          
-          // Only try to match partial approval if both previous matches failed
-          let partialApprovalMatch: RegExpMatchArray | null = null;
-          if (!completeToolCallMatch && !basicToolCallMatch) {
-            partialApprovalMatch = streamBuffer.match(partialApprovalRegex);
-          }
+              // Check for a partial requires_approval tag (for streaming chunks that split mid-tag)
+              // This regex matches both complete <requires_approval> and partial tags like <requires
+              const partialApprovalRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires(_approval)?($|>)/;
+              
+              // Try to match the patterns in order of specificity
+              const completeToolCallMatch = streamBuffer.match(completeToolCallRegex);
+              
+              // Only try to match basic tool call if complete match failed
+              let basicToolCallMatch: RegExpMatchArray | null = null;
+              if (!completeToolCallMatch) {
+                basicToolCallMatch = streamBuffer.match(basicToolCallRegex);
+              }
+              
+              // Only try to match partial approval if both previous matches failed
+              let partialApprovalMatch: RegExpMatchArray | null = null;
+              if (!completeToolCallMatch && !basicToolCallMatch) {
+                partialApprovalMatch = streamBuffer.match(partialApprovalRegex);
+              }
               
               // Check if we have a complete tool call with requires_approval
               if (completeToolCallMatch && !toolCallDetected) {
@@ -242,13 +292,13 @@ export class ExecutionEngine {
                 const textBeforeToolCall = streamBuffer.substring(0, matchIndex);
                 
                 // Finalize the current segment
-                if (textBeforeToolCall.trim() && callbacks.onSegmentComplete) {
-                  callbacks.onSegmentComplete(textBeforeToolCall);
+                if (textBeforeToolCall.trim() && adaptedCallbacks.onSegmentComplete) {
+                  adaptedCallbacks.onSegmentComplete(textBeforeToolCall);
                 }
                 
                 // Signal that a tool call is starting
-                if (callbacks.onToolStart) {
-                  callbacks.onToolStart(toolName.trim(), toolInput.trim());
+                if (adaptedCallbacks.onToolStart) {
+                  adaptedCallbacks.onToolStart(toolName.trim(), toolInput.trim());
                 }
                 
                 // Clear the buffer
@@ -279,13 +329,13 @@ export class ExecutionEngine {
                 const textBeforeToolCall = streamBuffer.substring(0, matchIndex);
                 
                 // Finalize the current segment
-                if (textBeforeToolCall.trim() && callbacks.onSegmentComplete) {
-                  callbacks.onSegmentComplete(textBeforeToolCall);
+                if (textBeforeToolCall.trim() && adaptedCallbacks.onSegmentComplete) {
+                  adaptedCallbacks.onSegmentComplete(textBeforeToolCall);
                 }
                 
                 // Signal that a tool call is starting
-                if (callbacks.onToolStart) {
-                  callbacks.onToolStart(toolName.trim(), toolInput.trim());
+                if (adaptedCallbacks.onToolStart) {
+                  adaptedCallbacks.onToolStart(toolName.trim(), toolInput.trim());
                 }
                 
                 // Clear the buffer
@@ -301,8 +351,8 @@ export class ExecutionEngine {
               }
               
               // If no tool call detected yet, continue sending chunks
-              if (!toolCallDetected && callbacks.onLlmChunk) {
-                callbacks.onLlmChunk(textChunk);
+              if (!toolCallDetected && adaptedCallbacks.onLlmChunk) {
+                adaptedCallbacks.onLlmChunk(textChunk);
               }
             }
           }
@@ -314,7 +364,7 @@ export class ExecutionEngine {
           accumulatedText = this.decodeHtmlEntities(accumulatedText);
           console.log("Decoded HTML entities in accumulated text");
           
-          callbacks.onLlmOutput(accumulatedText);
+          adaptedCallbacks.onLlmOutput(accumulatedText);
           
           // Check for cancellation after LLM response
           if (this.errorHandler.isExecutionCancelled()) break;
@@ -338,7 +388,7 @@ export class ExecutionEngine {
             console.log("Tool input:", toolInput);
             
             // Assume the LLM intended to set requires_approval to true
-            callbacks.onToolOutput(`⚠️ Detected interrupted tool call. Assuming approval is required.`);
+            adaptedCallbacks.onToolOutput(`⚠️ Detected interrupted tool call. Assuming approval is required.`);
             
             // Create a complete tool call with requires_approval=true
             const completeToolCall = `<tool>${toolName}</tool>\n<input>${toolInput}</input>\n<requires_approval>true</requires_approval>`;
@@ -369,7 +419,7 @@ export class ExecutionEngine {
           if (incompleteToolMatch !== null && toolMatch === null) {
             // Handle incomplete tool call
             const toolName = incompleteToolMatch[1].trim();
-            callbacks.onToolOutput(`⚠️ Incomplete tool call detected: ${toolName} (missing input)`);
+            adaptedCallbacks.onToolOutput(`⚠️ Incomplete tool call detected: ${toolName} (missing input)`);
             
             // Add a message to prompt the LLM to complete the tool call
             messages.push(
@@ -423,13 +473,13 @@ export class ExecutionEngine {
           if (this.errorHandler.isExecutionCancelled()) break;
 
           // ── 3. Execute tool ──────────────────────────────────────────────────
-          callbacks.onToolOutput(`🕹️ tool: ${toolName} | args: ${toolInput}`);
+          adaptedCallbacks.onToolOutput(`🕹️ tool: ${toolName} | args: ${toolInput}`);
           
           let result: string;
           
           if (requiresApproval) {
             // Notify the user that approval is required
-            callbacks.onToolOutput(`⚠️ This action requires approval: ${reason}`);
+            adaptedCallbacks.onToolOutput(`⚠️ This action requires approval: ${reason}`);
             
             // Get the current tab ID from chrome.tabs API
             const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
@@ -441,7 +491,7 @@ export class ExecutionEngine {
               
               if (approved) {
                 // User approved, execute the tool
-                callbacks.onToolOutput(`✅ Action approved by user. Executing...`);
+                adaptedCallbacks.onToolOutput(`✅ Action approved by user. Executing...`);
                 
                 // Create a context object to pass to the tool
                 const context = {
@@ -454,12 +504,12 @@ export class ExecutionEngine {
               } else {
                 // User rejected, skip execution
                 result = "Action cancelled by user.";
-                callbacks.onToolOutput(`❌ Action rejected by user.`);
+                adaptedCallbacks.onToolOutput(`❌ Action rejected by user.`);
               }
             } catch (approvalError) {
               console.error(`Error in approval process:`, approvalError);
               result = "Error in approval process. Action cancelled.";
-              callbacks.onToolOutput(`❌ Error in approval process: ${approvalError}`);
+              adaptedCallbacks.onToolOutput(`❌ Error in approval process: ${approvalError}`);
             }
           } else {
             // No approval required, execute the tool normally
@@ -467,8 +517,8 @@ export class ExecutionEngine {
           }
           
           // Signal that tool execution is complete
-          if (callbacks.onToolEnd) {
-            callbacks.onToolEnd(result);
+          if (adaptedCallbacks.onToolEnd) {
+            adaptedCallbacks.onToolEnd(result);
           }
 
           // Check for cancellation after tool execution
@@ -531,396 +581,30 @@ export class ExecutionEngine {
       }
 
       if (this.errorHandler.isExecutionCancelled()) {
-        callbacks.onLlmOutput(
+        adaptedCallbacks.onLlmOutput(
           `\n\nExecution cancelled by user.`
         );
       } else if (step >= MAX_STEPS) {
-        callbacks.onLlmOutput(
+        adaptedCallbacks.onLlmOutput(
           `Stopped: exceeded maximum of ${MAX_STEPS} steps.`
         );
       }
-      callbacks.onComplete();
+      adaptedCallbacks.onComplete();
     } catch (err: any) {
       // Check if this is a retryable error (rate limit or overloaded)
       if (this.errorHandler.isRetryableError(err)) {
-        console.log("Retryable error detected in streaming mode:", err);
+        console.log("Retryable error detected:", err);
         // For retryable errors, notify but don't complete processing
         // This allows the fallback mechanism to retry while maintaining UI state
-        if (callbacks.onError) {
-          callbacks.onError(err);
+        if (adaptedCallbacks.onError) {
+          adaptedCallbacks.onError(err);
         } else {
-          callbacks.onLlmOutput(this.errorHandler.formatErrorMessage(err));
+          adaptedCallbacks.onLlmOutput(this.errorHandler.formatErrorMessage(err));
         }
         
         // Notify about fallback before re-throwing
-        if (callbacks.onFallbackStarted) {
-          callbacks.onFallbackStarted();
-        }
-      } else {
-        // For other errors, show error and complete processing
-        callbacks.onLlmOutput(
-          `Fatal error: ${err instanceof Error ? err.message : String(err)}`
-        );
-        callbacks.onComplete();
-      }
-      throw err; // Re-throw to trigger fallback
-    }
-  }
-  
-  /**
-   * Non-streaming version of the prompt execution
-   */
-  async executePrompt(
-    prompt: string,
-    callbacks: ExecutionCallbacks,
-    initialMessages: any[] = []
-  ): Promise<void> {
-    // Reset cancel flag at the start of execution
-    this.errorHandler.resetCancel();
-    try {
-      // Use initial messages if provided, otherwise start with just the prompt
-      let messages: any[] = initialMessages.length > 0 
-        ? [...initialMessages] 
-        : [{ role: "user", content: prompt }];
-      
-      // If we have initial messages and the last one isn't the current prompt,
-      // add the current prompt
-      if (initialMessages.length > 0 && 
-          (messages[messages.length - 1].role !== "user" || 
-           messages[messages.length - 1].content !== prompt)) {
-        messages.push({ role: "user", content: prompt });
-      }
-
-      let done = false;
-      let step = 0;
-
-      while (!done && step++ < MAX_STEPS && !this.errorHandler.isExecutionCancelled()) {
-        try {
-          // Check for cancellation before each major step
-          if (this.errorHandler.isExecutionCancelled()) break;
-
-          // ── 1. Call LLM ───────────────────────────────────────────────────────
-          // Track token usage
-          const tokenTracker = TokenTrackingService.getInstance();
-          
-          // Use provider interface for non-streaming request
-          // We'll collect all chunks and process them at once
-          const responsePromise = (async () => {
-            // Get tools from the ToolManager
-            const tools = this.toolManager.getTools();
-            
-            const stream = this.llmProvider.createMessage(
-              this.promptManager.getSystemPrompt(),
-              messages,
-              tools
-            );
-            
-            let fullText = "";
-            let inputTokenCount = 0;
-            let outputTokenCount = 0;
-            
-            for await (const chunk of stream) {
-              if (chunk.type === "text" && chunk.text) {
-                fullText += chunk.text;
-              } else if (chunk.type === "usage") {
-                if (chunk.inputTokens) {
-                  inputTokenCount = chunk.inputTokens;
-                }
-                if (chunk.outputTokens) {
-                  outputTokenCount = chunk.outputTokens;
-                }
-              }
-            }
-            
-            // Return a structure similar to Anthropic's response
-            return {
-              content: [{ type: "text", text: fullText }],
-              usage: {
-                input_tokens: inputTokenCount,
-                output_tokens: outputTokenCount
-              }
-            };
-          })();
-
-          // Set up a check for cancellation during LLM call
-          const checkCancellation = async () => {
-            while (!this.errorHandler.isExecutionCancelled()) {
-              await new Promise(resolve => setTimeout(resolve, 100)); // Check every 100ms
-            }
-            // If we get here, cancellation was requested
-            return null;
-          };
-
-          // Race between the LLM response and cancellation
-          const response = await Promise.race([
-            responsePromise,
-            checkCancellation().then(() => null)
-          ]);
-
-          // If cancelled during LLM call
-          if (this.errorHandler.isExecutionCancelled() || !response) {
-            break;
-          }
-
-          // Track token usage from response
-          if (response.usage) {
-            const inputTokens = response.usage.input_tokens || 0;
-            const outputTokens = response.usage.output_tokens || 0;
-            
-            // Handle cache tokens if available (need to use any type to access these properties)
-            const usage = response.usage as any;
-            const cacheWriteTokens = usage.cache_creation_input_tokens || 0;
-            const cacheReadTokens = usage.cache_read_input_tokens || 0;
-            
-            // Debug log to help diagnose token tracking issues
-            console.debug(`Non-streaming token update: input=${inputTokens}, output=${outputTokens}, cacheWrite=${cacheWriteTokens}, cacheRead=${cacheReadTokens}`);
-            
-            // Track input tokens with cache tokens if available
-            tokenTracker.trackInputTokens(
-              inputTokens,
-              {
-                write: cacheWriteTokens,
-                read: cacheReadTokens
-              }
-            );
-            tokenTracker.trackOutputTokens(outputTokens);
-          }
-
-          const firstChunk = response.content[0];
-          let assistantText =
-            firstChunk.type === "text"
-              ? firstChunk.text
-              : JSON.stringify(firstChunk);
-          
-          // Decode any escaped HTML entities in the assistant text
-          assistantText = this.decodeHtmlEntities(assistantText);
-          console.log("Decoded HTML entities in assistant text");
-
-          callbacks.onLlmOutput(assistantText);
-
-          // Check for cancellation after LLM response
-          if (this.errorHandler.isExecutionCancelled()) break;
-
-          // ── 2. Parse for tool invocation ─────────────────────────────────────
-          // Try to match a tool call pattern
-          let toolMatch: RegExpMatchArray | null = null;
-          let toolName: string = '';
-          let toolInput: string = '';
-          let llmRequiresApproval: boolean = false;
-          
-          // First try to match a complete tool call with requires_approval
-          const completeToolRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires_approval>(.*?)<\/requires_approval>/;
-          const completeToolMatch = assistantText.match(completeToolRegex);
-          
-          if (completeToolMatch) {
-            toolMatch = completeToolMatch;
-            toolName = completeToolMatch[1].trim();
-            toolInput = completeToolMatch[2].trim();
-            llmRequiresApproval = completeToolMatch[3].trim().toLowerCase() === 'true';
-          } else {
-            // If no complete match, try to match a basic tool call without requires_approval
-            const basicToolRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/;
-            const basicToolMatch = assistantText.match(basicToolRegex);
-            
-            if (basicToolMatch) {
-              toolMatch = basicToolMatch;
-              toolName = basicToolMatch[1].trim();
-              toolInput = basicToolMatch[2].trim();
-              llmRequiresApproval = false;
-            }
-          }
-
-          // Check for incomplete tool calls (tool tag without input tag)
-          if (!toolMatch) {
-            const incompleteToolRegex = /<tool>(.*?)<\/tool>(?!\s*<input>)/;
-            const incompleteToolMatch = assistantText.match(incompleteToolRegex);
-            
-            if (incompleteToolMatch) {
-              // Handle incomplete tool call
-              const incompleteToolName = incompleteToolMatch[1].trim();
-              callbacks.onToolOutput(`⚠️ Incomplete tool call detected: ${incompleteToolName} (missing input)`);
-              
-              // Add a message to prompt the LLM to complete the tool call
-              messages.push(
-                { role: "assistant", content: assistantText },
-                { role: "user", content: `Error: Incomplete tool call. You provided <tool>${incompleteToolName}</tool> but no <input> tag. Please provide the complete tool call with both tags.` }
-              );
-              continue; // Continue to the next iteration
-            }
-            
-            // Check for truly interrupted tool calls (has input tag but interrupted during requires_approval)
-            // This regex specifically looks for tool calls that end with <requires or <requires_approval
-            const interruptedToolRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires(_approval)?$/;
-            const interruptedToolMatch = assistantText.match(interruptedToolRegex);
-            
-            // Add a more specific check to ensure we only match truly interrupted tool calls
-            if (interruptedToolMatch && 
-                !interruptedToolMatch[0].includes("</requires_approval>") &&
-                (interruptedToolMatch[0].endsWith("<requires") || 
-                 interruptedToolMatch[0].endsWith("<requires_approval"))) {
-              // This is an interrupted tool call with a partial requires_approval tag
-              const toolName = interruptedToolMatch[1].trim();
-              const toolInput = interruptedToolMatch[2].trim();
-              
-              console.log("Detected interrupted tool call with partial requires_approval tag:", interruptedToolMatch[0]);
-              
-              // Assume the LLM intended to set requires_approval to true
-              callbacks.onToolOutput(`⚠️ Detected interrupted tool call. Assuming approval is required.`);
-              
-              // Create a complete tool call with requires_approval=true
-              const completeToolCall = `<tool>${toolName}</tool>\n<input>${toolInput}</input>\n<requires_approval>true</requires_approval>`;
-              
-              // Replace the interrupted tool call with the complete one
-              const updatedText = assistantText.replace(interruptedToolMatch[0], completeToolCall);
-              
-              // Process the updated text
-              messages.push(
-                { role: "assistant", content: updatedText }
-              );
-              
-              // Re-run the current iteration with the updated text
-              continue;
-            }
-            
-            // No tool tag ⇒ task complete
-            done = true;
-            break;
-          }
-          const tool = this.toolManager.findTool(toolName);
-
-          if (!tool) {
-            messages.push(
-              { role: "assistant", content: assistantText },
-              {
-                role: "user",
-                content: `Error: tool "${toolName}" not found. Available: ${this.toolManager.getTools()
-                  .map((t) => t.name)
-                  .join(", ")}`,
-              }
-            );
-            continue;
-          }
-
-          // Check for cancellation before tool execution
-          if (this.errorHandler.isExecutionCancelled()) break;
-
-          // ── 3. Execute tool ──────────────────────────────────────────────────
-          callbacks.onToolOutput(`🕹️ tool: ${toolName} | args: ${toolInput}`);
-          
-          let result: string;
-          
-          if (llmRequiresApproval) {
-            const reason = "The AI assistant has determined this action requires your approval.";
-            // Notify the user that approval is required
-            callbacks.onToolOutput(`⚠️ This action requires approval: ${reason}`);
-            
-            // Get the current tab ID from chrome.tabs API
-            const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-            const tabId = tabs[0]?.id || 0;
-            
-            // Request approval from the user
-            const approved = await requestApproval(tabId, toolName, toolInput, reason);
-            
-            if (approved) {
-              // User approved, execute the tool
-              callbacks.onToolOutput(`✅ Action approved by user. Executing...`);
-              
-              // Create a context object to pass to the tool
-              const context = {
-                requiresApproval: true,
-                approvalReason: reason
-              };
-              
-              // Execute the tool with the context
-              result = await tool.func(toolInput, context);
-            } else {
-              // User rejected, skip execution
-              result = "Action cancelled by user.";
-              callbacks.onToolOutput(`❌ Action rejected by user.`);
-            }
-          } else {
-            // No approval required, execute the tool normally
-            result = await tool.func(toolInput);
-          }
-
-          // Check for cancellation after tool execution
-          if (this.errorHandler.isExecutionCancelled()) break;
-
-          // ── 4. Record turn & prune history ───────────────────────────────────
-          messages.push(
-            { role: "assistant", content: assistantText }
-          );
-          
-          // Special handling for screenshot results
-          if (toolName === "browser_screenshot") {
-            try {
-              // Parse the JSON result from the screenshot tool
-              const screenshotData = JSON.parse(result);
-              
-              // Check if it has the expected structure
-              if (screenshotData.type === "image" && 
-                  screenshotData.source && 
-                  screenshotData.source.type === "base64" &&
-                  screenshotData.source.media_type === "image/jpeg" &&
-                  screenshotData.source.data) {
-                
-                // Store the screenshot in the ScreenshotManager
-                const screenshotManager = ScreenshotManager.getInstance();
-                const screenshotId = screenshotManager.storeScreenshot(screenshotData);
-                
-                // Log the screenshot storage
-                console.log(`Stored screenshot as ${screenshotId} (saved ${screenshotData.source.data.length} characters)`);
-                
-                // Add a reference to the screenshot instead of the full data
-                messages.push({
-                  role: "user",
-                  content: `Tool result: Screenshot captured (${screenshotId}). Based on this image, please answer the user's original question: "${prompt}". Don't just describe the image - focus on answering the specific question or completing the task the user asked for.`
-                });
-                
-                // Note: The actual screenshot is still sent to the UI via the onToolEnd callback,
-                // but we're not including it in the message history to save tokens
-              } else {
-                // Fallback if the structure isn't as expected
-                messages.push({ role: "user", content: `Tool result: ${result}` });
-                console.log("Screenshot data didn't have the expected structure, sending as text");
-              }
-            } catch (error) {
-              // Fallback if parsing fails
-              messages.push({ role: "user", content: `Tool result: ${result}` });
-              console.error("Failed to parse screenshot result as JSON:", error);
-            }
-          } else {
-            // Normal handling for other tools
-            messages.push({ role: "user", content: `Tool result: ${result}` });
-          }
-          
-          messages = trimHistory(messages);
-        } catch (error) {
-          // If an error occurs during execution, check if it was due to cancellation
-          if (this.errorHandler.isExecutionCancelled()) break;
-          throw error; // Re-throw if it wasn't a cancellation
-        }
-      }
-
-      if (this.errorHandler.isExecutionCancelled()) {
-        callbacks.onLlmOutput(
-          `\n\nExecution cancelled by user.`
-        );
-      } else if (step >= MAX_STEPS) {
-        callbacks.onLlmOutput(
-          `Stopped: exceeded maximum of ${MAX_STEPS} steps.`
-        );
-      }
-      callbacks.onComplete();
-    } catch (err: any) {
-      // Check if this is a retryable error (rate limit or overloaded)
-      if (this.errorHandler.isRetryableError(err)) {
-        console.log("Retryable error detected in non-streaming mode:", err);
-        // For retryable errors, notify but don't complete processing
-        if (callbacks.onError) {
-          callbacks.onError(err);
-        } else {
-          callbacks.onLlmOutput(this.errorHandler.formatErrorMessage(err));
+        if (adaptedCallbacks.onFallbackStarted) {
+          adaptedCallbacks.onFallbackStarted();
         }
         
         // Get retry attempt from error if available, or default to 0
@@ -929,7 +613,8 @@ export class ExecutionEngine {
         // Maximum number of retry attempts
         const MAX_RETRY_ATTEMPTS = 5;
         
-        if (retryAttempt < MAX_RETRY_ATTEMPTS) {
+        if (retryAttempt < MAX_RETRY_ATTEMPTS && !isStreaming) {
+          // Only retry in non-streaming mode
           // Calculate backoff time using the ErrorHandler
           const backoffTime = this.errorHandler.calculateBackoffTime(err, retryAttempt);
           
@@ -938,26 +623,34 @@ export class ExecutionEngine {
           
           // Notify that we're retrying
           const errorType = this.errorHandler.isOverloadedError(err) ? 'server overload' : 'rate limit';
-          callbacks.onToolOutput(`Retrying after ${errorType} error (attempt ${retryAttempt + 1} of ${MAX_RETRY_ATTEMPTS})...`);
+          adaptedCallbacks.onToolOutput(`Retrying after ${errorType} error (attempt ${retryAttempt + 1} of ${MAX_RETRY_ATTEMPTS})...`);
           
           // Increment retry attempt for the next try
           (err as any).retryAttempt = retryAttempt + 1;
           
           // Recursive retry with the same parameters
-          return this.executePrompt(prompt, callbacks, initialMessages);
-        } else {
+          return this.executePrompt(prompt, callbacks, initialMessages, isStreaming);
+        } else if (retryAttempt >= MAX_RETRY_ATTEMPTS) {
           // We've exceeded the maximum number of retry attempts
-          callbacks.onLlmOutput(
+          adaptedCallbacks.onLlmOutput(
             `Maximum retry attempts (${MAX_RETRY_ATTEMPTS}) exceeded. Please try again later.`
           );
-          callbacks.onComplete();
+          adaptedCallbacks.onComplete();
+        } else {
+          // In streaming mode, re-throw to trigger fallback
+          throw err;
         }
       } else {
         // For other errors, show error and complete processing
-        callbacks.onLlmOutput(
+        adaptedCallbacks.onLlmOutput(
           `Fatal error: ${err instanceof Error ? err.message : String(err)}`
         );
-        callbacks.onComplete();
+        adaptedCallbacks.onComplete();
+        
+        // In streaming mode, re-throw to trigger fallback
+        if (isStreaming) {
+          throw err;
+        }
       }
     }
   }
