@@ -247,35 +247,16 @@ export class ExecutionEngine {
               accumulatedText += textChunk;
               streamBuffer += textChunk;
               
-              // First, check if we have a complete tool call with requires_approval tag
+              // Only look for complete tool calls with all three required tags
               const completeToolCallRegex = /(```(?:xml|bash)\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires_approval>(.*?)<\/requires_approval>(\s*```)?/;
               
-              // Then, check for a basic tool call without requires_approval tag
-              const basicToolCallRegex = /(```(?:xml|bash)\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(\s*```)?/;
-              
-              // Check for a partial requires_approval tag (for streaming chunks that split mid-tag)
-              // This regex matches both complete <requires_approval> and partial tags like <requires
-              const partialApprovalRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires(_approval)?($|>)/;
-              
-              // Try to match the patterns in order of specificity
+              // Try to match the complete tool call pattern
               const completeToolCallMatch = streamBuffer.match(completeToolCallRegex);
               
-              // Only try to match basic tool call if complete match failed
-              let basicToolCallMatch: RegExpMatchArray | null = null;
-              if (!completeToolCallMatch) {
-                basicToolCallMatch = streamBuffer.match(basicToolCallRegex);
-              }
-              
-              // Only try to match partial approval if both previous matches failed
-              let partialApprovalMatch: RegExpMatchArray | null = null;
-              if (!completeToolCallMatch && !basicToolCallMatch) {
-                partialApprovalMatch = streamBuffer.match(partialApprovalRegex);
-              }
-              
-              // Check if we have a complete tool call with requires_approval
+              // Only process complete tool calls with all three required tags
               if (completeToolCallMatch && !toolCallDetected) {
                 toolCallDetected = true;
-                console.log("Complete tool call with approval detected:", completeToolCallMatch);
+                console.log("Complete tool call detected:", completeToolCallMatch);
                 
                 // Extract the tool call with requires_approval value
                 const [fullMatch, codeBlockStart, toolName, toolInput, requiresApprovalRaw] = completeToolCallMatch;
@@ -306,48 +287,6 @@ export class ExecutionEngine {
                 // Don't send any more chunks until tool execution is complete
                 break;
               }
-              // Check if we have a basic tool call without requires_approval
-              else if (basicToolCallMatch && !toolCallDetected && !streamBuffer.includes("<requires_approval")) {
-                // Only match if there's no partial requires_approval tag
-                // This ensures we don't prematurely match a tool call that will eventually have requires_approval
-                
-                toolCallDetected = true;
-                console.log("Basic tool call detected (no approval):", basicToolCallMatch);
-                
-                // Extract the tool call without requires_approval
-                const [fullMatch, codeBlockStart, toolName, toolInput] = basicToolCallMatch;
-                
-                // Find the start of the tool call
-                const matchIndex = codeBlockStart 
-                  ? (streamBuffer.indexOf("```xml") !== -1 
-                     ? streamBuffer.indexOf("```xml") 
-                     : streamBuffer.indexOf("```bash"))
-                  : streamBuffer.indexOf("<tool>");
-                
-                // Get text before the tool call
-                const textBeforeToolCall = streamBuffer.substring(0, matchIndex);
-                
-                // Finalize the current segment
-                if (textBeforeToolCall.trim() && adaptedCallbacks.onSegmentComplete) {
-                  adaptedCallbacks.onSegmentComplete(textBeforeToolCall);
-                }
-                
-                // Signal that a tool call is starting
-                if (adaptedCallbacks.onToolStart) {
-                  adaptedCallbacks.onToolStart(toolName.trim(), toolInput.trim());
-                }
-                
-                // Clear the buffer
-                streamBuffer = "";
-                
-                // Don't send any more chunks until tool execution is complete
-                break;
-              }
-              // If we have a partial requires_approval tag, continue accumulating chunks
-              else if (partialApprovalMatch !== null && !toolCallDetected) {
-                console.log("Partial tool call with incomplete approval tag detected, waiting for more chunks");
-                // Continue accumulating chunks, don't break yet
-              }
               
               // If no tool call detected yet, continue sending chunks
               if (!toolCallDetected && adaptedCallbacks.onLlmChunk) {
@@ -368,62 +307,117 @@ export class ExecutionEngine {
           // Check for cancellation after LLM response
           if (this.errorHandler.isExecutionCancelled()) break;
 
-          // Check for truly interrupted tool calls (has input tag but interrupted during requires_approval)
-          // This regex specifically looks for tool calls that end with <requires or <requires_approval
+          // Check for incomplete or malformed tool calls
+          // This regex looks for tool calls that have <tool> and <input> but are missing <requires_approval>
+          const incompleteApprovalRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?!\s*<requires_approval>)/;
+          const incompleteApprovalMatch = accumulatedText.match(incompleteApprovalRegex);
+          
+          // Check for interrupted tool calls (has input tag but interrupted during requires_approval)
           const interruptedToolRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires(_approval)?$/;
           const interruptedToolMatch = accumulatedText.match(interruptedToolRegex);
           
-          // Add a more specific check to ensure we only match truly interrupted tool calls
-          if (interruptedToolMatch && 
+          // Handle incomplete tool calls with missing requires_approval tag
+          if (incompleteApprovalMatch && !accumulatedText.includes("<requires_approval>")) {
+            const toolName = incompleteApprovalMatch[1].trim();
+            const toolInput = incompleteApprovalMatch[2].trim();
+            
+            console.log("Detected incomplete tool call missing requires_approval tag:", incompleteApprovalMatch[0]);
+            
+            // Add a message to prompt the LLM to use the complete format
+            messages.push(
+              { role: "assistant", content: accumulatedText },
+              { 
+                role: "user", 
+                content: `Error: Incomplete tool call format. You provided <tool>${toolName}</tool> and <input>${toolInput}</input> but no <requires_approval> tag. Please use the complete format with all three required tags:
+                
+<tool>tool_name</tool>
+<input>arguments here</input>
+<requires_approval>true or false</requires_approval>
+
+The <requires_approval> tag is mandatory. Set it to "true" for purchases, data deletion, messages visible to others, sensitive-data forms, or any risky action. If unsure, set it to "true".`
+              }
+            );
+            continue; // Continue to the next iteration
+          }
+          // Handle interrupted tool calls
+          else if (interruptedToolMatch && 
               !interruptedToolMatch[0].includes("</requires_approval>") &&
               (interruptedToolMatch[0].endsWith("<requires") || 
                interruptedToolMatch[0].endsWith("<requires_approval"))) {
-            // This is an interrupted tool call with a partial requires_approval tag
+            
             const toolName = interruptedToolMatch[1].trim();
             const toolInput = interruptedToolMatch[2].trim();
             
             console.log("Detected interrupted tool call with partial requires_approval tag:", interruptedToolMatch[0]);
-            console.log("Tool name:", toolName);
-            console.log("Tool input:", toolInput);
             
-            // Assume the LLM intended to set requires_approval to true
-            adaptedCallbacks.onToolOutput(`⚠️ Detected interrupted tool call. Assuming approval is required.`);
-            
-            // Create a complete tool call with requires_approval=true
-            const completeToolCall = `<tool>${toolName}</tool>\n<input>${toolInput}</input>\n<requires_approval>true</requires_approval>`;
-            
-            // Replace the interrupted tool call with the complete one
-            accumulatedText = accumulatedText.replace(interruptedToolMatch[0], completeToolCall);
+            // Instead of assuming approval, ask the LLM to complete the tool call properly
+            messages.push(
+              { role: "assistant", content: accumulatedText },
+              { 
+                role: "user", 
+                content: `Error: Your tool call was interrupted. Please provide the complete tool call with all three required tags:
+                
+<tool>${toolName}</tool>
+<input>${toolInput}</input>
+<requires_approval>true or false</requires_approval>
+
+The <requires_approval> tag is mandatory. Set it to "true" for purchases, data deletion, messages visible to others, sensitive-data forms, or any risky action. If unsure, set it to "true".`
+              }
+            );
+            continue; // Continue to the next iteration
           }
           
           // ── 2. Parse for tool invocation ─────────────────────────────────────
-          // First try to match a complete tool call with requires_approval
-          const completeToolMatch = accumulatedText.match(
+          // Only look for complete tool calls with all three required tags
+          const toolMatch = accumulatedText.match(
             /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires_approval>(.*?)<\/requires_approval>/
           );
-          
-          // If no complete match, try to match a basic tool call without requires_approval
-          let basicToolMatch: RegExpMatchArray | null = null;
-          if (!completeToolMatch) {
-            basicToolMatch = accumulatedText.match(
-              /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/
-            );
-          }
-          
-          // Use the complete match if available, otherwise use the basic match
-          const toolMatch = completeToolMatch || basicToolMatch;
 
-          // Check for incomplete tool calls (tool tag without input tag)
-          const incompleteToolMatch = accumulatedText.match(/<tool>(.*?)<\/tool>(?!\s*<input>)/);
-          if (incompleteToolMatch !== null && toolMatch === null) {
-            // Handle incomplete tool call
-            const toolName = incompleteToolMatch[1].trim();
-            adaptedCallbacks.onToolOutput(`⚠️ Incomplete tool call detected: ${toolName} (missing input)`);
+          // Check for various types of incomplete tool calls
+          // 1. Tool tag without input tag
+          const missingInputMatch = accumulatedText.match(/<tool>(.*?)<\/tool>(?!\s*<input>)/);
+          // 2. Tool and input tags without requires_approval tag
+          const missingApprovalMatch = accumulatedText.match(/<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>(?!\s*<requires_approval>)/);
+          
+          if (missingInputMatch !== null && toolMatch === null) {
+            // Handle tool call missing input tag
+            const toolName = missingInputMatch[1].trim();
+            adaptedCallbacks.onToolOutput(`⚠️ Incomplete tool call detected: ${toolName} (missing input and requires_approval tags)`);
             
-            // Add a message to prompt the LLM to complete the tool call
+            // Add a message to prompt the LLM to complete the tool call with all required tags
             messages.push(
               { role: "assistant", content: accumulatedText },
-              { role: "user", content: `Error: Incomplete tool call. You provided <tool>${toolName}</tool> but no <input> tag. Please provide the complete tool call with both tags.` }
+              { 
+                role: "user", 
+                content: `Error: Incomplete tool call. You provided <tool>${toolName}</tool> but are missing the <input> and <requires_approval> tags. Please provide the complete tool call with all three required tags:
+                
+<tool>${toolName}</tool>
+<input>arguments here</input>
+<requires_approval>true or false</requires_approval>
+
+The <requires_approval> tag is mandatory. Set it to "true" for purchases, data deletion, messages visible to others, sensitive-data forms, or any risky action. If unsure, set it to "true".`
+              }
+            );
+            continue; // Continue to the next iteration
+          } else if (missingApprovalMatch !== null && toolMatch === null) {
+            // Handle tool call missing requires_approval tag
+            const toolName = missingApprovalMatch[1].trim();
+            const toolInput = missingApprovalMatch[2].trim();
+            adaptedCallbacks.onToolOutput(`⚠️ Incomplete tool call detected: ${toolName} (missing requires_approval tag)`);
+            
+            // Add a message to prompt the LLM to complete the tool call with all required tags
+            messages.push(
+              { role: "assistant", content: accumulatedText },
+              { 
+                role: "user", 
+                content: `Error: Incomplete tool call. You provided <tool>${toolName}</tool> and <input>${toolInput}</input> but are missing the <requires_approval> tag. Please provide the complete tool call with all three required tags:
+                
+<tool>${toolName}</tool>
+<input>${toolInput}</input>
+<requires_approval>true or false</requires_approval>
+
+The <requires_approval> tag is mandatory. Set it to "true" for purchases, data deletion, messages visible to others, sensitive-data forms, or any risky action. If unsure, set it to "true".`
+              }
             );
             continue; // Continue to the next iteration
           }
@@ -434,20 +428,18 @@ export class ExecutionEngine {
             break;
           }
 
-          // Extract tool information based on which match we found
+          // Extract tool information from the complete tool call
           let toolName, toolInput, llmRequiresApproval;
           
-          if (completeToolMatch) {
-            const [, toolNameRaw, toolInputRaw, requiresApprovalRaw] = completeToolMatch;
+          if (toolMatch) {
+            const [, toolNameRaw, toolInputRaw, requiresApprovalRaw] = toolMatch;
             toolName = toolNameRaw.trim();
             toolInput = toolInputRaw.trim();
             llmRequiresApproval = requiresApprovalRaw.trim().toLowerCase() === 'true';
           } else {
-            // For basic tool match without requires_approval tag
-            const [, toolNameRaw, toolInputRaw] = basicToolMatch!;
-            toolName = toolNameRaw.trim();
-            toolInput = toolInputRaw.trim();
-            llmRequiresApproval = false;
+            // No valid tool call found, task is complete
+            done = true;
+            break;
           }
           const tool = this.toolManager.findTool(toolName);
           

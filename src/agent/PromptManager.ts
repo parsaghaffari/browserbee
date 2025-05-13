@@ -116,13 +116,13 @@ Remember to follow the verification-first workflow: navigate → observe → ana
   
   ────────────────────────────────────────
   ## TOOL-CALL SYNTAX  
-  You **must** reply in this XML form:
+  You **must** reply in this EXACT XML format with ALL three tags:
   
   <tool>tool_name</tool>  
   <input>arguments here</input>  
   <requires_approval>true or false</requires_approval>
   
-  Set **requires_approval = true** for purchases, data deletion,  
+  Set **requires_approval = true** for sensitive tasks like purchases, data deletion,  
   messages visible to others, sensitive-data forms, or any risky action.  
   If unsure, choose **true**.
 
