@@ -170,6 +170,10 @@ export const browserScreenshotTab: ToolFactory = (page: Page) =>
         const fullPage = flags.includes("full");
         const quality = 40; // Default quality
         
+        // Import ScreenshotManager
+        const { ScreenshotManager } = await import("../../tracking/screenshotManager");
+        const screenshotManager = ScreenshotManager.getInstance();
+        
         // Take the screenshot
         const buffer = await targetPage.screenshot({ 
           type: "jpeg", 
@@ -180,14 +184,27 @@ export const browserScreenshotTab: ToolFactory = (page: Page) =>
         // Convert to base64
         const base64 = buffer.toString("base64");
         
-        // Return the screenshot as a JSON object
-        return JSON.stringify({
+        // Create the screenshot data object
+        const screenshotData = {
           type: "image",
           source: {
             type: "base64",
             media_type: "image/jpeg",
             data: base64
           }
+        };
+        
+        // Store the screenshot in the ScreenshotManager
+        const screenshotId = screenshotManager.storeScreenshot(screenshotData);
+        
+        // Log the screenshot storage
+        console.log(`Stored tab screenshot as ${screenshotId} (saved ${base64.length} characters)`);
+        
+        // Return a reference to the screenshot instead of the full data
+        return JSON.stringify({
+          type: "screenshotRef",
+          id: screenshotId,
+          note: `Screenshot captured of tab ${tabIndex} (${fullPage ? 'full page' : 'viewport only'})`
         });
       } catch (err) {
         return `Error taking screenshot: ${

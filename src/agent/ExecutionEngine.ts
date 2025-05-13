@@ -535,6 +535,8 @@ export class ExecutionEngine {
             
             // Handle screenshot references
             if (parsedResult.type === "screenshotRef" && parsedResult.id) {
+              // Create a message for the LLM with the screenshot reference
+              // The actual screenshot display is handled by agentController.ts
               messages.push({
                 role: "user",
                 content: `Tool result: Screenshot captured (${parsedResult.id}). ${parsedResult.note || ''} Based on this image, please answer the user's original question: "${prompt}". Don't just describe the image - focus on answering the specific question or completing the task the user asked for.`

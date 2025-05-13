@@ -660,19 +660,30 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         try {
           const data = JSON.parse(result);
           
-          if (data.type === "image" && 
-              data.source && 
-              data.source.type === "base64" &&
-              data.source.media_type === "image/jpeg" &&
-              data.source.data) {
+          // Handle screenshot reference format
+          if (data.type === "screenshotRef" && data.id) {
+            // Get the screenshot manager
+            const screenshotManager = ScreenshotManager.getInstance();
             
-            // Send special screenshot message to UI
-            sendUIMessage('updateScreenshot', {
-              type: 'screenshot',
-              content: "Screenshot captured",
-              imageData: data.source.data,
-              mediaType: data.source.media_type
-            }, targetTabId);
+            // Get the screenshot data from the manager
+            const screenshotData = screenshotManager.getScreenshot(data.id);
+            
+            if (screenshotData && 
+                screenshotData.source && 
+                screenshotData.source.data) {
+              
+              // Send special screenshot message to UI
+              sendUIMessage('updateScreenshot', {
+                type: 'screenshot',
+                content: data.note || "Screenshot captured",
+                imageData: screenshotData.source.data,
+                mediaType: screenshotData.source.media_type || 'image/jpeg'
+              }, targetTabId);
+              
+              logWithTimestamp(`Sent screenshot ${data.id} to UI for tab ${targetTabId}`);
+            } else {
+              logWithTimestamp(`Screenshot data not found for ID ${data.id}`, 'warn');
+            }
           }
         } catch (error) {
           // Not JSON or not a screenshot, ignore
