@@ -360,6 +360,10 @@ export const browserScreenshot: ToolFactory = (page: Page) =>
     func: async (input: string) => {
       try {
         return await withActivePage(page, async (activePage) => {
+          // Import ScreenshotManager
+          const { ScreenshotManager } = await import("../../tracking/screenshotManager");
+          const screenshotManager = ScreenshotManager.getInstance();
+          
           // Constants
           const MAX_CHARS = MAX_SCREENSHOT_CHARS;
           const DEFAULT_WIDTH = 800;
@@ -602,13 +606,27 @@ export const browserScreenshot: ToolFactory = (page: Page) =>
             return `Error: screenshot exceeds ${MAX_CHARS} characters even at minimum quality.`;
           }
           
-          return JSON.stringify({
+          // Create the screenshot data object
+          const screenshotData = {
             type: "image",
             source: {
               type: "base64",
               media_type: "image/jpeg",
               data: base64
             }
+          };
+          
+          // Store the screenshot in the ScreenshotManager
+          const screenshotId = screenshotManager.storeScreenshot(screenshotData);
+          
+          // Log the screenshot storage
+          console.log(`Stored screenshot as ${screenshotId} (saved ${base64.length} characters)`);
+          
+          // Return a reference to the screenshot instead of the full data
+          return JSON.stringify({
+            type: "screenshotRef",
+            id: screenshotId,
+            note: `Screenshot captured (${fullPage ? 'full page' : 'viewport only'})`
           });
         });
       } catch (err) {

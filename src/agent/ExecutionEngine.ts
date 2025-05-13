@@ -4,7 +4,6 @@ import { PromptManager } from "./PromptManager";
 import { MemoryManager } from "./MemoryManager";
 import { ErrorHandler } from "./ErrorHandler";
 import { trimHistory } from "./TokenManager";
-import { ScreenshotManager } from "../tracking/screenshotManager";
 import { TokenTrackingService } from "../tracking/tokenTrackingService";
 import { requestApproval } from "./approvalManager";
 import { LLMProvider, StreamChunk } from "../models/providers/types";
@@ -529,46 +528,26 @@ export class ExecutionEngine {
             { role: "assistant", content: accumulatedText }
           );
           
-          // Special handling for screenshot results
-          if (toolName === "browser_screenshot") {
-            try {
-              // Parse the JSON result from the screenshot tool
-              const screenshotData = JSON.parse(result);
-              
-              // Check if it has the expected structure
-              if (screenshotData.type === "image" && 
-                  screenshotData.source && 
-                  screenshotData.source.type === "base64" &&
-                  screenshotData.source.media_type === "image/jpeg" &&
-                  screenshotData.source.data) {
-                
-                // Store the screenshot in the ScreenshotManager
-                const screenshotManager = ScreenshotManager.getInstance();
-                const screenshotId = screenshotManager.storeScreenshot(screenshotData);
-                
-                // Log the screenshot storage
-                console.log(`Stored screenshot as ${screenshotId} (saved ${screenshotData.source.data.length} characters)`);
-                
-                // Add a reference to the screenshot instead of the full data
-                messages.push({
-                  role: "user",
-                  content: `Tool result: Screenshot captured (${screenshotId}). Based on this image, please answer the user's original question: "${prompt}". Don't just describe the image - focus on answering the specific question or completing the task the user asked for.`
-                });
-                
-                // Note: The actual screenshot is still sent to the UI via the onToolEnd callback,
-                // but we're not including it in the message history to save tokens
-              } else {
-                // Fallback if the structure isn't as expected
-                messages.push({ role: "user", content: `Tool result: ${result}` });
-                console.log("Screenshot data didn't have the expected structure, sending as text");
-              }
-            } catch (error) {
-              // Fallback if parsing fails
-              messages.push({ role: "user", content: `Tool result: ${result}` });
-              console.error("Failed to parse screenshot result as JSON:", error);
+          // Add the tool result to the message history
+          try {
+            // Try to parse the result as JSON to handle special formats
+            const parsedResult = JSON.parse(result);
+            
+            // Handle screenshot references
+            if (parsedResult.type === "screenshotRef" && parsedResult.id) {
+              messages.push({
+                role: "user",
+                content: `Tool result: Screenshot captured (${parsedResult.id}). ${parsedResult.note || ''} Based on this image, please answer the user's original question: "${prompt}". Don't just describe the image - focus on answering the specific question or completing the task the user asked for.`
+              });
+            } else {
+              // For other JSON results, stringify them nicely
+              messages.push({ 
+                role: "user", 
+                content: `Tool result: ${JSON.stringify(parsedResult, null, 2)}` 
+              });
             }
-          } else {
-            // Normal handling for other tools
+          } catch (error) {
+            // If not valid JSON, add as plain text
             messages.push({ role: "user", content: `Tool result: ${result}` });
           }
           
