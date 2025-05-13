@@ -58,6 +58,7 @@ BrowserBee is built using these amazing open source projects:
 - [Cline](https://github.com/cline/cline) enabled us to vibe-code the first version of BrowserBee and inspired us to build a "Cline for the web"
 - [playwright-crx](https://github.com/ruifigueira/playwright-crx) by [@ruifigueira](https://github.com/ruifigueira) for in-browser use of Playwright
 - [playwright-mcp](https://github.com/microsoft/playwright-mcp) for the browser tool implementations
+- [daisyUI](https://daisyui.com/) 🌼 for the ~~pollen and nectar~~ UI components :)
 
 ## 📜 License
 
