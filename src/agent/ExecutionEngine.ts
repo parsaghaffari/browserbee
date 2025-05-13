@@ -151,6 +151,171 @@ export class ExecutionEngine {
   }
   
   /**
+   * Initialize message history with the prompt
+   */
+  private initializeMessages(prompt: string, initialMessages: any[]): any[] {
+    // Use initial messages if provided, otherwise start with just the prompt
+    let messages: any[] = initialMessages.length > 0 
+      ? [...initialMessages] 
+      : [{ role: "user", content: prompt }];
+    
+    // If we have initial messages and the last one isn't the current prompt,
+    // add the current prompt
+    if (initialMessages.length > 0 && 
+        (messages[messages.length - 1].role !== "user" || 
+         messages[messages.length - 1].content !== prompt)) {
+      messages.push({ role: "user", content: prompt });
+    }
+    
+    return messages;
+  }
+  
+  /**
+   * Track token usage from stream chunks
+   */
+  private trackTokenUsage(
+    chunk: StreamChunk,
+    inputTokens: number,
+    outputTokens: number,
+    tokenTracker: TokenTrackingService
+  ): { updatedInputTokens: number, updatedOutputTokens: number } {
+    let updatedInputTokens = inputTokens;
+    let updatedOutputTokens = outputTokens;
+    
+    // Debug log to help diagnose token tracking issues
+    console.debug(`Token update: input=${chunk.inputTokens || 0}, output=${chunk.outputTokens || 0}, cacheWrite=${chunk.cacheWriteTokens || 0}, cacheRead=${chunk.cacheReadTokens || 0}`);
+    
+    // Handle input tokens (only from message_start)
+    if (chunk.inputTokens) {
+      updatedInputTokens = chunk.inputTokens;
+      // Track input tokens with cache tokens if available
+      tokenTracker.trackInputTokens(
+        updatedInputTokens,
+        {
+          write: chunk.cacheWriteTokens,
+          read: chunk.cacheReadTokens
+        }
+      );
+    }
+    
+    // Always track output tokens (from both message_start and message_delta)
+    if (chunk.outputTokens) {
+      const newOutputTokens = chunk.outputTokens;
+      
+      // Only track the delta (new tokens)
+      if (newOutputTokens > updatedOutputTokens) {
+        const delta = newOutputTokens - updatedOutputTokens;
+        tokenTracker.trackOutputTokens(delta);
+        updatedOutputTokens = newOutputTokens;
+      }
+    }
+    
+    return { updatedInputTokens, updatedOutputTokens };
+  }
+  
+  /**
+   * Process the LLM stream and handle streaming chunks
+   */
+  private async processLlmStream(
+    messages: any[],
+    adaptedCallbacks: ExecutionCallbacks
+  ): Promise<{ accumulatedText: string, toolCallDetected: boolean }> {
+    let accumulatedText = "";
+    let streamBuffer = "";
+    let toolCallDetected = false;
+    
+    // Get tools from the ToolManager
+    const tools = this.toolManager.getTools();
+    
+    // Use provider interface instead of direct Anthropic API
+    const stream = this.llmProvider.createMessage(
+      this.promptManager.getSystemPrompt(),
+      messages,
+      tools
+    );
+
+    // Track token usage
+    let inputTokens = 0;
+    let outputTokens = 0;
+    const tokenTracker = TokenTrackingService.getInstance();
+    
+    for await (const chunk of stream) {
+      if (this.errorHandler.isExecutionCancelled()) break;
+      
+      // Track token usage
+      if (chunk.type === 'usage') {
+        const result = this.trackTokenUsage(chunk, inputTokens, outputTokens, tokenTracker);
+        inputTokens = result.updatedInputTokens;
+        outputTokens = result.updatedOutputTokens;
+      }
+      
+      // Handle text chunks
+      if (chunk.type === 'text' && chunk.text) {
+        const textChunk = chunk.text;
+        accumulatedText += textChunk;
+        streamBuffer += textChunk;
+        
+        // Only look for complete tool calls with all three required tags
+        const completeToolCallRegex = /(```(?:xml|bash)\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires_approval>(.*?)<\/requires_approval>(\s*```)?/;
+        
+        // Try to match the complete tool call pattern
+        const completeToolCallMatch = streamBuffer.match(completeToolCallRegex);
+        
+        // Only process complete tool calls with all three required tags
+        if (completeToolCallMatch && !toolCallDetected) {
+          toolCallDetected = true;
+          console.log("Complete tool call detected:", completeToolCallMatch);
+          
+          // Extract the tool call with requires_approval value
+          const [fullMatch, codeBlockStart, toolName, toolInput, requiresApprovalRaw] = completeToolCallMatch;
+          
+          // Find the start of the tool call
+          const matchIndex = codeBlockStart 
+            ? (streamBuffer.indexOf("```xml") !== -1 
+               ? streamBuffer.indexOf("```xml") 
+               : streamBuffer.indexOf("```bash"))
+            : streamBuffer.indexOf("<tool>");
+          
+          // Get text before the tool call
+          const textBeforeToolCall = streamBuffer.substring(0, matchIndex);
+          
+          // Finalize the current segment
+          if (textBeforeToolCall.trim() && adaptedCallbacks.onSegmentComplete) {
+            adaptedCallbacks.onSegmentComplete(textBeforeToolCall);
+          }
+          
+          // Signal that a tool call is starting
+          if (adaptedCallbacks.onToolStart) {
+            adaptedCallbacks.onToolStart(toolName.trim(), toolInput.trim());
+          }
+          
+          // Clear the buffer
+          streamBuffer = "";
+          
+          // Don't send any more chunks until tool execution is complete
+          break;
+        }
+        
+        // If no tool call detected yet, continue sending chunks
+        if (!toolCallDetected && adaptedCallbacks.onLlmChunk) {
+          adaptedCallbacks.onLlmChunk(textChunk);
+        }
+      }
+    }
+    
+    // After streaming completes, process the full response
+    console.log("Streaming completed. Accumulated text length:", accumulatedText.length);
+    
+    // Decode any escaped HTML entities in the accumulated text
+    accumulatedText = this.decodeHtmlEntities(accumulatedText);
+    console.log("Decoded HTML entities in accumulated text");
+    
+    adaptedCallbacks.onLlmOutput(accumulatedText);
+    
+    return { accumulatedText, toolCallDetected };
+  }
+  
+  /**
    * Execute prompt with support for both streaming and non-streaming modes
    */
   async executePrompt(
@@ -166,18 +331,8 @@ export class ExecutionEngine {
     // Reset cancel flag at the start of execution
     this.errorHandler.resetCancel();
     try {
-      // Use initial messages if provided, otherwise start with just the prompt
-      let messages: any[] = initialMessages.length > 0 
-        ? [...initialMessages] 
-        : [{ role: "user", content: prompt }];
-      
-      // If we have initial messages and the last one isn't the current prompt,
-      // add the current prompt
-      if (initialMessages.length > 0 && 
-          (messages[messages.length - 1].role !== "user" || 
-           messages[messages.length - 1].content !== prompt)) {
-        messages.push({ role: "user", content: prompt });
-      }
+      // Initialize messages with the prompt
+      let messages = this.initializeMessages(prompt, initialMessages);
 
       let done = false;
       let step = 0;
@@ -188,121 +343,7 @@ export class ExecutionEngine {
           if (this.errorHandler.isExecutionCancelled()) break;
 
           // ── 1. Call LLM with streaming ───────────────────────────────────────
-          let accumulatedText = "";
-          let streamBuffer = "";
-          let toolCallDetected = false;
-          
-          // Get tools from the ToolManager
-          const tools = this.toolManager.getTools();
-          
-          // Use provider interface instead of direct Anthropic API
-          const stream = this.llmProvider.createMessage(
-            this.promptManager.getSystemPrompt(),
-            messages,
-            tools
-          );
-
-          // Track token usage
-          let inputTokens = 0;
-          let outputTokens = 0;
-          const tokenTracker = TokenTrackingService.getInstance();
-          
-          for await (const chunk of stream) {
-            if (this.errorHandler.isExecutionCancelled()) break;
-            
-            // Track token usage
-            if (chunk.type === 'usage') {
-              // Debug log to help diagnose token tracking issues
-              console.debug(`Token update: input=${chunk.inputTokens || 0}, output=${chunk.outputTokens || 0}, cacheWrite=${chunk.cacheWriteTokens || 0}, cacheRead=${chunk.cacheReadTokens || 0}`);
-              
-              // Handle input tokens (only from message_start)
-              if (chunk.inputTokens) {
-                inputTokens = chunk.inputTokens;
-                // Track input tokens with cache tokens if available
-                tokenTracker.trackInputTokens(
-                  inputTokens,
-                  {
-                    write: chunk.cacheWriteTokens,
-                    read: chunk.cacheReadTokens
-                  }
-                );
-              }
-              
-              // Always track output tokens (from both message_start and message_delta)
-              if (chunk.outputTokens) {
-                const newOutputTokens = chunk.outputTokens;
-                
-                // Only track the delta (new tokens)
-                if (newOutputTokens > outputTokens) {
-                  const delta = newOutputTokens - outputTokens;
-                  tokenTracker.trackOutputTokens(delta);
-                  outputTokens = newOutputTokens;
-                }
-              }
-            }
-            
-            // Handle text chunks
-            if (chunk.type === 'text' && chunk.text) {
-              const textChunk = chunk.text;
-              accumulatedText += textChunk;
-              streamBuffer += textChunk;
-              
-              // Only look for complete tool calls with all three required tags
-              const completeToolCallRegex = /(```(?:xml|bash)\s*)?<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires_approval>(.*?)<\/requires_approval>(\s*```)?/;
-              
-              // Try to match the complete tool call pattern
-              const completeToolCallMatch = streamBuffer.match(completeToolCallRegex);
-              
-              // Only process complete tool calls with all three required tags
-              if (completeToolCallMatch && !toolCallDetected) {
-                toolCallDetected = true;
-                console.log("Complete tool call detected:", completeToolCallMatch);
-                
-                // Extract the tool call with requires_approval value
-                const [fullMatch, codeBlockStart, toolName, toolInput, requiresApprovalRaw] = completeToolCallMatch;
-                
-                // Find the start of the tool call
-                const matchIndex = codeBlockStart 
-                  ? (streamBuffer.indexOf("```xml") !== -1 
-                     ? streamBuffer.indexOf("```xml") 
-                     : streamBuffer.indexOf("```bash"))
-                  : streamBuffer.indexOf("<tool>");
-                
-                // Get text before the tool call
-                const textBeforeToolCall = streamBuffer.substring(0, matchIndex);
-                
-                // Finalize the current segment
-                if (textBeforeToolCall.trim() && adaptedCallbacks.onSegmentComplete) {
-                  adaptedCallbacks.onSegmentComplete(textBeforeToolCall);
-                }
-                
-                // Signal that a tool call is starting
-                if (adaptedCallbacks.onToolStart) {
-                  adaptedCallbacks.onToolStart(toolName.trim(), toolInput.trim());
-                }
-                
-                // Clear the buffer
-                streamBuffer = "";
-                
-                // Don't send any more chunks until tool execution is complete
-                break;
-              }
-              
-              // If no tool call detected yet, continue sending chunks
-              if (!toolCallDetected && adaptedCallbacks.onLlmChunk) {
-                adaptedCallbacks.onLlmChunk(textChunk);
-              }
-            }
-          }
-          
-          // After streaming completes, process the full response
-          console.log("Streaming completed. Accumulated text length:", accumulatedText.length);
-          
-          // Decode any escaped HTML entities in the accumulated text
-          accumulatedText = this.decodeHtmlEntities(accumulatedText);
-          console.log("Decoded HTML entities in accumulated text");
-          
-          adaptedCallbacks.onLlmOutput(accumulatedText);
+          const { accumulatedText } = await this.processLlmStream(messages, adaptedCallbacks);
           
           // Check for cancellation after LLM response
           if (this.errorHandler.isExecutionCancelled()) break;
