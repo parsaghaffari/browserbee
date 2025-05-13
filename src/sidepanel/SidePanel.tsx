@@ -183,6 +183,26 @@ export function SidePanel() {
     }
   };
 
+  // Handle cancellation - also reject any pending approval requests
+  const handleCancel = () => {
+    // If there are any pending approval requests, reject them all
+    if (approvalRequests.length > 0) {
+      // Add a system message to indicate that approvals were rejected due to cancellation
+      addSystemMessage(`❌ Cancelled execution - all pending approval requests were automatically rejected`);
+      
+      // Reject each pending approval request
+      approvalRequests.forEach(req => {
+        rejectRequest(req.requestId);
+      });
+      
+      // Clear the approval requests
+      setApprovalRequests([]);
+    }
+    
+    // Cancel the execution
+    cancelExecution();
+  };
+
   // Handle clearing history
   const handleClearHistory = () => {
     clearMessages();
@@ -266,7 +286,7 @@ export function SidePanel() {
           
           <PromptForm 
             onSubmit={handleSubmit}
-            onCancel={cancelExecution}
+            onCancel={handleCancel}
             isProcessing={isProcessing}
             tabStatus={tabStatus}
           />
