@@ -13,7 +13,6 @@
 - [x] put on github
 
 [0.2.0]
-- [ ] write tests 
 - [x] add "requires approval" flag to irreversible tools, and seek explicit approval from user
 - [x] better handling of multiple Chrome windows
 -- [x] fix "frame detatched" error when a user reloads the extension without properly closing it/debug session first
@@ -24,17 +23,18 @@
 - [x] hygiene and marketing (readme, license, acknowledgements)
 - [x] marketing videos
 - [x] llm adaptors (config in options, show active LLM)
--- [x] automatically refresh model list upon change in configuration
+    - [x] automatically refresh model list upon change in configuration
 - [ ] write user docs
 - [ ] upload to Chrome web store
 - [x] add integration with Ollama
--- [ ] better handling for <think> tokens when using thinking models
--- [ ] improve configuration to accept model, max tokens, etc as parameters
+    - [ ] better handling for <think> tokens when using thinking models
+    - [ ] improve configuration to accept model, max tokens, etc as parameters
 - [x] task memory using indexedDB (<website, task, steps>) 
--- [x] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
--- [x] add memory import/export functions
--- [ ] include pre-built memories for major websites
--- [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
+    - [x] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
+    - [x] add memory import/export functions
+    - [ ] include pre-built memories for major websites
+    - [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
+- [ ] write tests 
 
 [0.3.0]
 - [ ] add saved prompts with persistence in local DB
