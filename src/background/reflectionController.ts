@@ -110,7 +110,11 @@ export async function triggerReflection(tabId?: number): Promise<void> {
       
       NOTE: The domain will be normalized (e.g., "www.example.com" becomes "example.com") to ensure consistent memory retrieval regardless of whether the user includes "www." or not.
       
-      IMPORTANT: Your response must be valid JSON or a code block containing valid JSON.
+      IMPORTANT: Your response must be valid JSON or a code block containing valid JSON. Ensure your JSON:
+      - Uses double quotes for keys and string values
+      - Has proper commas between elements (no trailing commas)
+      - Properly escapes special characters in strings
+      - Has balanced braces and brackets
     `;
     
     // Execute the reflection prompt with callbacks, marking it as a reflection prompt
@@ -125,8 +129,9 @@ export async function triggerReflection(tabId?: number): Promise<void> {
  * @param output The LLM output to process
  * @param domain The domain to associate with the memories
  * @param tabId The tab ID for sending UI messages
+ * @param isCorrection Whether this is a correction attempt
  */
-async function processReflectionOutput(output: string, domain: string, tabId: number): Promise<void> {
+async function processReflectionOutput(output: string, domain: string, tabId: number, isCorrection: boolean = false): Promise<void> {
   try {
     // Check if IndexedDB is available
     if (typeof indexedDB === 'undefined') {
@@ -164,7 +169,23 @@ async function processReflectionOutput(output: string, domain: string, tabId: nu
         if (jsonObjects.length > 0) {
           memories = jsonObjects;
         } else {
-          throw parseError;
+          // If this is already a correction attempt, don't try again to avoid infinite loops
+          if (isCorrection) {
+            throw parseError;
+          }
+          
+          // Otherwise, attempt correction
+          logWithTimestamp(`JSON parsing error, attempting correction: ${parseError instanceof Error ? parseError.message : String(parseError)}`, 'warn');
+          
+          // Notify the UI that we're attempting correction
+          sendUIMessage('updateOutput', {
+            type: 'system',
+            content: `⚠️ Memory format error detected. Asking agent to correct it...`
+          }, tabId);
+          
+          // Attempt correction
+          await correctReflectionJSON(cleanJsonStr, parseError as Error, domain, tabId);
+          return;
         }
       }
       
@@ -218,6 +239,100 @@ async function processReflectionOutput(output: string, domain: string, tabId: nu
     sendUIMessage('updateOutput', {
       type: 'system',
       content: `❌ Error processing reflection: ${error instanceof Error ? error.message : String(error)}`
+    }, tabId);
+  }
+}
+
+/**
+ * Function to handle JSON correction by prompting the agent to fix the malformed JSON
+ * @param malformedJson The malformed JSON string that needs correction
+ * @param error The error that occurred during parsing
+ * @param domain The domain to associate with the memories
+ * @param tabId The tab ID for sending UI messages
+ */
+async function correctReflectionJSON(malformedJson: string, error: Error, domain: string, tabId: number): Promise<void> {
+  try {
+    // Extract the relevant part of the error message
+    const errorMessage = error.message;
+    
+    // Create a correction prompt
+    const correctionPrompt = `
+      I attempted to save a memory, but there was a JSON parsing error:
+      
+      ERROR: ${errorMessage}
+      
+      Here is the malformed JSON that needs to be fixed:
+      \`\`\`
+      ${malformedJson}
+      \`\`\`
+      
+      Please correct the JSON and provide a valid version that follows this structure:
+      {
+        "domain": "${domain}",
+        "taskDescription": "brief description of the task",
+        "toolSequence": ["tool1 | input1", "tool2 | input2", ...]
+      }
+    `;
+    
+    // Notify the UI about the correction attempt
+    sendUIMessage('updateOutput', {
+      type: 'system',
+      content: `🔄 Attempting to correct JSON format error: ${errorMessage}`
+    }, tabId);
+    
+    // Create a custom callback for handling the corrected JSON
+    const correctionCallbacks: ExecutionCallbacks = {
+      onLlmOutput: async (output: string) => {
+        // Try to process the corrected output
+        try {
+          await processReflectionOutput(output, domain, tabId, true);
+        } catch (correctionError) {
+          // If correction still fails, give up
+          logWithTimestamp(`Correction attempt failed: ${correctionError instanceof Error ? correctionError.message : String(correctionError)}`, 'error');
+          
+          sendUIMessage('updateOutput', {
+            type: 'system',
+            content: `❌ Error processing reflection: Even after correction attempt, JSON is still invalid. ${correctionError instanceof Error ? correctionError.message : String(correctionError)}`
+          }, tabId);
+        }
+      },
+      onToolOutput: (content) => {
+        // Pass through tool outputs
+        sendUIMessage('updateOutput', {
+          type: 'system',
+          content: content
+        }, tabId);
+      },
+      onComplete: () => {
+        // Nothing special needed on completion
+      }
+    };
+    
+    // Get the window ID for this tab
+    const windowId = getWindowForTab(tabId);
+    if (!windowId) {
+      throw new Error(`No window ID found for tab ${tabId}`);
+    }
+    
+    // Get the agent for this window
+    const agent = getAgentForWindow(windowId);
+    if (!agent) {
+      throw new Error(`No agent found for window ${windowId}`);
+    }
+    
+    // Execute the correction prompt
+    // We're using a direct call to the agent's executePrompt method
+    // This is a special case for correction, not a regular user prompt
+    const { executePromptWithFallback } = await import('../agent/AgentCore');
+    await executePromptWithFallback(agent, correctionPrompt, correctionCallbacks, []);
+    
+  } catch (correctionError) {
+    logWithTimestamp(`Error during JSON correction: ${correctionError instanceof Error ? correctionError.message : String(correctionError)}`, 'error');
+    
+    // Notify the UI about the failed correction attempt
+    sendUIMessage('updateOutput', {
+      type: 'system',
+      content: `❌ Failed to correct memory JSON: ${correctionError instanceof Error ? correctionError.message : String(correctionError)}`
     }, tabId);
   }
 }

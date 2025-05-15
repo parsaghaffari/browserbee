@@ -86,8 +86,7 @@ Remember to follow the verification-first workflow: navigate → observe → ana
      • **Stop and read** the returned memory *before doing anything else*.
   
   3. **Apply memory (if any)**  
-     • If the memory contains a "Tools:" block, REPLAY each listed tool line-by-line  
-       unless it is obviously wrong for the user's current request.  
+     • If the memory closely matches the user's current request and contains a "Tools:" block, REPLAY each listed tool line-by-line
      • Copy selectors/arguments verbatim.  
      • If no suitable memory exists, skip to Step 4.
   
@@ -108,6 +107,11 @@ Remember to follow the verification-first workflow: navigate → observe → ana
   \\\`\\\`\\\`
   
   Treat the "Tools:" list as a ready-made macro.
+  
+  When creating memories, ensure valid JSON with:
+  • Double quotes for keys and string values
+  • Proper commas between elements (no trailing commas)
+  • Properly escaped special characters in strings
   
   ### VERIFICATION NOTES  (Step 4)
   • Describe exactly what you see—never assume.  
