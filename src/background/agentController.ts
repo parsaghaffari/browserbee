@@ -712,6 +712,11 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         sendUIMessage('fallbackStarted', {
           message: "Switching to fallback mode due to error. Processing continues..."
         }, targetTabId);
+        
+        // Explicitly tell the UI to stay in processing mode
+        sendUIMessage('rateLimit', {
+          isRetrying: true
+        }, targetTabId);
       },
       onSegmentComplete: (segment) => {
         if (useStreaming) {

@@ -125,9 +125,13 @@ export function SidePanel() {
     },
     onRateLimit: () => {
       addSystemMessage("⚠️ Rate limit reached. Retrying automatically...");
+      // Ensure the UI stays in processing mode
+      setIsProcessing(true);
     },
     onFallbackStarted: (message) => {
       addSystemMessage(message);
+      // Ensure the UI stays in processing mode
+      setIsProcessing(true);
     },
     onUpdateScreenshot: (content) => {
       addMessage({ ...content, isComplete: true });

@@ -655,15 +655,17 @@ The <requires_approval> tag is mandatory. Set it to "true" for purchases, data d
           throw err;
         }
       } else {
-        // For other errors, show error and complete processing
+        // For other errors, show error message
         adaptedCallbacks.onLlmOutput(
           `Fatal error: ${err instanceof Error ? err.message : String(err)}`
         );
-        adaptedCallbacks.onComplete();
         
-        // In streaming mode, re-throw to trigger fallback
+        // In streaming mode, re-throw to trigger fallback WITHOUT completing
         if (isStreaming) {
           throw err;
+        } else {
+          // Only complete processing if we're not going to fallback
+          adaptedCallbacks.onComplete();
         }
       }
     }
