@@ -52,12 +52,42 @@ export const browserNavigate: ToolFactory = (page: Page) =>
 export const browserWaitForNavigation: ToolFactory = (page: Page) =>
   new DynamicTool({
     name: "browser_wait_for_navigation",
-    description: "Wait until network is idle (Playwright).",
-    func: async () => {
+    description: 
+      "Wait for navigation to complete using specified strategy. Input options (default: all):\n" +
+      "  • load - wait for the 'load' event (DOM and resources loaded)\n" +
+      "  • domcontentloaded - wait for the 'DOMContentLoaded' event (DOM loaded, faster than 'load')\n" +
+      "  • networkidle - wait until network is idle for 500ms (may timeout on sites with continuous activity)\n" +
+      "  • all - try multiple strategies in sequence with shorter timeouts (recommended)",
+    func: async (strategy: string = "all") => {
       try {
         return await withActivePage(page, async (activePage) => {
-          await activePage.waitForLoadState("networkidle");
-          return "Navigation complete.";
+          switch (strategy.toLowerCase()) {
+            case "load":
+              await activePage.waitForLoadState("load", { timeout: 10000 });
+              return "Navigation complete (DOM loaded).";
+            case "domcontentloaded":
+              await activePage.waitForLoadState("domcontentloaded", { timeout: 10000 });
+              return "Navigation complete (DOM content loaded).";
+            case "networkidle":
+              await activePage.waitForLoadState("networkidle", { timeout: 10000 });
+              return "Navigation complete (network idle).";
+            case "all":
+            default:
+              // Try multiple strategies in sequence with shorter timeouts
+              try {
+                await activePage.waitForLoadState("load", { timeout: 5000 });
+                try {
+                  await activePage.waitForLoadState("networkidle", { timeout: 5000 });
+                } catch (networkError) {
+                  // Ignore network idle errors
+                }
+                return "Navigation complete.";
+              } catch (loadError) {
+                // If load fails, try domcontentloaded
+                await activePage.waitForLoadState("domcontentloaded", { timeout: 5000 });
+                return "Navigation partially complete (DOM content loaded).";
+              }
+          }
         });
       } catch (error) {
         return `Error waiting for navigation: ${
