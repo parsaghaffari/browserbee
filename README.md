@@ -3,15 +3,15 @@
  
 https://github.com/user-attachments/assets/0c9e870a-64b9-4c3a-b805-cfede39bb00a
 
-BrowserBee is a privacy-first open source Chrome extension that lets you control your browser using natural language. It combines the power of an LLM for instruction parsing and Playwright for robust browser automation.
+BrowserBee is a privacy-first open source Chrome extension that lets you control your browser using natural language. It combines the power of an LLM for instruction parsing & planning, and Playwright for robust browser automation.
 
 Since BrowserBee runs entirely within your browser (with the exception of the LLM), it can interact with logged-in websites, like your social media accounts or email, without compromising security or requiring backend infrastructure. This makes it more convenient for personal use than other "browser use" type products out there.
 
 ## 🎲 Features 
 
-- Supports major LLM providers such as **Anthropic**, **OpenAI**, and **Gemini**, with more coming soon
+- Supports major LLM providers such as **Anthropic**, **OpenAI**, **Gemini**, and **Ollama** with more coming soon
 - Tracks **token use** and **price** so you know how much you're spending on each task
-- Has access to a wide range of **🕹️ browser tools** for interacting and understanding browser state
+- Has access to a wide range of **🕹️ browser tools** (listed below) for interacting and understanding browser state
 - Uses **Playwright** in the background which is a robust browser automation tool
 - The **memory** feature captures useful tool use sequences and stores them locally to make future use more efficient
 - The agent knows when to ask for user's **approval**, e.g. for purchases or posting updates on social media
@@ -147,6 +147,7 @@ Since BrowserBee runs entirely within your browser (with the exception of the LL
 - **Personal assistant**: Helps with everyday tasks like reading and sending emails and messages, booking flights, finding products, and more.
 - **Research assistant**: Assists with deep dives into topics like companies, job listings, market trends, and academic publications by gathering and organizing information.
 - **Knowledge bookmarking & summarization**: Quickly summarizes articles, extracts key information, and saves useful insights for later reference.
+- **Chat with any website**: Ask questions, generate summaries, fill out forms, etc.
 
 ## 🛫 Roadmap
 
@@ -179,10 +180,18 @@ If you're interested in contributing to build any of these features or to improv
 
 BrowserBee is built using these amazing open source projects:
 
-- [Cline](https://github.com/cline/cline) enabled us to vibe-code the first version of BrowserBee and inspired us to build a "Cline for the web"
+- [Cline](https://github.com/cline/cline) enabled us to vibe-code the first version of BrowserBee and inspired me to build a "Cline for the web"
 - [playwright-crx](https://github.com/ruifigueira/playwright-crx) by [@ruifigueira](https://github.com/ruifigueira) for in-browser use of Playwright
 - [playwright-mcp](https://github.com/microsoft/playwright-mcp) for the browser tool implementations
 - [daisyUI](https://daisyui.com/) 🌼 for the ~~pollen and nectar~~ UI components :)
+
+## Learnings & what's worth stealing
+
+1. **Running Playwright in the browser.** Playwright provides a robust and standard interface to LLMs for interacting with modern websites and web apps. Most "browser use" approaches I've come across like [Browser Use](https://github.com/browser-use) and [Playwright MCP](https://github.com/microsoft/playwright-mcp) are primarily designed for controlling a browser remotely in a backend service-browser fashion which is powerful for enterprise automations, whereas [@ruifigueira](https://github.com/ruifigueira) has shown we can neatly wrap Playwright with a browser extension and reduce complexity for end-user use cases.
+2. **"Reflect and learn" memory pattern.** Certain setups are rich in feedback for AI agents. This is one of them, where the agent not only has a broad range of tools available to interact with the environment, but also has powerful observation abilities to understand the impact of its actions on the environment. For example, if the agent is tasked with completing a product purchase, where there is a good chance it's able to brute force its way to the end goal by using different tools (such as mouse and keyboard interactions), it can usually tell whether it has succeeded in the task or not by regularly taking screenshots. There is a valuable learning signal here for the agent and by invoking the agent to encode and memorise these learnings we can enhance future performance and increase efficiency on similar tasks, especially for smaller less capable models. In my limited testing, we can sometimes reduce the number of tokens needed (and therefore cost) for a task by 5x or more if we memorize the optimal tool sequence.
+3. **Interacting with web pages remains a hard task for LLM-powered agents.** DOMs and screenshots are complex, low-information-density modalities that are slow, expensive, and challenging to process for LLMs. Compare a web page to a piece code for instance: each token in a piece of code carries a lot more information on average than a token in an HTML page or pixels in a screenshot. Therefore we need a combination of cleverly simplified representations as well as cheaper/faster models for this type of product to become fully feasible.
+4. **Why use an LLM at all?**. The core value that an LLM agent can provide in this context is in _discovering_ a path or a sequence of actions to accomplish a task which can then be encoded as a set of tool calls, or in fact plain JavaScript (see [Playwright Codegen](https://playwright.dev/docs/codegen)); once a sequence is already known, it's trivial to follow - no LLM needed.
+5. **Privacy-first personal AI tools are the way to go.** There is no doubt that most of us will have some form of an always-on AI servant in the future, and I think the only way we can get there safely is through open source software that interacts transparently with our data and with LLMs. There is a lot of scope for building this type of software, and business models to support it (e.g. offering a hosted version), so I really hope to see and use more robust open source AI assistants.
 
 ## 📜 License
 
