@@ -24,8 +24,6 @@
 - [x] marketing videos
 - [x] llm adaptors (config in options, show active LLM)
     - [x] automatically refresh model list upon change in configuration
-- [ ] write user docs
-- [ ] upload to Chrome web store
 - [x] add integration with Ollama
     - [ ] better handling for <think> tokens when using thinking models
     - [ ] improve configuration to accept model, max tokens, etc as parameters
@@ -34,7 +32,20 @@
     - [x] add memory import/export functions
     - [ ] include pre-built memories for major websites
     - [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
+- [ ] write user docs
+- [ ] upload to Chrome web store
 - [ ] write tests 
+
+[0.2.1]
+
+- [ ] add memory management UI
+    - [ ] view all available memories
+    - [ ] delete ones not needed  
+    - [ ] sync useful memories with server
+- [ ] tab management enhancements
+    - [ ] seamlessly follow user's active tab
+- [ ] enhanced isolation across windows
+    - [ ] token tracker not isolated by window?
 
 [0.3.0]
 - [ ] add saved prompts with persistence in local DB
