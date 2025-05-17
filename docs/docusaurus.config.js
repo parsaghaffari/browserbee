@@ -60,6 +60,12 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
             label: 'User Guide',
           },
           {
+            type: 'doc',
+            docId: 'privacy-policy',
+            position: 'left',
+            label: 'Privacy Policy',
+          },
+          {
             href: 'https://github.com/parsaghaffari/browserbee',
             label: 'GitHub',
             position: 'right',
@@ -84,6 +90,10 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
                 label: 'Architecture',
                 to: '/docs/architecture',
               },
+              {
+                label: 'Privacy Policy',
+                to: '/docs/privacy-policy',
+              },
             ],
           },
           {
@@ -105,6 +115,10 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
               {
                 label: 'GitHub',
                 href: 'https://github.com/parsaghaffari/browserbee',
+              },
+              {
+                label: 'Privacy Policy',
+                to: '/docs/privacy-policy',
               },
             ],
           },
