@@ -30,7 +30,7 @@
 - [x] task memory using indexedDB (<website, task, steps>) 
     - [x] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
     - [x] add memory import/export functions
-    - [ ] include pre-built memories for major websites
+    - [x] include pre-built memories for major websites
     - [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
 - [ ] write user docs
 - [ ] upload to Chrome web store
