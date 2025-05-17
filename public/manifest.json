@@ -32,7 +32,7 @@
         "mac": "Alt+Shift+B"
       },
       "description": "Open the BrowserBee side panel",
-      "global": true
+      "global": false
     }
   }
 }
