@@ -5,7 +5,7 @@ import { faSync } from '@fortawesome/free-solid-svg-icons';
 interface TabStatusBarProps {
   tabId: number | null;
   tabTitle: string;
-  tabStatus: 'attached' | 'detached' | 'unknown';
+  tabStatus: 'attached' | 'detached' | 'unknown' | 'running' | 'idle' | 'error';
 }
 
 export const TabStatusBar: React.FC<TabStatusBarProps> = ({
@@ -98,10 +98,16 @@ export const TabStatusBar: React.FC<TabStatusBarProps> = ({
       <div className="flex items-center flex-grow overflow-hidden">
         <div className={`w-2 h-2 rounded-full mr-2 flex-shrink-0 ${
           tabStatus === 'attached' ? 'bg-green-500 animate-pulse' : 
-          tabStatus === 'detached' ? 'bg-red-500' : 'bg-yellow-500'
+          tabStatus === 'detached' ? 'bg-red-500' : 
+          tabStatus === 'running' ? 'bg-blue-500 animate-pulse' :
+          tabStatus === 'idle' ? 'bg-green-500' :
+          tabStatus === 'error' ? 'bg-red-500 animate-pulse' : 'bg-yellow-500'
         }`} title={
           tabStatus === 'attached' ? 'Connected' : 
-          tabStatus === 'detached' ? 'Disconnected' : 'Unknown'
+          tabStatus === 'detached' ? 'Disconnected' : 
+          tabStatus === 'running' ? 'Agent Running' :
+          tabStatus === 'idle' ? 'Agent Idle' :
+          tabStatus === 'error' ? 'Agent Error' : 'Unknown'
         }></div>
         <span 
           className="cursor-pointer hover:underline hover:text-primary truncate"

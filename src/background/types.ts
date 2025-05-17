@@ -4,6 +4,20 @@ import { BrowserAgent } from "../agent/AgentCore";
 // Provider types
 export type ProviderType = 'anthropic' | 'openai' | 'gemini' | 'ollama';
 
+// Agent status types
+export enum AgentStatus {
+  IDLE = 'idle',
+  RUNNING = 'running',
+  ERROR = 'error'
+}
+
+// Agent status info
+export interface AgentStatusInfo {
+  status: AgentStatus;
+  timestamp: number;
+  lastHeartbeat: number;
+}
+
 // Message types
 export interface ExecutePromptMessage {
   action: 'executePrompt';
@@ -173,6 +187,21 @@ export interface RequestApprovalMessage {
   windowId?: number;
 }
 
+export interface CheckAgentStatusMessage {
+  action: 'checkAgentStatus';
+  tabId?: number;
+  windowId?: number;
+}
+
+export interface AgentStatusUpdateMessage {
+  action: 'agentStatusUpdate';
+  status: AgentStatus;
+  timestamp: number;
+  lastHeartbeat: number;
+  tabId?: number;
+  windowId?: number;
+}
+
 export type BackgroundMessage = 
   | ExecutePromptMessage
   | CancelExecutionMessage
@@ -186,7 +215,8 @@ export type BackgroundMessage =
   | UpdateOutputMessage
   | ProviderConfigChangedMessage
   | ForceResetPlaywrightMessage
-  | RequestApprovalMessage;
+  | RequestApprovalMessage
+  | CheckAgentStatusMessage;
 
 // New message types for enhanced tab management
 export interface TabStatusChangedMessage {
@@ -274,7 +304,8 @@ export type UIMessage =
   | TabTitleChangedMessage
   | PageDialogMessage
   | PageConsoleMessage
-  | PageErrorMessage;
+  | PageErrorMessage
+  | AgentStatusUpdateMessage;
 
 // State types
 export interface TabState {

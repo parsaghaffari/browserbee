@@ -16,7 +16,7 @@ interface UseChromeMessagingProps {
   onProcessingComplete: () => void;
   onRequestApproval?: (request: { requestId: string, toolName: string, toolInput: string, reason: string }) => void;
   setTabTitle: (title: string) => void;
-  onTabStatusChanged?: (status: 'attached' | 'detached', tabId: number) => void;
+  onTabStatusChanged?: (status: 'attached' | 'detached' | 'running' | 'idle' | 'error', tabId: number) => void;
   onTargetCreated?: (tabId: number, targetInfo: any) => void;
   onTargetDestroyed?: (tabId: number, url: string) => void;
   onTargetChanged?: (tabId: number, url: string) => void;
@@ -24,6 +24,7 @@ interface UseChromeMessagingProps {
   onPageDialog?: (tabId: number, dialogInfo: any) => void;
   onPageConsole?: (tabId: number, consoleInfo: any) => void;
   onPageError?: (tabId: number, error: string) => void;
+  onAgentStatusUpdate?: (status: string, lastHeartbeat: number) => void;
 }
 
 export const useChromeMessaging = ({
@@ -48,7 +49,8 @@ export const useChromeMessaging = ({
   onActiveTabChanged,
   onPageDialog,
   onPageConsole,
-  onPageError
+  onPageError,
+  onAgentStatusUpdate
 }: UseChromeMessagingProps) => {
   
   // Listen for updates from the background script
@@ -179,6 +181,16 @@ export const useChromeMessaging = ({
         onPageConsole(message.tabId, message.consoleInfo);
       } else if (message.action === 'pageError' && onPageError && message.tabId && message.error) {
         onPageError(message.tabId, message.error);
+      } else if (message.action === 'agentStatusUpdate' && message.status && message.lastHeartbeat) {
+        // Handle agent status update
+        if (onAgentStatusUpdate) {
+          onAgentStatusUpdate(message.status, message.lastHeartbeat);
+        } else {
+          // If no explicit handler, use onRateLimit to keep UI in processing mode if agent is running
+          if (message.status === 'running' && onRateLimit) {
+            onRateLimit();
+          }
+        }
       }
       
       // Send a response for any message that doesn't explicitly return true
@@ -210,7 +222,8 @@ export const useChromeMessaging = ({
     onActiveTabChanged,
     onPageDialog,
     onPageConsole,
-    onPageError
+    onPageError,
+    onAgentStatusUpdate
   ]);
 
   const executePrompt = (prompt: string) => {

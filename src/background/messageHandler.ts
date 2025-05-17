@@ -40,12 +40,20 @@ export function handleMessage(
         return true;
 
       case 'clearHistory':
-        handleClearHistory(message, sendResponse);
-        return true;
+        // Handle async function and keep message channel open
+        handleClearHistory(message, sendResponse)
+          .catch(error => {
+            const errorMessage = handleError(error, 'clearing history');
+            logWithTimestamp(`Error in async handleClearHistory: ${errorMessage}`, 'error');
+            sendResponse({ success: false, error: errorMessage });
+          });
+        return true; // Keep the message channel open for async response
 
       case 'initializeTab':
+        // This function uses setTimeout internally to handle async operations
+        // We still return true to keep the message channel open
         handleInitializeTab(message, sendResponse);
-        return true;
+        return true; // Keep the message channel open for async response
         
       case 'switchToTab':
         handleSwitchToTab(message, sendResponse);
@@ -84,14 +92,30 @@ export function handleMessage(
         return true;
         
       case 'forceResetPlaywright':
-        handleForceResetPlaywright(message, sendResponse);
-        return true;
+        // Handle async function and keep message channel open
+        handleForceResetPlaywright(message, sendResponse)
+          .catch(error => {
+            const errorMessage = handleError(error, 'force resetting Playwright');
+            logWithTimestamp(`Error in async handleForceResetPlaywright: ${errorMessage}`, 'error');
+            sendResponse({ success: false, error: errorMessage });
+          });
+        return true; // Keep the message channel open for async response
         
       case 'requestApproval':
         // Just acknowledge receipt of the request approval message
         // The actual approval handling is done by the UI
         sendResponse({ success: true });
         return true;
+        
+      case 'checkAgentStatus':
+        // Handle async function and keep message channel open
+        handleCheckAgentStatus(message, sendResponse)
+          .catch(error => {
+            const errorMessage = handleError(error, 'checking agent status');
+            logWithTimestamp(`Error in async handleCheckAgentStatus: ${errorMessage}`, 'error');
+            sendResponse({ success: false, error: errorMessage });
+          });
+        return true; // Keep the message channel open for async response
 
       default:
         // This should never happen due to the type guard, but TypeScript requires it
@@ -138,7 +162,8 @@ function isBackgroundMessage(message: any): message is BackgroundMessage {
       message.action === 'pageConsole' ||
       message.action === 'pageError' ||
       message.action === 'forceResetPlaywright' ||
-      message.action === 'requestApproval'  // Add support for request approval messages
+      message.action === 'requestApproval' ||  // Add support for request approval messages
+      message.action === 'checkAgentStatus'  // Add support for agent status check
     )
   );
 }
@@ -379,6 +404,47 @@ async function handleForceResetPlaywright(
   } catch (error) {
     const errorMessage = handleError(error, 'force resetting Playwright instance');
     logWithTimestamp(`Error force resetting Playwright instance: ${errorMessage}`, 'error');
+    sendResponse({ success: false, error: errorMessage });
+  }
+}
+
+/**
+ * Handle the checkAgentStatus message
+ * @param message The message to handle
+ * @param sendResponse The function to send a response
+ */
+async function handleCheckAgentStatus(
+  message: Extract<BackgroundMessage, { action: 'checkAgentStatus' }>,
+  sendResponse: (response?: any) => void
+): Promise<void> {
+  try {
+    // Get the window ID for this tab
+    const windowId = message.windowId || (message.tabId ? getWindowForTab(message.tabId) : null);
+    
+    if (!windowId) {
+      logWithTimestamp(`Cannot check agent status: No window ID found for tab ${message.tabId}`, 'warn');
+      sendResponse({ success: false, error: 'No window ID found' });
+      return;
+    }
+    
+    // Get the agent status from agentController using dynamic import
+    const { getAgentStatus } = await import('./agentController');
+    const status = getAgentStatus(windowId);
+    
+    // Send the status back to the UI
+    chrome.runtime.sendMessage({
+      action: 'agentStatusUpdate',
+      status: status.status,
+      timestamp: status.timestamp,
+      lastHeartbeat: status.lastHeartbeat,
+      tabId: message.tabId,
+      windowId
+    });
+    
+    sendResponse({ success: true });
+  } catch (error) {
+    const errorMessage = handleError(error, 'checking agent status');
+    logWithTimestamp(`Error checking agent status: ${errorMessage}`, 'error');
     sendResponse({ success: false, error: errorMessage });
   }
 }

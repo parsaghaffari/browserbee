@@ -23,7 +23,9 @@ export interface ChromeMessage {
   toolInput?: string;
   reason?: string;
   
-  status?: 'attached' | 'detached';
+  status?: 'attached' | 'detached' | 'running' | 'idle' | 'error';
+  lastHeartbeat?: number;
+  timestamp?: number;
   targetInfo?: any;
   url?: string;
   title?: string;

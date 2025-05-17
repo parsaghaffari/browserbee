@@ -7,7 +7,7 @@ interface PromptFormProps {
   onSubmit: (prompt: string) => void;
   onCancel: () => void;
   isProcessing: boolean;
-  tabStatus: 'attached' | 'detached' | 'unknown';
+  tabStatus: 'attached' | 'detached' | 'unknown' | 'running' | 'idle' | 'error';
 }
 
 export const PromptForm: React.FC<PromptFormProps> = ({

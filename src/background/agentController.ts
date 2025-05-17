@@ -1,6 +1,6 @@
 // Import provider-specific types
 import Anthropic from "@anthropic-ai/sdk";
-import { ProviderType } from "./types";
+import { ProviderType, AgentStatus, AgentStatusInfo } from "./types";
 import { BrowserAgent, createBrowserAgent, executePromptWithFallback, needsReinitialization } from "../agent/AgentCore";
 import { contextTokenCount } from "../agent/TokenManager";
 import { ScreenshotManager } from "../tracking/screenshotManager";
@@ -50,6 +50,57 @@ const MAX_CONVERSATION_TOKENS = 100000; // 100K tokens for conversation history
 
 // Message histories for conversation context (one per window)
 const windowMessageHistories = new Map<number, MessageHistory>();
+
+// Map to track agent status by window ID
+const agentStatusMap = new Map<number, AgentStatusInfo>();
+
+/**
+ * Set the agent status for a window
+ * @param windowId The window ID
+ * @param status The agent status
+ */
+export function setAgentStatus(windowId: number, status: AgentStatus): void {
+  const current = agentStatusMap.get(windowId);
+  const now = Date.now();
+  
+  agentStatusMap.set(windowId, { 
+    status, 
+    timestamp: now,
+    lastHeartbeat: now
+  });
+  
+  // Log state transitions
+  if (!current || current.status !== status) {
+    logWithTimestamp(`Agent status transition: ${current?.status || 'undefined'} -> ${status} for window ${windowId}`);
+  }
+}
+
+/**
+ * Update the agent heartbeat for a window
+ * @param windowId The window ID
+ */
+export function updateAgentHeartbeat(windowId: number): void {
+  const current = agentStatusMap.get(windowId);
+  if (current && current.status === AgentStatus.RUNNING) {
+    agentStatusMap.set(windowId, {
+      ...current,
+      lastHeartbeat: Date.now()
+    });
+  }
+}
+
+/**
+ * Get the agent status for a window
+ * @param windowId The window ID
+ * @returns The agent status info
+ */
+export function getAgentStatus(windowId: number): AgentStatusInfo {
+  return agentStatusMap.get(windowId) || { 
+    status: AgentStatus.IDLE, 
+    timestamp: Date.now(),
+    lastHeartbeat: 0
+  };
+}
 
 /**
  * Get the current provider type from config
@@ -397,6 +448,9 @@ export function cancelExecution(tabId?: number): void {
   // Immediately notify UI that processing is complete
   sendUIMessage('processingComplete', null, tabId);
   
+  // Set agent status to IDLE
+  setAgentStatus(windowId, AgentStatus.IDLE);
+  
   logWithTimestamp(`Cancelled execution for tab ${tabId} in window ${windowId}`);
 }
 
@@ -565,6 +619,11 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       type: 'system',
       content: `Executing prompt: "${prompt}"`
     }, targetTabId);
+    
+    // Set agent status to RUNNING if we have a window ID
+    if (updatedTabState.windowId) {
+      setAgentStatus(updatedTabState.windowId, AgentStatus.RUNNING);
+    }
     
     // Always enable streaming
     const useStreaming = true;
@@ -789,6 +848,12 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         if (useStreaming) {
           signalStreamingComplete(targetTabId, windowId);
         }
+        
+        // Set agent status to IDLE
+        if (windowId) {
+          setAgentStatus(windowId, AgentStatus.IDLE);
+        }
+        
         sendUIMessage('processingComplete', null, targetTabId, windowId);
       }
     };

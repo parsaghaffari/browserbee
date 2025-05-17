@@ -14,7 +14,7 @@ import { ConfigManager } from '../background/configManager';
 
 export function SidePanel() {
   // State for tab status
-  const [tabStatus, setTabStatus] = useState<'attached' | 'detached' | 'unknown'>('unknown');
+  const [tabStatus, setTabStatus] = useState<'attached' | 'detached' | 'unknown' | 'running' | 'idle' | 'error'>('unknown');
   
   // State for approval requests
   const [approvalRequests, setApprovalRequests] = useState<Array<{
@@ -75,6 +75,22 @@ export function SidePanel() {
     clearMessages,
     currentSegmentId
   } = useMessageManagement();
+  
+  // Heartbeat interval for checking agent status
+  useEffect(() => {
+    if (!isProcessing) return;
+    
+    const interval = setInterval(() => {
+      // Request agent status
+      chrome.runtime.sendMessage({ 
+        action: 'checkAgentStatus',
+        tabId,
+        windowId
+      });
+    }, 2000); // Check every 2 seconds
+    
+    return () => clearInterval(interval);
+  }, [isProcessing, tabId, windowId]);
 
   // Handlers for approval requests
   const handleApprove = (requestId: string) => {
@@ -127,11 +143,15 @@ export function SidePanel() {
       addSystemMessage("⚠️ Rate limit reached. Retrying automatically...");
       // Ensure the UI stays in processing mode
       setIsProcessing(true);
+      // Update the tab status to running
+      setTabStatus('running');
     },
     onFallbackStarted: (message) => {
       addSystemMessage(message);
       // Ensure the UI stays in processing mode
       setIsProcessing(true);
+      // Update the tab status to running
+      setTabStatus('running');
     },
     onUpdateScreenshot: (content) => {
       addMessage({ ...content, isComplete: true });
@@ -139,6 +159,8 @@ export function SidePanel() {
     onProcessingComplete: () => {
       setIsProcessing(false);
       completeStreaming();
+      // Also update the tab status to idle to ensure the UI indicator changes
+      setTabStatus('idle');
     },
     onRequestApproval: (request) => {
       // Add the request to the list
@@ -168,12 +190,33 @@ export function SidePanel() {
     onPageError: (tabId, error) => {
       // Add a system message about the error
       addSystemMessage(`❌ Page Error: ${error}`);
+    },
+    onAgentStatusUpdate: (status, lastHeartbeat) => {
+      // Log agent status updates for debugging
+      console.log(`Agent status update: ${status}, lastHeartbeat: ${lastHeartbeat}, diff: ${Date.now() - lastHeartbeat}ms`);
+      
+      // Update the tab status based on agent status
+      if (status === 'running' || status === 'idle' || status === 'error') {
+        setTabStatus(status);
+      }
+      
+      // If agent is running, ensure UI is in processing mode
+      if (status === 'running') {
+        setIsProcessing(true);
+      }
+      
+      // If agent is idle, ensure UI is not in processing mode
+      if (status === 'idle') {
+        setIsProcessing(false);
+      }
     }
   });
 
   // Handle form submission
   const handleSubmit = async (prompt: string) => {
     setIsProcessing(true);
+    // Update the tab status to running
+    setTabStatus('running');
     
     // Add a system message to indicate a new prompt
     addSystemMessage(`New prompt: "${prompt}"`);
@@ -184,6 +227,8 @@ export function SidePanel() {
       console.error('Error:', error);
       addSystemMessage('Error: ' + (error instanceof Error ? error.message : String(error)));
       setIsProcessing(false);
+      // Update the tab status to error
+      setTabStatus('error');
     }
   };
 
@@ -205,6 +250,9 @@ export function SidePanel() {
     
     // Cancel the execution
     cancelExecution();
+    
+    // Update the tab status to idle
+    setTabStatus('idle');
   };
 
   // Handle clearing history
