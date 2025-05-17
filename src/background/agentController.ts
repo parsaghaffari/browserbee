@@ -469,8 +469,35 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       // Attach to the tab
       const attachResult = await attachToTab(targetTabId);
       
+      // Check if attachResult is an object with error information
+      if (attachResult !== true && attachResult !== false && typeof attachResult === 'object' && 'error' in attachResult) {
+        // This is a specific error case with detailed information
+        if (attachResult.error === 'unsupported_tab') {
+          // Handle unsupported tab error with a specific message
+          sendUIMessage('updateOutput', {
+            type: 'system',
+            content: `Error: ${attachResult.reason} Please try using the extension in a regular web page tab.`
+          }, targetTabId);
+          sendUIMessage('processingComplete', null, targetTabId);
+          return;
+        }
+      } else if (attachResult === true) {
+        // Check if we navigated to google.com
+        try {
+          const tab = await chrome.tabs.get(targetTabId);
+          if (tab && tab.url && tab.url.includes('google.com')) {
+            // If the URL contains google.com, we might have auto-navigated there
+            sendUIMessage('updateOutput', {
+              type: 'system',
+              content: 'Note: Navigated to Google to enable extension functionality in this tab.'
+            }, targetTabId);
+          }
+        } catch (error) {
+          // Ignore errors checking the tab URL
+        }
+      }
       // If attachResult is a number, it means a new tab was created
-      if (typeof attachResult === 'number') {
+      else if (typeof attachResult === 'number') {
         // Update the target tab ID to the new one
         logWithTimestamp(`Tab ${targetTabId} was replaced with new tab ${attachResult}`);
         targetTabId = attachResult;
@@ -486,7 +513,7 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
     if (!updatedTabState?.page || !updatedTabState?.windowId) {
       sendUIMessage('updateOutput', {
         type: 'system',
-        content: 'Error: Failed to initialize Playwright or create agent.'
+        content: 'Error: Failed to initialize Playwright or create agent. This may be because you are using the extension in an unsupported tab type.'
       }, targetTabId);
       sendUIMessage('processingComplete', null, targetTabId);
       return;

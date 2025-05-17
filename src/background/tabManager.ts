@@ -274,8 +274,12 @@ export async function getCrxAppForTab(tabId: number): Promise<Awaited<ReturnType
 
 /**
  * Attach to a tab
+ * @returns 
+ *   - true: Successfully attached
+ *   - false: Failed to attach
+ *   - object with error info: Failed with specific reason
  */
-export async function attachToTab(tabId: number, windowId?: number, retryCount: number = 0): Promise<boolean> {
+export async function attachToTab(tabId: number, windowId?: number, retryCount: number = 0): Promise<boolean | { error: string, reason: string }> {
   try {
     logWithTimestamp(`Attaching to tab ${tabId}${retryCount > 0 ? ` (retry attempt ${retryCount})` : ''}`);
     
@@ -289,7 +293,7 @@ export async function attachToTab(tabId: number, windowId?: number, retryCount: 
     // Get tab info
     let tabTitle = "Unknown Tab";
     try {
-      const tab = await chrome.tabs.get(tabId);
+      let tab = await chrome.tabs.get(tabId);
       if (tab && tab.title) {
         tabTitle = tab.title;
       }
@@ -299,10 +303,66 @@ export async function attachToTab(tabId: number, windowId?: number, retryCount: 
         windowId = tab.windowId;
       }
       
-      // Check if the tab is valid for attachment
-      if (!tab || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-        logWithTimestamp(`Tab ${tabId} is not valid for attachment`, 'warn');
-        return false;
+      // Check if the tab needs navigation to a supported URL
+      const needsNavigation = !tab || !tab.url || 
+                             (tab.url && tab.url.startsWith('about:')) ||
+                             (tab.url && tab.url.startsWith('chrome://newtab')) ||
+                             (tab.url && tab.url === 'chrome://new-tab-page/' || 
+                              tab.url && tab.url.startsWith('chrome://new-tab-page'));
+      
+      // Handle tabs that need navigation to google.com
+      if (needsNavigation) {
+        const urlType = !tab || !tab.url ? "empty" : 
+                        tab.url.startsWith('about:') ? "about" : "newtab";
+        
+        logWithTimestamp(`Tab ${tabId} has ${urlType} URL${tab?.url ? ` (${tab.url})` : ''}, navigating to google.com...`);
+        
+        try {
+          // Navigate to google.com
+          await chrome.tabs.update(tabId, { url: 'https://www.google.com' });
+          
+          // Wait for navigation to complete
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          // Get updated tab info
+          const updatedTab = await chrome.tabs.get(tabId);
+          
+          // Update our reference
+          if (updatedTab && updatedTab.title) {
+            tabTitle = updatedTab.title;
+          }
+          
+          logWithTimestamp(`Successfully navigated tab ${tabId} to google.com`);
+          
+          // Continue with the updated tab
+          tab = updatedTab;
+        } catch (navError) {
+          logWithTimestamp(`Error navigating tab: ${navError}`, 'warn');
+          return { 
+            error: "unsupported_tab", 
+            reason: "Navigation to google.com failed. Please try using the extension in a regular web page tab." 
+          };
+        }
+      }
+      
+      // After potential navigation, check if the tab now has a valid URL
+      if (!tab || !tab.url) {
+        logWithTimestamp(`Tab ${tabId} still has no URL after navigation attempt, not valid for attachment`, 'warn');
+        return { 
+          error: "unsupported_tab", 
+          reason: "This tab cannot be accessed by the extension." 
+        };
+      }
+      
+      // Check for unsupported URLs (chrome:// and chrome-extension://)
+      // Exclude the new tab page which we already handled above
+      if ((tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome://new-tab-page')) || 
+          tab.url.startsWith('chrome-extension://')) {
+        logWithTimestamp(`Tab ${tabId} has restricted URL (${tab.url}), not valid for attachment`, 'warn');
+        return { 
+          error: "unsupported_tab", 
+          reason: "This page cannot be accessed by extensions for security reasons." 
+        };
       }
     } catch (error) {
       logWithTimestamp(`Error getting tab info: ${error}`, 'warn');
