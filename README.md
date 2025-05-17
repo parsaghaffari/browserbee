@@ -178,7 +178,8 @@ If you're interested in contributing to build any of these features or to improv
 
 **Note:** 
 1. Since BrowserBee uses Chrome DevTools Protocol (CDP) to attach to tabs, it's best to leave it attached to a base tab that you leave open throughout your session (BrowserBee can open new tabs if needed). If you close the attached tab, use the ![reattach button](<reattach-button.png>) button to reattach to a new tab.
-2. You can have one instance of BrowserBee running per Chrome window and the instances will be working in isolation from one another
+2. You can have one instance of BrowserBee running per Chrome window and the instances will be working in isolation from one another.
+3. BrowserBee can't attach to tabs without a URL (e.g. a new tab), or with URLs starting with 'chrome://' or 'chrome-extension://'.
 
 ## 🫂 Acknowledgements
 
