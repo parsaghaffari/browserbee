@@ -1,0 +1,336 @@
+[
+    {
+      "domain": "google.com",
+      "taskDescription": "Perform a search on Google",
+      "toolSequence": [
+        "browser_click | textarea[name=\"q\"]",
+        "browser_keyboard_type | [search term]",
+        "browser_press_key | Enter",
+        "browser_wait_for_navigation | "
+      ],
+      "createdAt": 1746877036489,
+      "id": 7
+    },
+    {
+      "domain": "linkedin.com",
+      "taskDescription": "Check LinkedIn notifications",
+      "toolSequence": [
+        "browser_navigate | https://www.linkedin.com/",
+        "browser_click | nav.global-nav__nav li:nth-child(5) a",
+        "browser_screenshot | "
+      ],
+      "createdAt": 1746978399259,
+      "id": 8
+    },
+    {
+      "domain": "amazon.co.uk",
+      "taskDescription": "Search for products on Amazon UK",
+      "toolSequence": [
+        "browser_click | input[name=\"field-keywords\"]",
+        "browser_keyboard_type | [search term]",
+        "browser_press_key | Enter"
+      ],
+      "createdAt": 1747146976188,
+      "id": 9
+    },
+    {
+      "domain": "amazon.co.uk",
+      "taskDescription": "Add a product to the Amazon basket",
+      "toolSequence": [
+        "browser_click | [product name or link]",
+        "browser_read_text | ",
+        "browser_click | input#add-to-cart-button"
+      ],
+      "createdAt": 1747147112199,
+      "id": 10
+    },
+    {
+      "domain": "amazon.co.uk",
+      "taskDescription": "Navigate to Amazon UK shopping basket",
+      "toolSequence": [
+        "browser_click | a#nav-cart"
+      ],
+      "createdAt": 1747147372200,
+      "id": 11
+    },
+    {
+      "domain": "linkedin.com",
+      "taskDescription": "Navigate to LinkedIn messages",
+      "toolSequence": [
+        "browser_click | a[href='https://www.linkedin.com/messaging/?']"
+      ],
+      "createdAt": 1747147711992,
+      "id": 13
+    },
+    {
+      "domain": "linkedin.com",
+      "taskDescription": "Open a specific conversation in LinkedIn messages",
+      "toolSequence": [
+        "browser_navigate | https://www.linkedin.com/messaging/",
+        "browser_click | span.truncate:has-text(\"[CONTACT_NAME]\")"
+      ],
+      "createdAt": 1747147891842,
+      "id": 14
+    },
+    {
+      "domain": "linkedin.com",
+      "taskDescription": "Reply to a LinkedIn message",
+      "toolSequence": [
+        "browser_click | div[role=\"textbox\"]",
+        "browser_keyboard_type | [message content]",
+        "browser_click | button.msg-form__send-button"
+      ],
+      "createdAt": 1747147960060,
+      "id": 15
+    },
+    {
+      "domain": "linkedin.com",
+      "taskDescription": "Search for a specific contact in LinkedIn messages",
+      "toolSequence": [
+        "browser_click | input#search-conversations",
+        "browser_keyboard_type | [contact name]",
+        "browser_press_key | Enter",
+        "browser_click | span.truncate:has-text(\"[contact name]\")"
+      ],
+      "createdAt": 1747148187441,
+      "id": 16
+    },
+    {
+      "domain": "google.com",
+      "taskDescription": "Click on a specific search result by position",
+      "toolSequence": [
+        "browser_click | h3.LC20lb:nth-of-type(n)"
+      ],
+      "createdAt": 1747148383137,
+      "id": 18
+    },
+    {
+      "domain": "instagram.com",
+      "taskDescription": "List all Instagram stories at the top of the feed",
+      "toolSequence": [
+        "browser_navigate | https://www.instagram.com",
+        "browser_query | ul._acay li"
+      ],
+      "createdAt": 1747150642221,
+      "id": 19
+    },
+    {
+      "domain": "instagram.com",
+      "taskDescription": "View a specific user's Instagram story",
+      "toolSequence": [
+        "browser_navigate | https://www.instagram.com",
+        "browser_query | ul._acay li",
+        "browser_click | div[aria-label=\"Story by USERNAME, not seen\"]"
+      ],
+      "createdAt": 1747150678129,
+      "id": 20
+    },
+    {
+      "domain": "instagram.com",
+      "taskDescription": "Send an emoji reaction to someone's Instagram story",
+      "toolSequence": [
+        "browser_navigate | https://www.instagram.com",
+        "browser_click | div[aria-label=\"Story by USERNAME, not seen\"]",
+        "browser_click | textarea[placeholder=\"Reply to USERNAME...\"]",
+        "browser_keyboard_type | 😂",
+        "browser_press_key | Enter"
+      ],
+      "createdAt": 1747150845788,
+      "id": 21
+    },
+    {
+      "domain": "instagram.com",
+      "taskDescription": "Navigate to Instagram direct messages/inbox",
+      "toolSequence": [
+        "browser_navigate | https://www.instagram.com",
+        "browser_query | a[href=\"/direct/inbox/\"]",
+        "browser_click | a[aria-label*=\"Direct messaging\"]"
+      ],
+      "createdAt": 1747151121948,
+      "id": 22
+    },
+    {
+      "domain": "instagram.com",
+      "taskDescription": "Open a specific conversation in Instagram direct messages",
+      "toolSequence": [
+        "browser_navigate | https://www.instagram.com/direct/inbox/",
+        "browser_click | div[role=\"button\"] >> text=USERNAME"
+      ],
+      "createdAt": 1747151234794,
+      "id": 23
+    },
+    {
+      "domain": "instagram.com",
+      "taskDescription": "Send a direct message reply on Instagram",
+      "toolSequence": [
+        "browser_navigate | https://www.instagram.com/direct/inbox/",
+        "browser_click | div[role=\"button\"] >> text=USERNAME",
+        "browser_click | div[contenteditable=\"true\"]",
+        "browser_keyboard_type | Your message here",
+        "browser_click | svg[aria-label=\"Send\"]"
+      ],
+      "createdAt": 1747151367662,
+      "id": 24
+    },
+    {
+      "domain": "instagram.com",
+      "taskDescription": "Scroll through Instagram feed and summarize posts",
+      "toolSequence": [
+        "browser_read_text | ",
+        "browser_screenshot | full",
+        "browser_press_key | End",
+        "browser_read_text | ",
+        "browser_press_key | End",
+        "browser_read_text | "
+      ],
+      "createdAt": 1747151535427,
+      "id": 25
+    },
+    {
+      "domain": "amazon.com",
+      "taskDescription": "Search for products on Amazon with specific criteria",
+      "toolSequence": [
+        "browser_navigate | https://www.amazon.com",
+        "browser_click | input[id=\"twotabsearchtextbox\"]",
+        "browser_keyboard_type | [search query with specific criteria]",
+        "browser_press_key | Enter",
+        "browser_read_text | ",
+        "browser_click | [product name]",
+        "browser_read_text | "
+      ],
+      "createdAt": 1747244182761,
+      "id": 26
+    },
+    {
+      "domain": "youtube.com",
+      "taskDescription": "Search for content on YouTube",
+      "toolSequence": [
+        "browser_click | input[name=\"search_query\"]",
+        "browser_keyboard_type | [search term]",
+        "browser_press_key | Enter",
+        "browser_wait_for_navigation | "
+      ],
+      "createdAt": 1747247353373,
+      "id": 27
+    },
+    {
+      "domain": "youtube.com",
+      "taskDescription": "Click on a specific video from search results",
+      "toolSequence": [
+        "browser_screenshot | full",
+        "browser_read_text | ",
+        "browser_click | [video title]",
+        "browser_wait_for_navigation | "
+      ],
+      "createdAt": 1747247353375,
+      "id": 28
+    },
+    {
+      "domain": "web.whatsapp.com",
+      "taskDescription": "View and list recent chat conversations",
+      "toolSequence": [
+        "browser_read_text | "
+      ],
+      "createdAt": 1747247643609,
+      "id": 29
+    },
+    {
+      "domain": "web.whatsapp.com",
+      "taskDescription": "Open a specific chat with a contact",
+      "toolSequence": [
+        "browser_click | [contact name]"
+      ],
+      "createdAt": 1747247673805,
+      "id": 30
+    },
+    {
+      "domain": "web.whatsapp.com",
+      "taskDescription": "Read unread messages from a specific contact",
+      "toolSequence": [
+        "browser_click | [contact name]",
+        "browser_read_text | "
+      ],
+      "createdAt": 1747247712520,
+      "id": 31
+    },
+    {
+      "domain": "web.whatsapp.com",
+      "taskDescription": "Send a message to a contact",
+      "toolSequence": [
+        "browser_click | div[aria-label=\"Type a message\"]",
+        "browser_keyboard_type | [message text]",
+        "browser_click | button[aria-label=\"Send\"]"
+      ],
+      "createdAt": 1747247751573,
+      "id": 32
+    },
+    {
+      "domain": "web.whatsapp.com",
+      "taskDescription": "Search for specific text across all WhatsApp conversations",
+      "toolSequence": [
+        "browser_click | button[aria-label=\"Search…\"]",
+        "browser_click | div[aria-label=\"Search input textbox\"]",
+        "browser_keyboard_type | [search term]",
+        "browser_read_text | "
+      ],
+      "createdAt": 1747247892500,
+      "id": 33
+    },
+    {
+      "domain": "linkedin.com",
+      "taskDescription": "Start a new post on LinkedIn",
+      "toolSequence": [
+        "browser_click | #ember36",
+        "browser_click | div[role='textbox']",
+        "browser_keyboard_type | [post content]"
+      ],
+      "createdAt": 1747416856460,
+      "id": 36
+    },
+    {
+      "domain": "mail.google.com",
+      "taskDescription": "Open and read the first email in Gmail inbox",
+      "toolSequence": [
+        "browser_click | .zA:first-of-type",
+        "browser_read_text | "
+      ],
+      "createdAt": 1747496124865,
+      "id": 37
+    },
+    {
+      "domain": "mail.google.com",
+      "taskDescription": "Open a specific email by sender name in Gmail inbox",
+      "toolSequence": [
+        "browser_click | .zA:has([email=\"sender@domain.com\"])",
+        "browser_read_text | "
+      ],
+      "createdAt": 1747496192997,
+      "id": 38
+    },
+    {
+      "domain": "mail.google.com",
+      "taskDescription": "Search Gmail inbox for emails from a specific sender",
+      "toolSequence": [
+        "browser_click | input[aria-label=\"Search mail\"]",
+        "browser_type | input[aria-label=\"Search mail\"]|from:sender",
+        "browser_press_key | Enter"
+      ],
+      "createdAt": 1747496235578,
+      "id": 39
+    },
+    {
+      "domain": "mail.google.com",
+      "taskDescription": "Compose a new email in Gmail",
+      "toolSequence": [
+        "browser_click | Compose",
+        "browser_click | [aria-label=\"To\"]",
+        "browser_keyboard_type | recipient@email.com",
+        "browser_click | [aria-label=\"Subject\"]",
+        "browser_keyboard_type | Email Subject",
+        "browser_click | div[role=\"textbox\"]",
+        "browser_keyboard_type | Email body content"
+      ],
+      "createdAt": 1747496427408,
+      "id": 40
+    }
+]

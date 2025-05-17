@@ -65,8 +65,23 @@ function setupEventListeners(): void {
     if (details.reason === 'install' || details.reason === 'update') {
       logWithTimestamp('Initializing memory database');
       const memoryService = MemoryService.getInstance();
-      memoryService.init().then(() => {
+      memoryService.init().then(async () => {
         logWithTimestamp('Memory database initialized successfully');
+        
+        // Import default memories only on fresh install
+        if (details.reason === 'install') {
+          try {
+            logWithTimestamp('Importing default memories for new installation');
+            const importedCount = await memoryService.importDefaultMemories();
+            if (importedCount > 0) {
+              logWithTimestamp(`Successfully imported ${importedCount} default memories`);
+            } else {
+              logWithTimestamp('No default memories were imported');
+            }
+          } catch (error) {
+            logWithTimestamp(`Error importing default memories: ${error}`, 'error');
+          }
+        }
       }).catch(error => {
         logWithTimestamp(`Error initializing memory database: ${error}`, 'error');
       });

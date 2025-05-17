@@ -1,5 +1,6 @@
 import { logWithTimestamp } from '../background/utils';
 import { normalizeDomain } from './domainUtils';
+import defaultMemoriesData from './defaultMemories.json';
 
 export interface AgentMemory {
   id?: number;
@@ -16,6 +17,7 @@ export class MemoryService {
   private readonly STORE_NAME = 'memories';
   private DB_VERSION = 1; // Not readonly so we can increment it if needed
   private isInitialized = false;
+  private hasImportedDefaultMemories = false;
   
   // Singleton pattern
   public static getInstance(): MemoryService {
@@ -492,5 +494,71 @@ export class MemoryService {
         reject(error);
       }
     });
+  }
+  
+  /**
+   * Import default memories from the bundled JSON file
+   * This should only be called once during initial database setup
+   * @returns Promise resolving to the number of imported memories
+   */
+  public async importDefaultMemories(): Promise<number> {
+    // Skip if we've already imported default memories
+    if (this.hasImportedDefaultMemories) {
+      logWithTimestamp('Default memories already imported, skipping');
+      return 0;
+    }
+    
+    await this.ensureInitialized();
+    
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+    
+    try {
+      // Check if the database is empty before importing
+      const existingMemories = await this.getAllMemories();
+      
+      if (existingMemories.length > 0) {
+        logWithTimestamp('Database already contains memories, skipping default import');
+        this.hasImportedDefaultMemories = true;
+        return 0;
+      }
+      
+      // Import the default memories
+      logWithTimestamp('Importing default memories...');
+      
+      // Use the statically imported default memories
+      const defaultMemories: AgentMemory[] = defaultMemoriesData as AgentMemory[];
+      
+      if (!Array.isArray(defaultMemories) || defaultMemories.length === 0) {
+        logWithTimestamp('No default memories found or invalid format', 'warn');
+        this.hasImportedDefaultMemories = true;
+        return 0;
+      }
+      
+      logWithTimestamp(`Found ${defaultMemories.length} default memories to import`);
+      
+      // Store each memory, skipping duplicates
+      let importedCount = 0;
+      for (const memory of defaultMemories) {
+        try {
+          // Remove any existing ID to ensure we don't overwrite user memories
+          delete memory.id;
+          
+          // Store the memory (this will check for duplicates)
+          await this.storeMemory(memory);
+          importedCount++;
+        } catch (error) {
+          logWithTimestamp(`Error importing memory: ${error instanceof Error ? error.message : String(error)}`, 'warn');
+        }
+      }
+      
+      logWithTimestamp(`Successfully imported ${importedCount} default memories`);
+      this.hasImportedDefaultMemories = true;
+      return importedCount;
+    } catch (error) {
+      logWithTimestamp(`Error importing default memories: ${error instanceof Error ? error.message : String(error)}`, 'error');
+      return 0;
+    }
   }
 }
