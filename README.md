@@ -161,6 +161,20 @@ If you're interested in contributing to build any of these features or to improv
 
 ## ▶️ Installation
 
+You have three options to install BrowserBee:
+
+### Option 1: Download the latest release (Recommended)
+
+1. Download the latest release from [GitHub Releases](https://github.com/parsaghaffari/browserbee/releases/tag/v0.2.0-beta)
+2. Unzip the downloaded file
+3. Load the extension in Chrome:
+   - Go to `chrome://extensions/`
+   - Enable "Developer mode" (toggle in the top-right corner)
+   - Click "Load unpacked" and select the unzipped directory
+   - Set your LLM API key(s) for Anthropic, OpenAI, Gemini, and/or configure Ollama in the options page that pops up
+
+### Option 2: Build from source
+
 1. Clone this repository
 2. Install dependencies with `npm install` or `pnpm install` (this takes ~3 minutes)
 3. Build the extension with `npm run build` or `pnpm build`
@@ -169,6 +183,10 @@ If you're interested in contributing to build any of these features or to improv
    - Enable "Developer mode"
    - Click "Load unpacked" and select the `dist` directory
    - Set your LLM API key(s) for Anthropic, OpenAI, Gemini, and/or configure Ollama in the options page that pops up
+
+### Option 3: Chrome Web Store (Coming Soon)
+
+BrowserBee will soon be available on the Chrome Web Store, pending review. Once approved, you'll be able to install it directly from the store with a single click.
 
 ## 🏃‍♂️ Usage
 
