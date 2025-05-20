@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { BrowserAgent } from "../agent/AgentCore";
 
 // Provider types
-export type ProviderType = 'anthropic' | 'openai' | 'gemini' | 'ollama';
+export type ProviderType = 'anthropic' | 'openai' | 'gemini' | 'ollama' | 'openai-compatible';
 
 // Agent status types
 export enum AgentStatus {

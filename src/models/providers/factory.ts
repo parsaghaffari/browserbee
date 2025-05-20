@@ -3,10 +3,11 @@ import { AnthropicProvider } from './anthropic';
 import { OpenAIProvider } from './openai';
 import { GeminiProvider } from './gemini';
 import { OllamaProvider } from './ollama';
+import { OpenAICompatibleProvider, OpenAICompatibleProviderOptions } from './openai-compatible';
 
 export function createProvider(
-  provider: 'anthropic' | 'openai' | 'gemini' | 'ollama',
-  options: ProviderOptions
+  provider: 'anthropic' | 'openai' | 'gemini' | 'ollama' | 'openai-compatible',
+  options: ProviderOptions | OpenAICompatibleProviderOptions
 ): LLMProvider {
   switch (provider) {
     case 'anthropic':
@@ -17,6 +18,8 @@ export function createProvider(
       return new GeminiProvider(options);
     case 'ollama':
       return new OllamaProvider(options);
+    case 'openai-compatible':
+      return new OpenAICompatibleProvider(options as OpenAICompatibleProviderOptions);
     default:
       throw new Error(`Provider ${provider} not supported`);
   }

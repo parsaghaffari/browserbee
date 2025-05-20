@@ -6,3 +6,4 @@ export * from './openai';
 export * from './gemini';
 export * from './ollama';
 export * from './ollama-format';
+export * from './openai-compatible';
