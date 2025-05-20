@@ -49,6 +49,9 @@ The Models Module provides a flexible interface for multiple LLM providers:
   - Converts between Anthropic and Ollama message formats
   - Handles complex message structures with tools and images
 
+- **models/providers/openai-compatible.ts**: OpenAI compatible provider implementation
+  - Handles compatible OpenAI-specific streaming and features
+
 ### Agent Module
 
 The Agent Module is responsible for processing user instructions and executing browser automation tasks. It consists of a few sub-modules:
@@ -166,7 +169,7 @@ The Side Panel is the main interface for interacting with BrowserBee. It has bee
 #### Options Page
 
 - **options/Options.tsx**: Options page for configuring the extension
-  - Provider selection (Anthropic, OpenAI, Gemini, Ollama)
+  - Provider selection (Anthropic, OpenAI, Gemini, Ollama, OpenAI Compatible)
   - API key management for each provider
   - Model selection for each provider
   - Advanced configuration options
