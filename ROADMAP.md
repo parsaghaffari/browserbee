@@ -33,7 +33,7 @@
     - [x] include pre-built memories for major websites
     - [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
 - [ ] write user docs
-- [ ] upload to Chrome web store
+- [x] upload to Chrome web store
 - [ ] write tests 
 
 [0.2.1]

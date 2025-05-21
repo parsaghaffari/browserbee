@@ -184,9 +184,9 @@ You have three options to install BrowserBee:
    - Click "Load unpacked" and select the `dist` directory
    - Set your LLM API key(s) for Anthropic, OpenAI, Gemini, and/or configure Ollama in the options page that pops up
 
-### Option 3: Chrome Web Store (Coming Soon)
+### Option 3: Chrome Web Store
 
-BrowserBee will soon be available on the Chrome Web Store, pending review. Once approved, you'll be able to install it directly from the store with a single click.
+BrowserBee is now available on [Chrome Web Store](https://chromewebstore.google.com/detail/browserbee-%F0%9F%90%9D/ilkklnfjpfoibgokaobmjhmdamogjcfj) 🎉
 
 ## 🏃‍♂️ Usage
 
