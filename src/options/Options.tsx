@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { MemoryService } from '../tracking/memoryService';
+import { useState, useEffect } from 'react';
+import { Model } from './components/ModelList';
 import { 
   anthropicModels, 
   openaiModels, 
@@ -10,6 +10,12 @@ import {
   geminiDefaultModelId,
   ollamaDefaultModelId
 } from '../models/models';
+
+// Import components
+import { AboutSection } from './components/AboutSection';
+import { LLMProviderConfig } from './components/LLMProviderConfig';
+import { ModelPricingTable } from './components/ModelPricingTable';
+import { MemoryManagement } from './components/MemoryManagement';
 
 export function Options() {
   // Function to process and sort model pricing data
@@ -65,132 +71,15 @@ export function Options() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
   
-  // Memory management state
-  const [memoryCount, setMemoryCount] = useState(0);
-  const [exportStatus, setExportStatus] = useState('');
-  const [importStatus, setImportStatus] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   // openai-compatible provider related state
   const [openaiCompatibleApiKey, setOpenaiCompatibleApiKey] = useState('');
   const [openaiCompatibleBaseUrl, setOpenaiCompatibleBaseUrl] = useState('');
   const [openaiCompatibleModelId, setOpenaiCompatibleModelId] = useState('');
-  const [openaiCompatibleModels, setOpenaiCompatibleModels] = useState<Array<{ id: string; name: string; isReasoningModel?: boolean }>>([]);
+  const [openaiCompatibleModels, setOpenaiCompatibleModels] = useState<Model[]>([]);
   const [newModel, setNewModel] = useState({ id: '', name: '', isReasoningModel: false });
 
-  // Load memory count
-  const loadMemoryCount = async () => {
-    try {
-      const memoryService = MemoryService.getInstance();
-      await memoryService.init();
-      const memories = await memoryService.getAllMemories();
-      setMemoryCount(memories.length);
-    } catch (error) {
-      console.error('Error loading memory count:', error);
-    }
-  };
-
-  // Export memories function
-  const handleExportMemories = async () => {
-    try {
-      setExportStatus('Exporting...');
-      const memoryService = MemoryService.getInstance();
-      await memoryService.init();
-      const memories = await memoryService.getAllMemories();
-      
-      const jsonData = JSON.stringify(memories, null, 2);
-      const blob = new Blob([jsonData], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      
-      const date = new Date().toISOString().split('T')[0];
-      const filename = `browserbee-memories-${date}.json`;
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      setExportStatus(`Successfully exported ${memories.length} memories!`);
-      setTimeout(() => setExportStatus(''), 3000);
-    } catch (error) {
-      setExportStatus(`Error exporting memories: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
-
-  // Import memories function
-  const handleImportMemories = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    try {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      
-      setImportStatus('Importing...');
-      
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const content = e.target?.result as string;
-          const memories = JSON.parse(content);
-          
-          if (!Array.isArray(memories)) {
-            throw new Error('Invalid format: Expected an array of memories');
-          }
-          
-          const memoryService = MemoryService.getInstance();
-          await memoryService.init();
-          
-          let importedCount = 0;
-          for (const memory of memories) {
-            // Validate memory structure
-            if (!memory.domain || !memory.taskDescription || !memory.toolSequence) {
-              console.warn('Skipping invalid memory:', memory);
-              continue;
-            }
-            
-            // Ensure createdAt exists
-            if (!memory.createdAt) {
-              memory.createdAt = Date.now();
-            }
-            
-            await memoryService.storeMemory(memory);
-            importedCount++;
-          }
-          
-          // Refresh memory count
-          await loadMemoryCount();
-          
-          setImportStatus(`Successfully imported ${importedCount} memories!`);
-          setTimeout(() => setImportStatus(''), 3000);
-          
-          // Reset file input
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
-        } catch (error) {
-          setImportStatus(`Error parsing import file: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      };
-      
-      reader.readAsText(file);
-    } catch (error) {
-      setImportStatus(`Error importing memories: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
-
-  // Trigger file input click
-  const triggerFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  // Load saved settings and memory count when component mounts
+  // Load saved settings when component mounts
   useEffect(() => {
-    // Load memory count
-    loadMemoryCount();
-    
     chrome.storage.sync.get({
       provider: 'anthropic',
       anthropicApiKey: '',
@@ -272,10 +161,12 @@ export function Options() {
     setOpenaiCompatibleModels([...openaiCompatibleModels, { ...newModel }]);
     setNewModel({ id: '', name: '', isReasoningModel: false });
   };
+  
   const handleRemoveModel = (id: string) => {
     setOpenaiCompatibleModels(openaiCompatibleModels.filter(m => m.id !== id));
     if (openaiCompatibleModelId === id) setOpenaiCompatibleModelId('');
   };
+  
   const handleEditModel = (idx: number, field: string, value: any) => {
     setOpenaiCompatibleModels(models => models.map((m, i) => i === idx ? { ...m, [field]: value } : m));
   };
@@ -283,439 +174,63 @@ export function Options() {
   return (
     <div className="max-w-3xl mx-auto p-5 font-sans text-gray-800">
       <h1 className="text-2xl font-bold mb-6 text-primary">BrowserBee 🐝</h1>
-      <div className="card bg-base-100 shadow-md mb-6">
-        <div className="card-body">
-          <h2 className="card-title text-xl">About</h2>
-          <p className="mb-3">
-            BrowserBee 🐝 is a Chrome extension that allows you to control your browser using natural language.
-            It supports multiple LLM providers including Anthropic, OpenAI, Google Gemini, and Ollama to interpret your instructions and uses Playwright to execute them.
-          </p>
-          <p>
-            To use the extension, click on the extension icon to open the side panel, then enter your instructions
-            in the prompt field and hit Enter.
-          </p>
-        </div>
-      </div>
-
-      <div className="card bg-base-100 shadow-md mb-6">
-        <div className="card-body">
-          <h2 className="card-title text-xl">LLM Provider Configuration</h2>
-          <p className="mb-4">
-            Configure your preferred LLM provider and API settings.
-            Your API keys are stored securely in your browser's storage.
-          </p>
-          
-          <div className="form-control mb-4">
-            <label className="label">
-              <span className="label-text font-medium">LLM Provider:</span>
-            </label>
-            <select 
-              className="select select-bordered" 
-              value={provider} 
-              onChange={(e) => setProvider(e.target.value)}
-            >
-              <option value="anthropic">Anthropic (Claude)</option>
-              <option value="openai">OpenAI (GPT)</option>
-              <option value="gemini">Google (Gemini)</option>
-              <option value="ollama">Ollama</option>
-              <option value="openai-compatible">OpenAI Compatible</option>
-            </select>
-          </div>
-          
-          {/* Anthropic settings */}
-          {provider === 'anthropic' && (
-            <div className="border rounded-lg p-4 mb-4">
-              <h3 className="font-bold mb-2">Anthropic Settings</h3>
-              
-              <div className="form-control mb-4">
-                <label htmlFor="anthropic-api-key" className="label">
-                  <span className="label-text">API Key:</span>
-                </label>
-                <input
-                  type="password"
-                  id="anthropic-api-key"
-                  value={anthropicApiKey}
-                  onChange={(e) => setAnthropicApiKey(e.target.value)}
-                  placeholder="Enter your Anthropic API key"
-                  className="input input-bordered w-full"
-                />
-              </div>
-              
-              <div className="form-control mb-4">
-                <label htmlFor="anthropic-base-url" className="label">
-                  <span className="label-text">Base URL (optional):</span>
-                </label>
-                <input
-                  type="text"
-                  id="anthropic-base-url"
-                  value={anthropicBaseUrl}
-                  onChange={(e) => setAnthropicBaseUrl(e.target.value)}
-                  placeholder="Custom base URL (leave empty for default)"
-                  className="input input-bordered w-full"
-                />
-              </div>
-              
-              <div className="form-control mb-4">
-                <label htmlFor="thinking-budget" className="label">
-                  <span className="label-text">Thinking Budget (tokens):</span>
-                </label>
-                <input
-                  type="number"
-                  id="thinking-budget"
-                  value={thinkingBudgetTokens}
-                  onChange={(e) => setThinkingBudgetTokens(parseInt(e.target.value) || 0)}
-                  placeholder="0 to disable thinking"
-                  className="input input-bordered w-full"
-                  min="0"
-                />
-                <label className="label">
-                  <span className="label-text-alt">Set to 0 to disable Claude's thinking feature</span>
-                </label>
-              </div>
-            </div>
-          )}
-          
-          {/* OpenAI settings */}
-          {provider === 'openai' && (
-            <div className="border rounded-lg p-4 mb-4">
-              <h3 className="font-bold mb-2">OpenAI Settings</h3>
-              
-              <div className="form-control mb-4">
-                <label htmlFor="openai-api-key" className="label">
-                  <span className="label-text">API Key:</span>
-                </label>
-                <input
-                  type="password"
-                  id="openai-api-key"
-                  value={openaiApiKey}
-                  onChange={(e) => setOpenaiApiKey(e.target.value)}
-                  placeholder="Enter your OpenAI API key"
-                  className="input input-bordered w-full"
-                />
-              </div>
-              
-              <div className="form-control mb-4">
-                <label htmlFor="openai-base-url" className="label">
-                  <span className="label-text">Base URL (optional):</span>
-                </label>
-                <input
-                  type="text"
-                  id="openai-base-url"
-                  value={openaiBaseUrl}
-                  onChange={(e) => setOpenaiBaseUrl(e.target.value)}
-                  placeholder="Custom base URL (leave empty for default)"
-                  className="input input-bordered w-full"
-                />
-              </div>
-            </div>
-          )}
-          
-          {/* Gemini settings */}
-          {provider === 'gemini' && (
-            <div className="border rounded-lg p-4 mb-4">
-              <h3 className="font-bold mb-2">Google Gemini Settings</h3>
-              
-              <div className="form-control mb-4">
-                <label htmlFor="gemini-api-key" className="label">
-                  <span className="label-text">API Key:</span>
-                </label>
-                <input
-                  type="password"
-                  id="gemini-api-key"
-                  value={geminiApiKey}
-                  onChange={(e) => setGeminiApiKey(e.target.value)}
-                  placeholder="Enter your Google AI API key"
-                  className="input input-bordered w-full"
-                />
-              </div>
-              
-              <div className="form-control mb-4">
-                <label htmlFor="gemini-base-url" className="label">
-                  <span className="label-text">Base URL (optional):</span>
-                </label>
-                <input
-                  type="text"
-                  id="gemini-base-url"
-                  value={geminiBaseUrl}
-                  onChange={(e) => setGeminiBaseUrl(e.target.value)}
-                  placeholder="Custom base URL (leave empty for default)"
-                  className="input input-bordered w-full"
-                />
-              </div>
-            </div>
-          )}
-          
-          {/* Ollama settings */}
-          {provider === 'ollama' && (
-            <div className="border rounded-lg p-4 mb-4">
-              <h3 className="font-bold mb-2">Ollama Settings</h3>
-              
-              <div className="form-control mb-4">
-                <label htmlFor="ollama-api-key" className="label">
-                  <span className="label-text">API Key (optional):</span>
-                </label>
-                <input
-                  type="password"
-                  id="ollama-api-key"
-                  value={ollamaApiKey}
-                  onChange={(e) => setOllamaApiKey(e.target.value)}
-                  placeholder="Enter your Ollama API key if required"
-                  className="input input-bordered w-full"
-                />
-                <label className="label">
-                  <span className="label-text-alt">Ollama typically doesn't require an API key</span>
-                </label>
-              </div>
-              
-              <div className="form-control mb-4">
-                <label htmlFor="ollama-base-url" className="label">
-                  <span className="label-text">Base URL:</span>
-                </label>
-                <input
-                  type="text"
-                  id="ollama-base-url"
-                  value={ollamaBaseUrl}
-                  onChange={(e) => setOllamaBaseUrl(e.target.value)}
-                  placeholder="Ollama server URL (default: http://localhost:11434)"
-                  className="input input-bordered w-full"
-                />
-                <span className="label-text-alt">
-                    If running Ollama locally, you need to enable CORS by setting <code>OLLAMA_ORIGINS=*</code> environment variable. 
-                    <a href="https://objectgraph.com/blog/ollama-cors/" target="_blank" className="link link-primary ml-1">Learn more</a>
-                  </span>
-              </div>
-            </div>
-          )}
-          
-          {/* openai-compatible provider settings form */}
-          {provider === 'openai-compatible' && (
-            <div className="border rounded-lg p-4 mb-4">
-              <h3 className="font-bold mb-2">OpenAI Compatible Settings</h3>
-              <div className="form-control mb-4">
-                <label htmlFor="openai-compatible-api-key" className="label">
-                  <span className="label-text">API Key:</span>
-                </label>
-                <input
-                  type="password"
-                  id="openai-compatible-api-key"
-                  value={openaiCompatibleApiKey}
-                  onChange={e => setOpenaiCompatibleApiKey(e.target.value)}
-                  placeholder="Enter your OpenAI-Compatible API key"
-                  className="input input-bordered w-full"
-                />
-              </div>
-              <div className="form-control mb-4">
-                <label htmlFor="openai-compatible-base-url" className="label">
-                  <span className="label-text">Base URL:</span>
-                </label>
-                <input
-                  type="text"
-                  id="openai-compatible-base-url"
-                  value={openaiCompatibleBaseUrl}
-                  onChange={e => setOpenaiCompatibleBaseUrl(e.target.value)}
-                  placeholder="Custom base URL (leave empty for default)"
-                  className="input input-bordered w-full"
-                />
-              </div>
-              <div className="form-control mb-4">
-                <label className="label">
-                  <span className="label-text">Model List:</span>
-                </label>
-                <table className="table table-zebra w-full mb-2">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Name</th>
-                      <th>Reasoning Model?</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {openaiCompatibleModels.map((model, idx) => (
-                      <tr key={model.id}>
-                        <td>
-                          <input
-                            className="input input-bordered input-sm w-full"
-                            value={model.id}
-                            onChange={e => handleEditModel(idx, 'id', e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="input input-bordered input-sm w-full"
-                            value={model.name}
-                            onChange={e => handleEditModel(idx, 'name', e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={!!model.isReasoningModel}
-                            onChange={e => handleEditModel(idx, 'isReasoningModel', e.target.checked)}
-                          />
-                        </td>
-                        <td>
-                          <button className="btn btn-sm btn-error" onClick={() => handleRemoveModel(model.id)}>Delete</button>
-                        </td>
-                      </tr>
-                    ))}
-                    <tr>
-                      <td>
-                        <input
-                          className="input input-bordered input-sm w-full"
-                          value={newModel.id}
-                          onChange={e => setNewModel({ ...newModel, id: e.target.value })}
-                          placeholder="Model ID"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="input input-bordered input-sm w-full"
-                          value={newModel.name}
-                          onChange={e => setNewModel({ ...newModel, name: e.target.value })}
-                          placeholder="Model Name"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={!!newModel.isReasoningModel}
-                          onChange={e => setNewModel({ ...newModel, isReasoningModel: e.target.checked })}
-                        />
-                      </td>
-                      <td>
-                        <button className="btn btn-sm btn-primary" onClick={handleAddModel}>Add</button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              {openaiCompatibleModels.length > 0 && (
-                <div className="form-control mb-4">
-                  <label className="label">
-                    <span className="label-text">Current Model:</span>
-                  </label>
-                  <select
-                    className="select select-bordered w-full"
-                    value={openaiCompatibleModelId}
-                    onChange={e => setOpenaiCompatibleModelId(e.target.value)}
-                  >
-                    <option value="">Select a model</option>
-                    {openaiCompatibleModels.map(m => (
-                      <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          )}
-          
-          <button 
-            onClick={handleSave} 
-            disabled={isSaving || (
-              (provider === 'anthropic' && !anthropicApiKey.trim()) ||
-              (provider === 'openai' && !openaiApiKey.trim()) ||
-              (provider === 'gemini' && !geminiApiKey.trim())
-            )}
-            className="btn btn-primary"
-          >
-            {isSaving ? 'Saving...' : 'Save Settings'}
-          </button>
-          
-          {saveStatus && <div className="alert alert-success mt-4">{saveStatus}</div>}
-        </div>
-      </div>
       
-      <div className="card bg-base-100 shadow-md mb-6">
-        <div className="card-body">
-          <h2 className="card-title text-xl">Model Pricing</h2>
-          <p className="mb-4">
-            This table shows the relative costs of different LLM models, sorted from cheapest to most expensive.
-            Prices are in USD per 1 million tokens.
-          </p>
-          
-          <div className="overflow-x-auto">
-            <table className="table table-zebra w-full">
-              <thead>
-                <tr>
-                  <th>Model</th>
-                  <th>Provider</th>
-                  <th>Input Price</th>
-                  <th>Output Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {getModelPricingData().map((model) => (
-                  <tr key={`${model.provider}-${model.id}`}>
-                    <td>{model.name}</td>
-                    <td>{model.provider}</td>
-                    <td>${model.inputPrice.toFixed(2)}</td>
-                    <td>${model.outputPrice.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          <p className="text-sm text-gray-500 mt-2">
-            * Prices are per 1 million tokens. Actual costs may vary based on usage.
-          </p>
-        </div>
-      </div>
+      {/* About Section */}
+      <AboutSection />
       
-      {/* Memory Management Section */}
-      <div className="card bg-base-100 shadow-md">
-        <div className="card-body">
-          <h2 className="card-title text-xl">Memory Management</h2>
-          <p className="mb-4">
-            BrowserBee stores memories of successful interactions with websites to help improve future interactions.
-            You can export these memories for backup or transfer to another device, and import them back later.
-          </p>
-          
-          <div className="flex items-center mb-4">
-            <span className="font-medium mr-2">Current memories:</span>
-            <span className="badge badge-primary">{memoryCount}</span>
-          </div>
-          
-          <div className="flex flex-wrap gap-4">
-            <button 
-              onClick={handleExportMemories} 
-              className="btn btn-primary"
-              disabled={memoryCount === 0}
-            >
-              Export Memories
-            </button>
-            
-            <button 
-              onClick={triggerFileInput} 
-              className="btn btn-secondary"
-            >
-              Import Memories
-            </button>
-            
-            {/* Hidden file input for import */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImportMemories}
-              accept=".json"
-              className="hidden"
-            />
-          </div>
-          
-          {exportStatus && (
-            <div className={`alert ${exportStatus.includes('Error') ? 'alert-error' : 'alert-success'} mt-4`}>
-              {exportStatus}
-            </div>
-          )}
-          
-          {importStatus && (
-            <div className={`alert ${importStatus.includes('Error') ? 'alert-error' : 'alert-success'} mt-4`}>
-              {importStatus}
-            </div>
-          )}
-        </div>
-      </div>
+      {/* LLM Provider Configuration */}
+      <LLMProviderConfig
+        // Provider selection
+        provider={provider}
+        setProvider={setProvider}
+        // Anthropic
+        anthropicApiKey={anthropicApiKey}
+        setAnthropicApiKey={setAnthropicApiKey}
+        anthropicBaseUrl={anthropicBaseUrl}
+        setAnthropicBaseUrl={setAnthropicBaseUrl}
+        thinkingBudgetTokens={thinkingBudgetTokens}
+        setThinkingBudgetTokens={setThinkingBudgetTokens}
+        // OpenAI
+        openaiApiKey={openaiApiKey}
+        setOpenaiApiKey={setOpenaiApiKey}
+        openaiBaseUrl={openaiBaseUrl}
+        setOpenaiBaseUrl={setOpenaiBaseUrl}
+        // Gemini
+        geminiApiKey={geminiApiKey}
+        setGeminiApiKey={setGeminiApiKey}
+        geminiBaseUrl={geminiBaseUrl}
+        setGeminiBaseUrl={setGeminiBaseUrl}
+        // Ollama
+        ollamaApiKey={ollamaApiKey}
+        setOllamaApiKey={setOllamaApiKey}
+        ollamaBaseUrl={ollamaBaseUrl}
+        setOllamaBaseUrl={setOllamaBaseUrl}
+        // OpenAI-compatible
+        openaiCompatibleApiKey={openaiCompatibleApiKey}
+        setOpenaiCompatibleApiKey={setOpenaiCompatibleApiKey}
+        openaiCompatibleBaseUrl={openaiCompatibleBaseUrl}
+        setOpenaiCompatibleBaseUrl={setOpenaiCompatibleBaseUrl}
+        openaiCompatibleModelId={openaiCompatibleModelId}
+        setOpenaiCompatibleModelId={setOpenaiCompatibleModelId}
+        openaiCompatibleModels={openaiCompatibleModels}
+        setOpenaiCompatibleModels={setOpenaiCompatibleModels}
+        newModel={newModel}
+        setNewModel={setNewModel}
+        // Save functionality
+        isSaving={isSaving}
+        saveStatus={saveStatus}
+        handleSave={handleSave}
+        // Model operations
+        handleAddModel={handleAddModel}
+        handleRemoveModel={handleRemoveModel}
+        handleEditModel={handleEditModel}
+      />
+      
+      {/* Model Pricing Table */}
+      <ModelPricingTable getModelPricingData={getModelPricingData} />
+      
+      {/* Memory Management */}
+      <MemoryManagement />
     </div>
   );
 }

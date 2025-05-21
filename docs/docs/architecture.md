@@ -168,12 +168,21 @@ The Side Panel is the main interface for interacting with BrowserBee. It has bee
 
 #### Options Page
 
-- **options/Options.tsx**: Options page for configuring the extension
-  - Provider selection (Anthropic, OpenAI, Gemini, Ollama, OpenAI Compatible)
-  - API key management for each provider
-  - Model selection for each provider
-  - Advanced configuration options
+- **options/Options.tsx**: Main component that orchestrates the options UI
+  - Manages state and configuration
+  - Composes all options components
 - **options/index.tsx**: Entry point for the options page
+- **options/components/**: Modular UI components for the options page
+  - **AboutSection.tsx**: Displays the "About" information
+  - **ProviderSelector.tsx**: Handles provider selection
+  - **AnthropicSettings.tsx**, **OpenAISettings.tsx**, **GeminiSettings.tsx**, **OllamaSettings.tsx**: Provider-specific settings
+  - **OpenAICompatibleSettings.tsx**: Settings for OpenAI-compatible providers
+  - **ModelList.tsx**: Manages model list for OpenAI-compatible providers
+  - **ModelPricingTable.tsx**: Displays model pricing information
+  - **MemoryManagement.tsx**: Handles memory export/import functionality
+  - **SaveButton.tsx**: Manages settings saving functionality
+  - **LLMProviderConfig.tsx**: Combines provider selection and settings
+  - **ProviderSettings.tsx**: Renders the appropriate provider settings component
 
 ### Tracking Module
 
