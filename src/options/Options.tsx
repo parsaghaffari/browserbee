@@ -71,6 +71,13 @@ export function Options() {
   const [importStatus, setImportStatus] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // openai-compatible provider related state
+  const [openaiCompatibleApiKey, setOpenaiCompatibleApiKey] = useState('');
+  const [openaiCompatibleBaseUrl, setOpenaiCompatibleBaseUrl] = useState('');
+  const [openaiCompatibleModelId, setOpenaiCompatibleModelId] = useState('');
+  const [openaiCompatibleModels, setOpenaiCompatibleModels] = useState<Array<{ id: string; name: string; isReasoningModel?: boolean }>>([]);
+  const [newModel, setNewModel] = useState({ id: '', name: '', isReasoningModel: false });
+
   // Load memory count
   const loadMemoryCount = async () => {
     try {
@@ -199,6 +206,10 @@ export function Options() {
       ollamaModelId: ollamaDefaultModelId,
       ollamaBaseUrl: '',
       thinkingBudgetTokens: 0,
+      openaiCompatibleApiKey: '',
+      openaiCompatibleBaseUrl: '',
+      openaiCompatibleModelId: '',
+      openaiCompatibleModels: [],
     }, (result) => {
       setProvider(result.provider);
       setAnthropicApiKey(result.anthropicApiKey);
@@ -214,6 +225,10 @@ export function Options() {
       setOllamaModelId(result.ollamaModelId);
       setOllamaBaseUrl(result.ollamaBaseUrl || '');
       setThinkingBudgetTokens(result.thinkingBudgetTokens);
+      setOpenaiCompatibleApiKey(result.openaiCompatibleApiKey || '');
+      setOpenaiCompatibleBaseUrl(result.openaiCompatibleBaseUrl || '');
+      setOpenaiCompatibleModelId(result.openaiCompatibleModelId || '');
+      setOpenaiCompatibleModels(result.openaiCompatibleModels || []);
     });
   }, []);
 
@@ -236,6 +251,10 @@ export function Options() {
       ollamaModelId,
       ollamaBaseUrl,
       thinkingBudgetTokens,
+      openaiCompatibleApiKey,
+      openaiCompatibleBaseUrl,
+      openaiCompatibleModelId,
+      openaiCompatibleModels,
     }, () => {
       setIsSaving(false);
       setSaveStatus('Settings saved successfully!');
@@ -245,6 +264,20 @@ export function Options() {
         setSaveStatus('');
       }, 3000);
     });
+  };
+
+  // openai-compatible model list operations
+  const handleAddModel = () => {
+    if (!newModel.id.trim() || !newModel.name.trim()) return;
+    setOpenaiCompatibleModels([...openaiCompatibleModels, { ...newModel }]);
+    setNewModel({ id: '', name: '', isReasoningModel: false });
+  };
+  const handleRemoveModel = (id: string) => {
+    setOpenaiCompatibleModels(openaiCompatibleModels.filter(m => m.id !== id));
+    if (openaiCompatibleModelId === id) setOpenaiCompatibleModelId('');
+  };
+  const handleEditModel = (idx: number, field: string, value: any) => {
+    setOpenaiCompatibleModels(models => models.map((m, i) => i === idx ? { ...m, [field]: value } : m));
   };
 
   return (
@@ -285,6 +318,7 @@ export function Options() {
               <option value="openai">OpenAI (GPT)</option>
               <option value="gemini">Google (Gemini)</option>
               <option value="ollama">Ollama</option>
+              <option value="openai-compatible">OpenAI Compatible</option>
             </select>
           </div>
           
@@ -450,6 +484,129 @@ export function Options() {
                     <a href="https://objectgraph.com/blog/ollama-cors/" target="_blank" className="link link-primary ml-1">Learn more</a>
                   </span>
               </div>
+            </div>
+          )}
+          
+          {/* openai-compatible provider settings form */}
+          {provider === 'openai-compatible' && (
+            <div className="border rounded-lg p-4 mb-4">
+              <h3 className="font-bold mb-2">OpenAI Compatible Settings</h3>
+              <div className="form-control mb-4">
+                <label htmlFor="openai-compatible-api-key" className="label">
+                  <span className="label-text">API Key:</span>
+                </label>
+                <input
+                  type="password"
+                  id="openai-compatible-api-key"
+                  value={openaiCompatibleApiKey}
+                  onChange={e => setOpenaiCompatibleApiKey(e.target.value)}
+                  placeholder="Enter your OpenAI-Compatible API key"
+                  className="input input-bordered w-full"
+                />
+              </div>
+              <div className="form-control mb-4">
+                <label htmlFor="openai-compatible-base-url" className="label">
+                  <span className="label-text">Base URL:</span>
+                </label>
+                <input
+                  type="text"
+                  id="openai-compatible-base-url"
+                  value={openaiCompatibleBaseUrl}
+                  onChange={e => setOpenaiCompatibleBaseUrl(e.target.value)}
+                  placeholder="Custom base URL (leave empty for default)"
+                  className="input input-bordered w-full"
+                />
+              </div>
+              <div className="form-control mb-4">
+                <label className="label">
+                  <span className="label-text">Model List:</span>
+                </label>
+                <table className="table table-zebra w-full mb-2">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Reasoning Model?</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {openaiCompatibleModels.map((model, idx) => (
+                      <tr key={model.id}>
+                        <td>
+                          <input
+                            className="input input-bordered input-sm w-full"
+                            value={model.id}
+                            onChange={e => handleEditModel(idx, 'id', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="input input-bordered input-sm w-full"
+                            value={model.name}
+                            onChange={e => handleEditModel(idx, 'name', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={!!model.isReasoningModel}
+                            onChange={e => handleEditModel(idx, 'isReasoningModel', e.target.checked)}
+                          />
+                        </td>
+                        <td>
+                          <button className="btn btn-sm btn-error" onClick={() => handleRemoveModel(model.id)}>Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td>
+                        <input
+                          className="input input-bordered input-sm w-full"
+                          value={newModel.id}
+                          onChange={e => setNewModel({ ...newModel, id: e.target.value })}
+                          placeholder="Model ID"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="input input-bordered input-sm w-full"
+                          value={newModel.name}
+                          onChange={e => setNewModel({ ...newModel, name: e.target.value })}
+                          placeholder="Model Name"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={!!newModel.isReasoningModel}
+                          onChange={e => setNewModel({ ...newModel, isReasoningModel: e.target.checked })}
+                        />
+                      </td>
+                      <td>
+                        <button className="btn btn-sm btn-primary" onClick={handleAddModel}>Add</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              {openaiCompatibleModels.length > 0 && (
+                <div className="form-control mb-4">
+                  <label className="label">
+                    <span className="label-text">Current Model:</span>
+                  </label>
+                  <select
+                    className="select select-bordered w-full"
+                    value={openaiCompatibleModelId}
+                    onChange={e => setOpenaiCompatibleModelId(e.target.value)}
+                  >
+                    <option value="">Select a model</option>
+                    {openaiCompatibleModels.map(m => (
+                      <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
           

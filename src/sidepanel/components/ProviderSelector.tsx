@@ -79,6 +79,7 @@ export function ProviderSelector({ isProcessing }: ProviderSelectorProps) {
       case 'openai': return 'OpenAI';
       case 'gemini': return 'Google';
       case 'ollama': return 'Ollama';
+      case 'openai-compatible': return 'OpenAI Compatible';
       default: return provider;
     }
   };

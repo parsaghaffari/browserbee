@@ -2,13 +2,16 @@ import { AnthropicProvider } from '../models/providers/anthropic';
 import { OpenAIProvider } from '../models/providers/openai';
 import { GeminiProvider } from '../models/providers/gemini';
 import { OllamaProvider } from '../models/providers/ollama';
+import { OpenAICompatibleProvider } from '../models/providers/openai-compatible';
 
 export interface ProviderConfig {
-  provider: 'anthropic' | 'openai' | 'gemini' | 'ollama';
+  provider: 'anthropic' | 'openai' | 'gemini' | 'ollama' | 'openai-compatible';
   apiKey: string;
   apiModelId?: string;
   baseUrl?: string;
   thinkingBudgetTokens?: number;
+  // openai-compatible only
+  openaiCompatibleModels?: Array<{ id: string; name: string; isReasoningModel?: boolean }>;
 }
 
 export class ConfigManager {
@@ -39,6 +42,11 @@ export class ConfigManager {
       ollamaModelId: 'llama3.1',
       ollamaBaseUrl: '',
       thinkingBudgetTokens: 0,
+      // openai-compatible
+      openaiCompatibleApiKey: '',
+      openaiCompatibleModelId: '',
+      openaiCompatibleBaseUrl: '',
+      openaiCompatibleModels: [],
     });
     
     // Return provider-specific configuration
@@ -72,6 +80,14 @@ export class ConfigManager {
           apiModelId: result.ollamaModelId,
           baseUrl: result.ollamaBaseUrl,
         };
+      case 'openai-compatible':
+        return {
+          provider: 'openai-compatible',
+          apiKey: result.openaiCompatibleApiKey,
+          apiModelId: result.openaiCompatibleModelId,
+          baseUrl: result.openaiCompatibleBaseUrl,
+          openaiCompatibleModels: result.openaiCompatibleModels || [],
+        };
       default:
         throw new Error(`Provider ${result.provider} not supported`);
     }
@@ -91,6 +107,8 @@ export class ConfigManager {
       openaiApiKey: '',
       geminiApiKey: '',
       ollamaApiKey: '',
+      openaiCompatibleApiKey: '',
+      openaiCompatibleModels: [],
     });
     
     const providers = [];
@@ -101,6 +119,8 @@ export class ConfigManager {
     // For Ollama, check if the base URL is configured
     const ollamaBaseUrl = await this.getOllamaBaseUrl();
     if (ollamaBaseUrl) providers.push('ollama');
+    
+    if (result.openaiCompatibleApiKey && (result.openaiCompatibleModels?.length > 0)) providers.push('openai-compatible');
     
     return providers;
   }
@@ -118,6 +138,10 @@ export class ConfigManager {
         return GeminiProvider.getAvailableModels();
       case 'ollama':
         return OllamaProvider.getAvailableModels();
+      case 'openai-compatible': {
+        const result = await chrome.storage.sync.get({ openaiCompatibleModels: [] });
+        return OpenAICompatibleProvider.getAvailableModels({ openaiCompatibleModels: result.openaiCompatibleModels || [] } as any);
+      }
       default:
         return [];
     }

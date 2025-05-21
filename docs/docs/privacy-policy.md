@@ -5,7 +5,7 @@ title: Privacy Policy
 
 # Privacy Policy
 
-*Last Updated: May 17, 2025*
+*Last Updated: May 20, 2025*
 
 ## Introduction
 
@@ -90,6 +90,7 @@ BrowserBee integrates with the following third-party services:
 - **OpenAI**: If configured, BrowserBee sends data to OpenAI to process your instructions.
 - **Google Gemini**: If configured, BrowserBee sends data to Google to process your instructions.
 - **Ollama**: If configured, BrowserBee sends data to your locally running Ollama instance to process your instructions.
+- **OpenAI Compatible**: If configured, BrowserBee sends data to third-party OpenAI compatible provider you've configured to process your instructions.
 
 Each of these services has its own privacy policy that governs how they handle your data. We encourage you to review their privacy policies:
 
