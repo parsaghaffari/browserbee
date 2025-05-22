@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Model } from './components/ModelList';
+import { OllamaModel } from './components/OllamaModelList';
 import { 
   anthropicModels, 
   openaiModels, 
@@ -30,9 +31,18 @@ export function Options() {
       ...Object.entries(geminiModels).map(([id, model]) => ({ 
         id, provider: 'Google', ...model 
       })),
-      ...Object.entries(ollamaModels).map(([id, model]) => ({ 
-        id, provider: 'Ollama', ...model 
-      }))
+      // Just one entry for Ollama with $0 cost
+      {
+        id: 'ollama',
+        provider: 'Ollama',
+        name: 'Ollama',
+        inputPrice: 0.0,
+        outputPrice: 0.0,
+        maxTokens: 4096,
+        contextWindow: 32768,
+        supportsImages: false,
+        supportsPromptCache: false,
+      }
     ];
     
     // Sort by output price (cheapest first)
@@ -57,6 +67,8 @@ export function Options() {
   // Ollama settings
   const [ollamaApiKey, setOllamaApiKey] = useState('');
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState('');
+  const [ollamaCustomModels, setOllamaCustomModels] = useState<OllamaModel[]>([]);
+  const [newOllamaModel, setNewOllamaModel] = useState({ id: '', name: '', contextWindow: 32768 });
   
   // Model IDs - using defaults from models.ts
   const [anthropicModelId, setAnthropicModelId] = useState(anthropicDefaultModelId);
@@ -94,12 +106,14 @@ export function Options() {
       ollamaApiKey: '',
       ollamaModelId: ollamaDefaultModelId,
       ollamaBaseUrl: '',
+      ollamaCustomModels: [],
       thinkingBudgetTokens: 0,
       openaiCompatibleApiKey: '',
       openaiCompatibleBaseUrl: '',
       openaiCompatibleModelId: '',
       openaiCompatibleModels: [],
     }, (result) => {
+      
       setProvider(result.provider);
       setAnthropicApiKey(result.anthropicApiKey);
       setAnthropicModelId(result.anthropicModelId);
@@ -113,6 +127,7 @@ export function Options() {
       setOllamaApiKey(result.ollamaApiKey);
       setOllamaModelId(result.ollamaModelId);
       setOllamaBaseUrl(result.ollamaBaseUrl || '');
+      setOllamaCustomModels(result.ollamaCustomModels || []);
       setThinkingBudgetTokens(result.thinkingBudgetTokens);
       setOpenaiCompatibleApiKey(result.openaiCompatibleApiKey || '');
       setOpenaiCompatibleBaseUrl(result.openaiCompatibleBaseUrl || '');
@@ -125,6 +140,7 @@ export function Options() {
     setIsSaving(true);
     setSaveStatus('');
 
+    // Save settings to Chrome storage
     chrome.storage.sync.set({
       provider,
       anthropicApiKey,
@@ -139,20 +155,61 @@ export function Options() {
       ollamaApiKey,
       ollamaModelId,
       ollamaBaseUrl,
+      ollamaCustomModels,
       thinkingBudgetTokens,
       openaiCompatibleApiKey,
       openaiCompatibleBaseUrl,
       openaiCompatibleModelId,
       openaiCompatibleModels,
     }, () => {
+      
       setIsSaving(false);
       setSaveStatus('Settings saved successfully!');
+      
+      // Notify that provider configuration has changed
+      chrome.runtime.sendMessage({
+        action: 'providerConfigChanged'
+      }).catch(err => console.error('Error sending message:', err));
       
       // Clear status message after 3 seconds
       setTimeout(() => {
         setSaveStatus('');
       }, 3000);
     });
+  };
+
+  // ollama model list operations
+  const handleAddOllamaModel = () => {
+    if (!newOllamaModel.id.trim() || !newOllamaModel.name.trim()) return;
+    
+    const updatedModels = [...ollamaCustomModels, { ...newOllamaModel }];
+    setOllamaCustomModels(updatedModels);
+    setNewOllamaModel({ id: '', name: '', contextWindow: 32768 });
+    
+    // Save changes immediately to update the model list
+    chrome.storage.sync.set({ ollamaCustomModels: updatedModels });
+  };
+  
+  const handleRemoveOllamaModel = (id: string) => {
+    const updatedModels = ollamaCustomModels.filter(m => m.id !== id);
+    setOllamaCustomModels(updatedModels);
+    if (ollamaModelId === id) setOllamaModelId('');
+    
+    // Save changes immediately to update the model list
+    chrome.storage.sync.set({ ollamaCustomModels: updatedModels });
+  };
+  
+  const handleEditOllamaModel = (idx: number, field: string, value: any) => {
+    let updatedModels: OllamaModel[] = [];
+    setOllamaCustomModels(models => {
+      updatedModels = models.map((m, i) => i === idx ? { ...m, [field]: value } : m);
+      return updatedModels;
+    });
+    
+    // Save changes after state update using a timeout to ensure state is updated
+    setTimeout(() => {
+      chrome.storage.sync.set({ ollamaCustomModels: updatedModels });
+    }, 0);
   };
 
   // openai-compatible model list operations
@@ -205,6 +262,15 @@ export function Options() {
         setOllamaApiKey={setOllamaApiKey}
         ollamaBaseUrl={ollamaBaseUrl}
         setOllamaBaseUrl={setOllamaBaseUrl}
+        ollamaModelId={ollamaModelId}
+        setOllamaModelId={setOllamaModelId}
+        ollamaCustomModels={ollamaCustomModels}
+        setOllamaCustomModels={setOllamaCustomModels}
+        newOllamaModel={newOllamaModel}
+        setNewOllamaModel={setNewOllamaModel}
+        handleAddOllamaModel={handleAddOllamaModel}
+        handleRemoveOllamaModel={handleRemoveOllamaModel}
+        handleEditOllamaModel={handleEditOllamaModel}
         // OpenAI-compatible
         openaiCompatibleApiKey={openaiCompatibleApiKey}
         setOpenaiCompatibleApiKey={setOpenaiCompatibleApiKey}

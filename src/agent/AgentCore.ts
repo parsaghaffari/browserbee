@@ -44,18 +44,12 @@ export class BrowserAgent {
   /**
    * Create a new BrowserAgent
    */
-  constructor(page: Page, config: ProviderConfig) {
+  constructor(page: Page, config: ProviderConfig, provider?: LLMProvider) {
     // Initialize the PageContextManager with the initial page
     initializePageContext(page);
     
-    // Initialize LLM provider with the provided configuration
-    this.llmProvider = createProvider(config.provider, {
-      apiKey: config.apiKey,
-      apiModelId: config.apiModelId,
-      baseUrl: config.baseUrl,
-      thinkingBudgetTokens: config.thinkingBudgetTokens,
-      dangerouslyAllowBrowser: true,
-    });
+    // Use the provided provider or create a new one
+    this.llmProvider = provider!;
     
     // Get all tools from the tools module and convert them to BrowserTool objects
     const rawTools = getAllTools(page);
@@ -210,8 +204,17 @@ export async function createBrowserAgent(
     providerConfig.apiKey = apiKey;
   }
   
-  // Create the agent with the provider configuration
-  return new BrowserAgent(page, providerConfig);
+  // Create the provider with the configuration
+  const provider = await createProvider(providerConfig.provider, {
+    apiKey: providerConfig.apiKey,
+    apiModelId: providerConfig.apiModelId,
+    baseUrl: providerConfig.baseUrl,
+    thinkingBudgetTokens: providerConfig.thinkingBudgetTokens,
+    dangerouslyAllowBrowser: true,
+  });
+  
+  // Create the agent with the provider configuration and provider
+  return new BrowserAgent(page, providerConfig, provider);
 }
 
 /**

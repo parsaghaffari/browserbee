@@ -3,6 +3,7 @@ import { ProviderSelector } from './ProviderSelector';
 import { ProviderSettings } from './ProviderSettings';
 import { SaveButton } from './SaveButton';
 import { Model } from './ModelList';
+import { OllamaModel } from './OllamaModelList';
 
 interface LLMProviderConfigProps {
   // Provider selection
@@ -34,6 +35,15 @@ interface LLMProviderConfigProps {
   setOllamaApiKey: (key: string) => void;
   ollamaBaseUrl: string;
   setOllamaBaseUrl: (url: string) => void;
+  ollamaModelId: string;
+  setOllamaModelId: (id: string) => void;
+  ollamaCustomModels: OllamaModel[];
+  setOllamaCustomModels: (models: OllamaModel[]) => void;
+  newOllamaModel: { id: string; name: string; contextWindow: number };
+  setNewOllamaModel: React.Dispatch<React.SetStateAction<{ id: string; name: string; contextWindow: number }>>;
+  handleAddOllamaModel: () => void;
+  handleRemoveOllamaModel: (id: string) => void;
+  handleEditOllamaModel: (idx: number, field: string, value: any) => void;
   
   // OpenAI-compatible settings
   openaiCompatibleApiKey: string;
@@ -88,6 +98,15 @@ export function LLMProviderConfig({
   setOllamaApiKey,
   ollamaBaseUrl,
   setOllamaBaseUrl,
+  ollamaModelId,
+  setOllamaModelId,
+  ollamaCustomModels,
+  setOllamaCustomModels,
+  newOllamaModel,
+  setNewOllamaModel,
+  handleAddOllamaModel,
+  handleRemoveOllamaModel,
+  handleEditOllamaModel,
   
   // OpenAI-compatible settings
   openaiCompatibleApiKey,
@@ -148,6 +167,15 @@ export function LLMProviderConfig({
           setOllamaApiKey={setOllamaApiKey}
           ollamaBaseUrl={ollamaBaseUrl}
           setOllamaBaseUrl={setOllamaBaseUrl}
+          ollamaModelId={ollamaModelId}
+          setOllamaModelId={setOllamaModelId}
+          ollamaCustomModels={ollamaCustomModels}
+          setOllamaCustomModels={setOllamaCustomModels}
+          newOllamaModel={newOllamaModel}
+          setNewOllamaModel={setNewOllamaModel}
+          handleAddOllamaModel={handleAddOllamaModel}
+          handleRemoveOllamaModel={handleRemoveOllamaModel}
+          handleEditOllamaModel={handleEditOllamaModel}
           // OpenAI-compatible
           openaiCompatibleApiKey={openaiCompatibleApiKey}
           setOpenaiCompatibleApiKey={setOpenaiCompatibleApiKey}

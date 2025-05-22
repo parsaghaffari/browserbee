@@ -1,7 +1,7 @@
 import { AnthropicProvider } from '../models/providers/anthropic';
 import { OpenAIProvider } from '../models/providers/openai';
 import { GeminiProvider } from '../models/providers/gemini';
-import { OllamaProvider } from '../models/providers/ollama';
+import { OllamaProvider, OllamaProviderOptions } from '../models/providers/ollama';
 import { OpenAICompatibleProvider } from '../models/providers/openai-compatible';
 
 export interface ProviderConfig {
@@ -39,7 +39,7 @@ export class ConfigManager {
       geminiModelId: 'gemini-1.5-pro',
       geminiBaseUrl: '',
       ollamaApiKey: '',
-      ollamaModelId: 'llama3.1',
+      ollamaModelId: '',
       ollamaBaseUrl: '',
       thinkingBudgetTokens: 0,
       // openai-compatible
@@ -116,9 +116,12 @@ export class ConfigManager {
     if (result.openaiApiKey) providers.push('openai');
     if (result.geminiApiKey) providers.push('gemini');
     
-    // For Ollama, check if the base URL is configured
+    // For Ollama, check if the base URL is configured AND at least one model exists
     const ollamaBaseUrl = await this.getOllamaBaseUrl();
-    if (ollamaBaseUrl) providers.push('ollama');
+    const ollamaResult = await chrome.storage.sync.get({ ollamaCustomModels: [] });
+    if (ollamaBaseUrl && ollamaResult.ollamaCustomModels.length > 0) {
+      providers.push('ollama');
+    }
     
     if (result.openaiCompatibleApiKey && (result.openaiCompatibleModels?.length > 0)) providers.push('openai-compatible');
     
@@ -136,8 +139,11 @@ export class ConfigManager {
         return OpenAIProvider.getAvailableModels();
       case 'gemini':
         return GeminiProvider.getAvailableModels();
-      case 'ollama':
-        return OllamaProvider.getAvailableModels();
+      case 'ollama': {
+        const result = await chrome.storage.sync.get({ ollamaCustomModels: [] });
+        const models = OllamaProvider.getAvailableModels({ ollamaCustomModels: result.ollamaCustomModels } as OllamaProviderOptions);
+        return models;
+      }
       case 'openai-compatible': {
         const result = await chrome.storage.sync.get({ openaiCompatibleModels: [] });
         return OpenAICompatibleProvider.getAvailableModels({ openaiCompatibleModels: result.openaiCompatibleModels || [] } as any);

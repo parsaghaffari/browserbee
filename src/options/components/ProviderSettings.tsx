@@ -5,6 +5,7 @@ import { GeminiSettings } from './GeminiSettings';
 import { OllamaSettings } from './OllamaSettings';
 import { OpenAICompatibleSettings } from './OpenAICompatibleSettings';
 import { Model } from './ModelList';
+import { OllamaModel } from './OllamaModelList';
 
 interface ProviderSettingsProps {
   provider: string;
@@ -33,6 +34,15 @@ interface ProviderSettingsProps {
   setOllamaApiKey: (key: string) => void;
   ollamaBaseUrl: string;
   setOllamaBaseUrl: (url: string) => void;
+  ollamaModelId: string;
+  setOllamaModelId: (id: string) => void;
+  ollamaCustomModels: OllamaModel[];
+  setOllamaCustomModels: (models: OllamaModel[]) => void;
+  newOllamaModel: { id: string; name: string; contextWindow: number };
+  setNewOllamaModel: React.Dispatch<React.SetStateAction<{ id: string; name: string; contextWindow: number }>>;
+  handleAddOllamaModel: () => void;
+  handleRemoveOllamaModel: (id: string) => void;
+  handleEditOllamaModel: (idx: number, field: string, value: any) => void;
   
   // OpenAI-compatible settings
   openaiCompatibleApiKey: string;
@@ -74,6 +84,15 @@ export function ProviderSettings({
   setOllamaApiKey,
   ollamaBaseUrl,
   setOllamaBaseUrl,
+  ollamaModelId,
+  setOllamaModelId,
+  ollamaCustomModels,
+  setOllamaCustomModels,
+  newOllamaModel,
+  setNewOllamaModel,
+  handleAddOllamaModel,
+  handleRemoveOllamaModel,
+  handleEditOllamaModel,
   // OpenAI-compatible
   openaiCompatibleApiKey,
   setOpenaiCompatibleApiKey,
@@ -126,6 +145,15 @@ export function ProviderSettings({
           setOllamaApiKey={setOllamaApiKey}
           ollamaBaseUrl={ollamaBaseUrl}
           setOllamaBaseUrl={setOllamaBaseUrl}
+          ollamaModelId={ollamaModelId}
+          setOllamaModelId={setOllamaModelId}
+          ollamaCustomModels={ollamaCustomModels}
+          setOllamaCustomModels={setOllamaCustomModels}
+          newOllamaModel={newOllamaModel}
+          setNewOllamaModel={setNewOllamaModel}
+          handleAddOllamaModel={handleAddOllamaModel}
+          handleRemoveOllamaModel={handleRemoveOllamaModel}
+          handleEditOllamaModel={handleEditOllamaModel}
         />
       )}
       
