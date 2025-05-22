@@ -64,7 +64,10 @@ BrowserBee supports multiple LLM providers. You'll need to set up at least one t
    ```
 3. In the BrowserBee options page, select "Ollama" as your provider
 4. Enter the Ollama server URL (usually `http://localhost:11434`)
-5. Select your preferred model (e.g., llama3.1, qwen3)
+5. Add at least one custom model by specifying:
+   - Model ID (e.g., `llama3.1`, `qwen3`)
+   - Display name (e.g., `Llama 3.1`, `Qwen 3`)
+   - Context window size (default: 32768)
 
 ## Using BrowserBee
 
