@@ -103,6 +103,7 @@ The Background Module manages the extension's background processes, including ta
   - Manages message queue
 - **background/configManager.ts**: Provider configuration management
   - Stores and retrieves provider configuration
+  - Validates provider configuration requirements
   - Provides a singleton instance for global access
 - **background/types.ts**: Type definitions for background processes
 - **background/utils.ts**: Utility functions for background processes
@@ -168,12 +169,22 @@ The Side Panel is the main interface for interacting with BrowserBee. It has bee
 
 #### Options Page
 
-- **options/Options.tsx**: Options page for configuring the extension
-  - Provider selection (Anthropic, OpenAI, Gemini, Ollama, OpenAI Compatible)
-  - API key management for each provider
-  - Model selection for each provider
-  - Advanced configuration options
+- **options/Options.tsx**: Main component that orchestrates the options UI
+  - Manages state and configuration
+  - Composes all options components
 - **options/index.tsx**: Entry point for the options page
+- **options/components/**: Modular UI components for the options page
+  - **AboutSection.tsx**: Displays the "About" information
+  - **ProviderSelector.tsx**: Handles provider selection
+  - **AnthropicSettings.tsx**, **OpenAISettings.tsx**, **GeminiSettings.tsx**, **OllamaSettings.tsx**: Provider-specific settings
+  - **OpenAICompatibleSettings.tsx**: Settings for OpenAI-compatible providers
+  - **ModelList.tsx**: Manages model list for OpenAI-compatible providers
+  - **OllamaModelList.tsx**: Manages custom model list for Ollama provider
+  - **ModelPricingTable.tsx**: Displays model pricing information
+  - **MemoryManagement.tsx**: Handles memory export/import functionality
+  - **SaveButton.tsx**: Manages settings saving functionality
+  - **LLMProviderConfig.tsx**: Combines provider selection and settings
+  - **ProviderSettings.tsx**: Renders the appropriate provider settings component
 
 ### Tracking Module
 
@@ -222,8 +233,9 @@ The Ollama integration allows users to connect to locally running Ollama models:
 1. **Browser Compatibility**: Uses the browser-compatible version of the Ollama library
 2. **API Key Optional**: Unlike other providers, Ollama doesn't require an API key
 3. **CORS Configuration**: Requires CORS to be enabled on the Ollama server
-4. **Local Models**: Supports models like llama3.1 and Qwen3
-5. **Privacy-Focused**: Provides a privacy-focused alternative to cloud-based LLM providers
+4. **Custom Models**: Supports user-defined custom models with configurable context windows
+5. **Configuration Requirements**: Requires both a base URL and at least one custom model to be configured
+6. **Privacy-Focused**: Provides a privacy-focused alternative to cloud-based LLM providers
 
 The provider system follows these design patterns:
 

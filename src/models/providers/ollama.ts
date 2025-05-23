@@ -2,21 +2,30 @@ import { Anthropic } from "@anthropic-ai/sdk";
 import { Message, Ollama } from "ollama/browser";
 import { LLMProvider, ProviderOptions, ModelInfo, ApiStream, StreamChunk } from './types';
 import { convertToOllamaMessages } from "./ollama-format";
-import { ollamaModels, ollamaDefaultModelId } from '../models';
+import { ollamaModels, ollamaDefaultModelId, OllamaModelId } from '../models';
+import { OllamaModel } from '../../options/components/OllamaModelList';
+
+export interface OllamaProviderOptions extends ProviderOptions {
+  ollamaCustomModels?: OllamaModel[];
+}
 
 export class OllamaProvider implements LLMProvider {
   // Static method to get available models
-  static getAvailableModels(): {id: string, name: string}[] {
-    return Object.entries(ollamaModels).map(([id, info]) => ({
-      id,
-      name: info.name
-    }));
+  static getAvailableModels(options?: OllamaProviderOptions): {id: string, name: string}[] {
+    // Only return custom models if provided
+    const customModels = options?.ollamaCustomModels?.map(model => ({
+      id: model.id,
+      name: model.name
+    })) || [];
+    
+    // Return only custom models, no generic entry
+    return customModels;
   }
   
-  private options: ProviderOptions;
+  private options: OllamaProviderOptions;
   private client: Ollama;
 
-	constructor(options: ProviderOptions) {
+	constructor(options: OllamaProviderOptions) {
 		this.options = options;
 		
 		// Only create the client if a base URL is provided
@@ -38,6 +47,11 @@ export class OllamaProvider implements LLMProvider {
 			throw new Error("Ollama base URL not configured. Please set the Ollama server URL in the extension options.");
 		}
 		
+		// Check if any models are configured
+		if (!this.options.ollamaCustomModels || this.options.ollamaCustomModels.length === 0) {
+			throw new Error("No Ollama models configured. Please add at least one model in the extension options.");
+		}
+		
 		const ollamaMessages: Message[] = [
 			{ role: "system", content: systemPrompt }, 
 			...convertToOllamaMessages(messages)
@@ -49,13 +63,16 @@ export class OllamaProvider implements LLMProvider {
         setTimeout(() => reject(new Error("Ollama request timed out after 120 seconds")), 120000);
       });
 
+      // Get the model info
+      const model = this.getModel();
+      
       // Create the actual API request promise
       const apiPromise = this.client.chat({
-        model: this.getModel().id,
+        model: model.id,
         messages: ollamaMessages,
         stream: true,
         options: {
-          num_ctx: 32768, // Default context window size
+          num_ctx: this.getContextWindowSize(model.id), // Use the context window size from the model configuration
         },
       });
 
@@ -99,17 +116,63 @@ export class OllamaProvider implements LLMProvider {
     }
   }
 
+  /**
+   * Get the context window size for a model
+   * @param modelId The model ID
+   * @returns The context window size
+   */
+  private getContextWindowSize(modelId: string): number {
+    // Check if it's a custom model
+    const customModel = this.options.ollamaCustomModels?.find(m => m.id === modelId);
+    if (customModel) {
+      return customModel.contextWindow;
+    }
+    
+    // Default context window size
+    return 32768;
+  }
+
   getModel(): { id: string; info: ModelInfo } {
-    const modelId = this.options.apiModelId || ollamaDefaultModelId;
+    const modelId = this.options.apiModelId;
     
-    // Check if the model ID exists in our models, otherwise use the default
-    const safeModelId = Object.keys(ollamaModels).includes(modelId) 
-      ? modelId as keyof typeof ollamaModels 
-      : ollamaDefaultModelId;
+    // If no model ID is specified and we have custom models, use the first one
+    if (!modelId && this.options.ollamaCustomModels && this.options.ollamaCustomModels.length > 0) {
+      const firstModel = this.options.ollamaCustomModels[0];
+      return {
+        id: firstModel.id,
+        info: {
+          name: firstModel.name,
+          inputPrice: 0.0,
+          outputPrice: 0.0,
+          maxTokens: 4096,
+          contextWindow: firstModel.contextWindow,
+          supportsImages: false,
+          supportsPromptCache: false,
+        }
+      };
+    }
     
+    // Check if it's a custom model
+    const customModel = this.options.ollamaCustomModels?.find(m => m.id === modelId);
+    if (customModel && modelId) {
+      return {
+        id: modelId,
+        info: {
+          name: customModel.name,
+          inputPrice: 0.0,
+          outputPrice: 0.0,
+          maxTokens: 4096,
+          contextWindow: customModel.contextWindow,
+          supportsImages: false,
+          supportsPromptCache: false,
+        }
+      };
+    }
+    
+    // Fallback to a generic model info
     return {
-      id: modelId,
-      info: ollamaModels[safeModelId],
+      id: "ollama",
+      info: ollamaModels.ollama,
     };
   }
 }
