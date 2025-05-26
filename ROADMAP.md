@@ -25,19 +25,23 @@
 - [x] llm adaptors (config in options, show active LLM)
     - [x] automatically refresh model list upon change in configuration
 - [x] add integration with Ollama
-    - [ ] better handling for <think> tokens when using thinking models
-    - [ ] improve configuration to accept model, max tokens, etc as parameters
 - [x] task memory using indexedDB (<website, task, steps>) 
     - [x] investigate how duplicate memories could affect agent performance, and come up with a solution to handle them if necessary
     - [x] add memory import/export functions
     - [x] include pre-built memories for major websites
     - [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
-- [ ] write user docs
+- [ ] review/write user docs
 - [x] upload to Chrome web store
-- [ ] write tests 
+- [ ] create test suite and add basic test coverage
 
 [0.2.1]
 
+- [ ] add support for Gemini 2.5 Flash
+- [ ] add support for OpenAI Compatible models
+- [ ] add support for Claude 4
+- [ ] enhance support for Ollama models
+    - [ ] better handling for <think> tokens when using thinking models
+    - [ ] improve configuration to accept model, max tokens, etc as parameters
 - [ ] add memory management UI
     - [ ] view all available memories
     - [ ] delete ones not needed  
