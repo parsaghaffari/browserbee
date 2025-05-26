@@ -50,6 +50,8 @@
     - [ ] seamlessly follow user's active tab
 - [ ] enhanced isolation across windows
     - [ ] token tracker not isolated by window?
+- [ ] evaluate puppeteer as an alternative to playwright
+- [ ] evaluate optimisation strategies for DOM representations
 
 [0.3.0]
 - [ ] add saved prompts with persistence in local DB
