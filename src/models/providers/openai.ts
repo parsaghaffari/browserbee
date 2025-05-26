@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import { LLMProvider, ProviderOptions, ModelInfo, ApiStream, StreamChunk } from './types';
 import { openaiModels, openaiDefaultModelId } from '../models';
+import { LLMProvider, ProviderOptions, ModelInfo, ApiStream, StreamChunk } from './types';
 
 export class OpenAIProvider implements LLMProvider {
   // Static method to get available models

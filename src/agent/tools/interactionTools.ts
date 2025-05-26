@@ -11,7 +11,7 @@ export const browserClick: ToolFactory = (page: Page) =>
     func: async (input: string) => {
       try {
         return await withActivePage(page, async (activePage) => {
-          if (/[#.\[]/.test(input)) {
+          if (/[#.[]/.test(input)) {
             await activePage.click(input);
             return `Clicked selector: ${input}`;
           }
@@ -52,7 +52,7 @@ export const browserType: ToolFactory = (page: Page) =>
 export const browserHandleDialog: ToolFactory = (page: Page) => {
   // Install dialog listener with the active page
   installDialogListener(page);
-  
+
   return new DynamicTool({
     name: "browser_handle_dialog",
     description:

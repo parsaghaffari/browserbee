@@ -18,7 +18,9 @@
   },
   "scripts": {
     "build": "tsc && vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "lint": "eslint \"src/**/*.{ts,tsx,js,jsx}\"",
+    "lint:fix": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --fix"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -43,15 +45,19 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.27.0",
     "@tailwindcss/vite": "^4.1.4",
     "@types/chrome": "^0.0.281",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.4.0",
     "daisyui": "^5.0.27",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-react": "^7.37.5",
     "rollup-plugin-sourcemaps": "^0.6.3",
     "tailwindcss": "^4.1.4",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.32.1",
     "vite": "^6.1.0"
   }
 }

@@ -1,9 +1,9 @@
 import React from 'react';
+import { Model } from './ModelList';
+import { OllamaModel } from './OllamaModelList';
 import { ProviderSelector } from './ProviderSelector';
 import { ProviderSettings } from './ProviderSettings';
 import { SaveButton } from './SaveButton';
-import { Model } from './ModelList';
-import { OllamaModel } from './OllamaModelList';
 
 interface LLMProviderConfigProps {
   // Provider selection

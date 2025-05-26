@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import { Message, Ollama } from "ollama/browser";
-import { LLMProvider, ProviderOptions, ModelInfo, ApiStream, StreamChunk } from './types';
-import { convertToOllamaMessages } from "./ollama-format";
-import { ollamaModels, ollamaDefaultModelId, OllamaModelId } from '../models';
 import { OllamaModel } from '../../options/components/OllamaModelList';
+import { ollamaModels } from '../models';
+import { convertToOllamaMessages } from "./ollama-format";
+import { LLMProvider, ProviderOptions, ModelInfo, ApiStream } from './types';
 
 export interface OllamaProviderOptions extends ProviderOptions {
   ollamaCustomModels?: OllamaModel[];
@@ -17,43 +17,43 @@ export class OllamaProvider implements LLMProvider {
       id: model.id,
       name: model.name
     })) || [];
-    
+
     // Return only custom models, no generic entry
     return customModels;
   }
-  
+
   private options: OllamaProviderOptions;
   private client: Ollama;
 
 	constructor(options: OllamaProviderOptions) {
 		this.options = options;
-		
+
 		// Only create the client if a base URL is provided
 		if (this.options.baseUrl) {
-			this.client = new Ollama({ 
+			this.client = new Ollama({
 				host: this.options.baseUrl
 			});
 		} else {
 			// Use a default URL for the client, but it won't be used unless a base URL is configured
-			this.client = new Ollama({ 
-				host: "http://localhost:11434" 
+			this.client = new Ollama({
+				host: "http://localhost:11434"
 			});
 		}
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: any[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], _tools?: any[]): ApiStream {
 		// Check if a base URL is configured
 		if (!this.options.baseUrl) {
 			throw new Error("Ollama base URL not configured. Please set the Ollama server URL in the extension options.");
 		}
-		
+
 		// Check if any models are configured
 		if (!this.options.ollamaCustomModels || this.options.ollamaCustomModels.length === 0) {
 			throw new Error("No Ollama models configured. Please add at least one model in the extension options.");
 		}
-		
+
 		const ollamaMessages: Message[] = [
-			{ role: "system", content: systemPrompt }, 
+			{ role: "system", content: systemPrompt },
 			...convertToOllamaMessages(messages)
 		];
 
@@ -65,7 +65,7 @@ export class OllamaProvider implements LLMProvider {
 
       // Get the model info
       const model = this.getModel();
-      
+
       // Create the actual API request promise
       const apiPromise = this.client.chat({
         model: model.id,
@@ -127,14 +127,14 @@ export class OllamaProvider implements LLMProvider {
     if (customModel) {
       return customModel.contextWindow;
     }
-    
+
     // Default context window size
     return 32768;
   }
 
   getModel(): { id: string; info: ModelInfo } {
     const modelId = this.options.apiModelId;
-    
+
     // If no model ID is specified and we have custom models, use the first one
     if (!modelId && this.options.ollamaCustomModels && this.options.ollamaCustomModels.length > 0) {
       const firstModel = this.options.ollamaCustomModels[0];
@@ -151,7 +151,7 @@ export class OllamaProvider implements LLMProvider {
         }
       };
     }
-    
+
     // Check if it's a custom model
     const customModel = this.options.ollamaCustomModels?.find(m => m.id === modelId);
     if (customModel && modelId) {
@@ -168,7 +168,7 @@ export class OllamaProvider implements LLMProvider {
         }
       };
     }
-    
+
     // Fallback to a generic model info
     return {
       id: "ollama",

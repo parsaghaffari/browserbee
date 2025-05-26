@@ -1,3 +1,4 @@
+import { getWindowForTab } from './tabManager';
 import { UIMessage } from './types';
 
 /**
@@ -14,8 +15,6 @@ export function sendUIMessage(action: string, content: any, tabId?: number, wind
     if (!windowId) {
       try {
         // Try to get the window ID from the tab manager
-        // Using require to avoid circular dependencies
-        const getWindowForTab = require('./tabManager').getWindowForTab;
         if (typeof getWindowForTab === 'function') {
           windowId = getWindowForTab(tabId);
         }
@@ -38,7 +37,7 @@ export function sendUIMessage(action: string, content: any, tabId?: number, wind
 export function logWithTimestamp(message: string, level: 'log' | 'warn' | 'error' = 'log') {
   const timestamp = new Date().toISOString();
   const formattedMessage = `[${timestamp}] ${message}`;
-  
+
   switch (level) {
     case 'warn':
       console.warn(formattedMessage);

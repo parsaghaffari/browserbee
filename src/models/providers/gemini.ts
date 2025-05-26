@@ -1,6 +1,6 @@
 import { GoogleGenAI, Content } from "@google/genai";
-import { LLMProvider, ProviderOptions, ModelInfo, ApiStream, StreamChunk } from './types';
 import { geminiModels, geminiDefaultModelId } from '../models';
+import { LLMProvider, ProviderOptions, ModelInfo, ApiStream } from './types';
 
 // Define a default TTL for the cache (e.g., 1 hour in seconds)
 const DEFAULT_CACHE_TTL_SECONDS = 3600;
@@ -13,10 +13,10 @@ export class GeminiProvider implements LLMProvider {
       name: info.name
     }));
   }
-  
+
   private options: ProviderOptions;
   private client: GoogleGenAI;
-  
+
   // Internal state for caching
   private cacheName: string | null = null;
   private cacheExpireTime: number | null = null;
@@ -40,7 +40,7 @@ export class GeminiProvider implements LLMProvider {
       .replace(/\u003c/g, '<')
       .replace(/\u003e/g, '>');
   }
-  
+
   /**
    * Helper function to detect and extract tool calls from text with escaped HTML entities
    * @param text The text to check for tool calls
@@ -49,11 +49,11 @@ export class GeminiProvider implements LLMProvider {
   private extractToolCallFromText(text: string): { name: string, input: string, requiresApproval: boolean } | null {
     // Decode HTML entities first
     const decodedText = this.decodeHtmlEntities(text);
-    
+
     // Check for tool call pattern
     const toolCallRegex = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>\s*<requires_approval>(.*?)<\/requires_approval>/;
     const match = decodedText.match(toolCallRegex);
-    
+
     if (match) {
       const [, name, input, requiresApprovalRaw] = match;
       return {
@@ -62,16 +62,16 @@ export class GeminiProvider implements LLMProvider {
         requiresApproval: requiresApprovalRaw.trim().toLowerCase() === 'true'
       };
     }
-    
+
     return null;
   }
-  
+
   async *createMessage(systemPrompt: string, messages: any[], tools?: any[]): ApiStream {
     // Get model info to check for thinking config
     const model = this.getModel();
     const modelId = model.id;
     const modelInfo = model.info;
-    
+
     // --- Cache Handling Logic ---
     const isCacheValid = this.cacheName && this.cacheExpireTime && Date.now() < this.cacheExpireTime;
     let useCache = !this.isFirstApiCall && isCacheValid;
@@ -96,11 +96,11 @@ export class GeminiProvider implements LLMProvider {
       useCache = false;
     }
     // --- End Cache Handling Logic ---
-    
+
       // Process messages to ensure clean alternating pattern
-      let processedMessages: any[] = [];
+      const processedMessages: any[] = [];
       let previousRole: string | null = null;
-      
+
       // Process messages to combine consecutive messages of the same role
       for (const msg of messages) {
         // Skip empty messages
@@ -108,16 +108,16 @@ export class GeminiProvider implements LLMProvider {
           console.log("Skipping empty message in conversation history");
           continue;
         }
-        
+
         // Skip system instructions embedded in user messages
-        if (msg.role === "user" && typeof msg.content === "string" && 
+        if (msg.role === "user" && typeof msg.content === "string" &&
             msg.content.startsWith("[SYSTEM INSTRUCTION:")) {
           console.log("Skipping system instruction embedded in user message");
           continue;
         }
-        
+
         const role = msg.role === "assistant" ? "model" : "user";
-        
+
         // If this message has the same role as the previous one, combine them
         if (role === previousRole && processedMessages.length > 0) {
           const lastMsg = processedMessages[processedMessages.length - 1];
@@ -133,7 +133,7 @@ export class GeminiProvider implements LLMProvider {
           previousRole = role;
         }
       }
-      
+
       // Ensure we have alternating user-model messages
       // If we have two consecutive messages of the same role, add a placeholder message in between
       for (let i = 1; i < processedMessages.length; i++) {
@@ -148,10 +148,10 @@ export class GeminiProvider implements LLMProvider {
           i++; // Skip the newly inserted message
         }
       }
-      
+
       // Convert to Gemini format
       let contents: Content[] = [];
-      
+
       // Use the processed messages
       contents = processedMessages;
 
@@ -160,13 +160,13 @@ export class GeminiProvider implements LLMProvider {
       const config: any = {
         temperature: 0,
       };
-      
+
       // Add system prompt as systemInstruction in config if not empty and not using cache
       if (systemPrompt && !useCache) {
         // System prompt will be passed in the config, not as a message
         config.systemInstruction = systemPrompt;
       }
-      
+
       // Add thinking config if available and budget is set
       if (modelInfo.thinkingConfig && this.options.thinkingBudgetTokens) {
         config.thinkingConfig = {
@@ -176,12 +176,12 @@ export class GeminiProvider implements LLMProvider {
           ),
         };
       }
-      
+
       // Add base URL if provided
       if (this.options.baseUrl) {
         config.httpOptions = { baseUrl: this.options.baseUrl };
       }
-      
+
       // Add cache if available
       if (useCache && this.cacheName) {
         config.cachedContent = this.cacheName;
@@ -199,8 +199,8 @@ export class GeminiProvider implements LLMProvider {
               properties: {
                 input: {
                   type: "STRING",
-                  description: tool.name.includes("navigate") ? 
-                    "The URL to navigate to" : 
+                  description: tool.name.includes("navigate") ?
+                    "The URL to navigate to" :
                     "The input to the tool"
                 },
                 requires_approval: {
@@ -213,7 +213,7 @@ export class GeminiProvider implements LLMProvider {
           }))
         };
       }
-      
+
       // Make sure we have at least one message in the contents array
       if (contents.length === 0) {
         // If no messages, add a default user message
@@ -222,7 +222,7 @@ export class GeminiProvider implements LLMProvider {
           parts: [{ text: "Hello" }]
         });
       }
-      
+
       // Send the message and get the stream
       // Use type assertion to bypass TypeScript error for tools property
       const params: any = {
@@ -230,11 +230,11 @@ export class GeminiProvider implements LLMProvider {
         contents: contents,
         config,
       };
-      
+
       // Add tools if provided
       if (geminiTools) {
         params.tools = geminiTools;
-        
+
         // Add toolConfig to force function calling
         params.toolConfig = {
           functionCallingConfig: {
@@ -242,28 +242,28 @@ export class GeminiProvider implements LLMProvider {
           }
         };
       }
-      
+
       const result = await this.client.models.generateContentStream(params);
-      
+
       // Track usage metadata
       let lastUsageMetadata: any = null;
-      
+
       // Process the stream
       for await (const chunk of result) {
         // Debug log to help diagnose response structure
         console.debug("Gemini chunk:", JSON.stringify(chunk));
-        
+
         // Handle function calls at the top level (this is the key change)
         if (chunk.functionCalls && chunk.functionCalls.length > 0) {
           for (const functionCall of chunk.functionCalls) {
             const { name, args } = functionCall;
-            
+
             // Convert to our XML format with null checks
             const input = args && args.input ? args.input : "";
             const requiresApproval = args && args.requires_approval === true ? "true" : "false";
-            
+
             const xmlToolCall = `<tool>${name}</tool>\n<input>${input}</input>\n<requires_approval>${requiresApproval}</requires_approval>`;
-            
+
             console.log("Found top-level function call:", name, args || {});
             yield {
               type: "text",
@@ -275,12 +275,12 @@ export class GeminiProvider implements LLMProvider {
         else if (chunk.text) {
           // Check if the text contains a tool call with escaped HTML entities
           const toolCall = this.extractToolCallFromText(chunk.text);
-          
+
           if (toolCall) {
             // If a tool call is found, convert it to our XML format
             console.log("Found tool call in text with escaped HTML entities:", toolCall);
             const xmlToolCall = `<tool>${toolCall.name}</tool>\n<input>${toolCall.input}</input>\n<requires_approval>${toolCall.requiresApproval ? 'true' : 'false'}</requires_approval>`;
-            
+
             yield {
               type: "text",
               text: xmlToolCall,
@@ -301,13 +301,13 @@ export class GeminiProvider implements LLMProvider {
             const candidateAny = candidate as any;
             if (candidateAny.functionCall) {
               const { name, args } = candidateAny.functionCall;
-              
+
               // Convert to our XML format with null checks
               const input = args && args.input ? args.input : "";
               const requiresApproval = args && args.requires_approval === true ? "true" : "false";
-              
+
               const xmlToolCall = `<tool>${name}</tool>\n<input>${input}</input>\n<requires_approval>${requiresApproval}</requires_approval>`;
-              
+
               console.log("Found candidate function call:", name, args || {});
               yield {
                 type: "text",
@@ -322,13 +322,13 @@ export class GeminiProvider implements LLMProvider {
                 const partAny = part as any;
                 if (partAny.functionCall) {
                   const { name, args } = partAny.functionCall;
-                  
+
                   // Convert to our XML format with null checks
                   const input = args && args.input ? args.input : "";
                   const requiresApproval = args && args.requires_approval === true ? "true" : "false";
-                  
+
                   const xmlToolCall = `<tool>${name}</tool>\n<input>${input}</input>\n<requires_approval>${requiresApproval}</requires_approval>`;
-                  
+
                   console.log("Found part function call:", name, args || {});
                   yield {
                     type: "text",
@@ -350,12 +350,12 @@ export class GeminiProvider implements LLMProvider {
                 } else if (part.text) {
                   // Check if the text contains a tool call with escaped HTML entities
                   const toolCall = this.extractToolCallFromText(part.text);
-                  
+
                   if (toolCall) {
                     // If a tool call is found, convert it to our XML format
                     console.log("Found tool call in part text with escaped HTML entities:", toolCall);
                     const xmlToolCall = `<tool>${toolCall.name}</tool>\n<input>${toolCall.input}</input>\n<requires_approval>${toolCall.requiresApproval ? 'true' : 'false'}</requires_approval>`;
-                    
+
                     yield {
                       type: "text",
                       text: xmlToolCall,
@@ -372,13 +372,13 @@ export class GeminiProvider implements LLMProvider {
             }
           }
         }
-        
+
         // Track usage metadata
         if (chunk.usageMetadata) {
           lastUsageMetadata = chunk.usageMetadata;
         }
       }
-      
+
       // Yield final usage information
       if (lastUsageMetadata) {
         yield {
@@ -393,7 +393,7 @@ export class GeminiProvider implements LLMProvider {
         console.warn("No usage metadata available from Gemini, using estimates");
         yield {
           type: "usage",
-          inputTokens: Math.ceil(systemPrompt.length / 4) + 
+          inputTokens: Math.ceil(systemPrompt.length / 4) +
                        Math.ceil(messages.reduce((acc, msg) => acc + (msg.content?.length || 0), 0) / 4),
           outputTokens: 0,
         };
@@ -406,7 +406,7 @@ export class GeminiProvider implements LLMProvider {
       };
     }
   }
-  
+
   /**
    * Create a cache in the background for future requests
    */
@@ -443,12 +443,12 @@ export class GeminiProvider implements LLMProvider {
 
   getModel(): { id: string; info: ModelInfo } {
     const modelId = this.options.apiModelId || geminiDefaultModelId;
-    
+
     // Check if the model ID exists in our models, otherwise use the default
-    const safeModelId = Object.keys(geminiModels).includes(modelId) 
-      ? modelId as keyof typeof geminiModels 
+    const safeModelId = Object.keys(geminiModels).includes(modelId)
+      ? modelId as keyof typeof geminiModels
       : geminiDefaultModelId;
-    
+
     return {
       id: modelId,
       info: geminiModels[safeModelId],
