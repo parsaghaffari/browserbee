@@ -1,7 +1,7 @@
+import { faPaperPlane, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import React, { useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPaperPlane, faXmark } from '@fortawesome/free-solid-svg-icons';
 
 interface PromptFormProps {
   onSubmit: (prompt: string) => void;

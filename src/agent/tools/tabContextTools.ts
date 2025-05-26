@@ -1,7 +1,7 @@
 import { DynamicTool } from "langchain/tools";
 import type { Page } from "playwright-crx";
-import { ToolFactory } from "./types";
 import { getCurrentPage } from "../PageContextManager";
+import { ToolFactory } from "./types";
 import { getCurrentTabId } from "./utils";
 
 /**

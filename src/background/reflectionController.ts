@@ -1,9 +1,9 @@
-import { logWithTimestamp, handleError, sendUIMessage } from './utils';
-import { getTabState, getWindowForTab, getAgentForWindow } from './tabManager';
-import { executePrompt } from './agentController';
-import { MemoryService, AgentMemory } from '../tracking/memoryService';
 import { ExecutionCallbacks } from '../agent/ExecutionEngine';
 import { normalizeDomain } from '../tracking/domainUtils';
+import { MemoryService, AgentMemory } from '../tracking/memoryService';
+import { executePrompt } from './agentController';
+import { getTabState, getWindowForTab, getAgentForWindow } from './tabManager';
+import { logWithTimestamp, handleError, sendUIMessage } from './utils';
 
 // Function to directly save a memory from the reflection process
 export async function saveReflectionMemory(content: string, domain: string, tabId: number): Promise<void> {

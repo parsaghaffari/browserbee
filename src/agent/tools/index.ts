@@ -1,7 +1,15 @@
 import type { Page } from "playwright-crx";
-import { ToolFactory } from "./types";
 
 // Import all tools from their respective modules
+import { 
+  browserClick, 
+  browserType, 
+  browserHandleDialog 
+} from "./interactionTools";
+import { 
+  browserPressKey, 
+  browserKeyboardType 
+} from "./keyboardTools";
 import { 
   saveMemory, 
   lookupMemories, 
@@ -11,23 +19,16 @@ import {
 } from "./memoryTools";
 
 import { 
+  browserMoveMouse, 
+  browserClickXY, 
+  browserDrag 
+} from "./mouseTools";
+import { 
   browserNavigate, 
   browserWaitForNavigation, 
   browserNavigateBack, 
   browserNavigateForward 
 } from "./navigationTools";
-
-import {
-  browserGetActiveTab,
-  browserNavigateTab,
-  browserScreenshotTab
-} from "./tabContextTools";
-
-import { 
-  browserClick, 
-  browserType, 
-  browserHandleDialog 
-} from "./interactionTools";
 
 import { 
   browserGetTitle, 
@@ -37,17 +38,15 @@ import {
   browserReadText, 
   browserScreenshot 
 } from "./observationTools";
+import {
+  browserGetActiveTab,
+  browserNavigateTab,
+  browserScreenshotTab
+} from "./tabContextTools";
 
-import { 
-  browserMoveMouse, 
-  browserClickXY, 
-  browserDrag 
-} from "./mouseTools";
 
-import { 
-  browserPressKey, 
-  browserKeyboardType 
-} from "./keyboardTools";
+
+
 
 import { 
   browserTabList, 
@@ -55,6 +54,7 @@ import {
   browserTabSelect, 
   browserTabClose 
 } from "./tabTools";
+import { ToolFactory } from "./types";
 
 // Export all tools
 export {

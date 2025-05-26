@@ -1,5 +1,5 @@
-import { anthropicModels, openaiModels, geminiModels, ollamaModels } from "../models/models";
 import { ConfigManager } from "../background/configManager";
+import { anthropicModels, openaiModels, geminiModels, ollamaModels } from "../models/models";
 
 export interface TokenUsage {
   inputTokens: number;
@@ -9,17 +9,17 @@ export interface TokenUsage {
 
 export class TokenTrackingService {
   private static instance: TokenTrackingService;
-  
+
   // In-memory storage (no persistence)
   private inputTokens: number = 0;
   private outputTokens: number = 0;
   private cost: number = 0;
-  
+
   // Provider and model tracking
   private configManager: ConfigManager;
   private currentProvider: string = 'anthropic';
   private currentModelId: string = '';
-  
+
   // Subscribers for UI updates
   private subscribers: (() => void)[] = [];
 
@@ -48,13 +48,13 @@ export class TokenTrackingService {
 
   public trackInputTokens(tokens: number, cacheTokens?: { write?: number, read?: number }, windowId?: number): void {
     this.inputTokens += tokens;
-    
+
     // Add cache tokens to the total if provided
     if (cacheTokens) {
       if (cacheTokens.write) this.inputTokens += cacheTokens.write;
       if (cacheTokens.read) this.inputTokens += cacheTokens.read;
     }
-    
+
     this.updateCost();
     this.notifySubscribers(windowId);
   }
@@ -98,7 +98,7 @@ export class TokenTrackingService {
   private updateCost(): void {
     let inputPrice = 0;
     let outputPrice = 0;
-    
+
     // Get pricing based on current provider and model
     switch (this.currentProvider) {
       case 'anthropic':
@@ -130,7 +130,7 @@ export class TokenTrackingService {
         }
         break;
     }
-    
+
     // Calculate cost based on price per million tokens
     const inputCost = (inputPrice / 1_000_000) * this.inputTokens;
     const outputCost = (outputPrice / 1_000_000) * this.outputTokens;
@@ -141,13 +141,13 @@ export class TokenTrackingService {
     // Send message to UI via Chrome runtime messaging
     try {
       const usage = this.getUsage();
-      
+
       // Get the current tab ID and window ID if possible
       chrome.tabs.query({ active: true, lastFocusedWindow: true })
         .then(tabs => {
           const tabId = tabs[0]?.id;
           const currentWindowId = tabs[0]?.windowId || windowId;
-          
+
           chrome.runtime.sendMessage({
             action: 'tokenUsageUpdated',
             content: usage,
@@ -157,6 +157,7 @@ export class TokenTrackingService {
         })
         .catch(error => {
           // If we can't get the current tab, just send the message without tab/window ID
+          console.error('Error getting current tab:', error);
           chrome.runtime.sendMessage({
             action: 'tokenUsageUpdated',
             content: usage
@@ -165,7 +166,7 @@ export class TokenTrackingService {
     } catch (error) {
       console.error('Error sending token usage update:', error);
     }
-    
+
     // Also notify local subscribers
     this.subscribers.forEach(callback => {
       try {

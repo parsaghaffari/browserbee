@@ -1,11 +1,14 @@
 import type { Page } from "playwright-crx";
-import { getAllTools } from "./tools/index";
-import { ToolManager } from "./ToolManager";
-import { PromptManager } from "./PromptManager";
-import { MemoryManager } from "./MemoryManager";
+import { ConfigManager, ProviderConfig } from "../background/configManager";
+import { createProvider } from "../models/providers/factory";
+import { LLMProvider } from "../models/providers/types";
 import { ErrorHandler } from "./ErrorHandler";
 import { ExecutionEngine, ExecutionCallbacks } from "./ExecutionEngine";
+import { MemoryManager } from "./MemoryManager";
 import { initializePageContext } from "./PageContextManager";
+import { PromptManager } from "./PromptManager";
+import { ToolManager } from "./ToolManager";
+import { getAllTools } from "./tools/index";
 import { BrowserTool, ToolExecutionContext } from "./tools/types";
 // Define our own DynamicTool interface to avoid import issues
 interface DynamicTool {
@@ -25,9 +28,6 @@ function isDynamicTool(obj: any): obj is DynamicTool {
     typeof obj.func === 'function'
   );
 }
-import { LLMProvider } from "../models/providers/types";
-import { createProvider } from "../models/providers/factory";
-import { ConfigManager, ProviderConfig } from "../background/configManager";
 
 /**
  * BrowserAgent is the main class for the browser automation agent.
@@ -40,27 +40,27 @@ export class BrowserAgent {
   private memoryManager: MemoryManager;
   private errorHandler: ErrorHandler;
   private executionEngine: ExecutionEngine;
-  
+
   /**
    * Create a new BrowserAgent
    */
   constructor(page: Page, config: ProviderConfig, provider?: LLMProvider) {
     // Initialize the PageContextManager with the initial page
     initializePageContext(page);
-    
+
     // Use the provided provider or create a new one
     this.llmProvider = provider!;
-    
+
     // Get all tools from the tools module and convert them to BrowserTool objects
     const rawTools = getAllTools(page);
     const browserTools = this.convertToBrowserTools(rawTools);
-    
+
     // Initialize all the components
     this.toolManager = new ToolManager(page, browserTools);
     this.promptManager = new PromptManager(this.toolManager.getTools());
     this.memoryManager = new MemoryManager(this.toolManager.getTools());
     this.errorHandler = new ErrorHandler();
-    
+
     // Initialize the execution engine with all the components
     this.executionEngine = new ExecutionEngine(
       this.llmProvider,
@@ -70,7 +70,7 @@ export class BrowserAgent {
       this.errorHandler
     );
   }
-  
+
   /**
    * Convert tools from DynamicTool to BrowserTool format
    * This is needed because the tools are created using langchain's DynamicTool,
@@ -83,7 +83,7 @@ export class BrowserAgent {
         return {
           name: tool.name,
           description: tool.description,
-          func: async (input: string, context?: ToolExecutionContext) => {
+          func: async (input: string, _context?: ToolExecutionContext) => {
             // Call the original function, ignoring any extra parameters
             return await tool.func(input);
           }
@@ -111,28 +111,28 @@ export class BrowserAgent {
       }
     });
   }
-  
+
   /**
    * Cancel the current execution
    */
   cancel(): void {
     this.errorHandler.cancel();
   }
-  
+
   /**
    * Reset the cancel flag
    */
   resetCancel(): void {
     this.errorHandler.resetCancel();
   }
-  
+
   /**
    * Check if streaming is supported in the current environment
    */
   async isStreamingSupported(): Promise<boolean> {
     return this.errorHandler.isStreamingSupported();
   }
-  
+
   /**
    * Execute a prompt with fallback support
    */
@@ -147,7 +147,7 @@ export class BrowserAgent {
       initialMessages
     );
   }
-  
+
   /**
    * Execute a prompt without fallback
    */
@@ -179,7 +179,7 @@ export async function createBrowserAgent(
   // Get provider configuration
   const configManager = ConfigManager.getInstance();
   let providerConfig: ProviderConfig;
-  
+
   try {
     providerConfig = await configManager.getProviderConfig();
   } catch (error) {
@@ -190,7 +190,7 @@ export async function createBrowserAgent(
       apiModelId: 'claude-3-7-sonnet-20250219',
     };
   }
-  
+
   // Special case for Ollama: it doesn't require an API key
   if (providerConfig.provider === 'ollama') {
     // Use a dummy API key if none is provided
@@ -198,12 +198,12 @@ export async function createBrowserAgent(
       providerConfig.apiKey = 'dummy-key';
     }
   }
-  
+
   // Use the provided API key as a fallback if the stored one is empty
   if (!providerConfig.apiKey) {
     providerConfig.apiKey = apiKey;
   }
-  
+
   // Create the provider with the configuration
   const provider = await createProvider(providerConfig.provider, {
     apiKey: providerConfig.apiKey,
@@ -212,7 +212,7 @@ export async function createBrowserAgent(
     thinkingBudgetTokens: providerConfig.thinkingBudgetTokens,
     dangerouslyAllowBrowser: true,
   });
-  
+
   // Create the agent with the provider configuration and provider
   return new BrowserAgent(page, providerConfig, provider);
 }
@@ -228,13 +228,13 @@ export async function needsReinitialization(
   currentProvider?: ProviderConfig
 ): Promise<boolean> {
   if (!agent) return true;
-  
+
   // Get current provider configuration if not provided
   if (!currentProvider) {
     const configManager = ConfigManager.getInstance();
     currentProvider = await configManager.getProviderConfig();
   }
-  
+
   // Check if the provider has changed
   // We can't directly access the agent's provider, so we'll need to reinitialize
   // if the provider has changed in the config

@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useTabManagement } from './hooks/useTabManagement';
-import { useMessageManagement } from './hooks/useMessageManagement';
-import { useChromeMessaging } from './hooks/useChromeMessaging';
-import { MessageDisplay } from './components/MessageDisplay';
-import { PromptForm } from './components/PromptForm';
-import { OutputHeader } from './components/OutputHeader';
-import { TabStatusBar } from './components/TabStatusBar';
-import { TokenUsageDisplay } from './components/TokenUsageDisplay';
+import { ConfigManager } from '../background/configManager';
 import { TokenTrackingService } from '../tracking/tokenTrackingService';
 import { ApprovalRequest } from './components/ApprovalRequest';
+import { MessageDisplay } from './components/MessageDisplay';
+import { OutputHeader } from './components/OutputHeader';
+import { PromptForm } from './components/PromptForm';
 import { ProviderSelector } from './components/ProviderSelector';
-import { ConfigManager } from '../background/configManager';
+import { TabStatusBar } from './components/TabStatusBar';
+import { TokenUsageDisplay } from './components/TokenUsageDisplay';
+import { useChromeMessaging } from './hooks/useChromeMessaging';
+import { useMessageManagement } from './hooks/useMessageManagement';
+import { useTabManagement } from './hooks/useTabManagement';
 
 export function SidePanel() {
   // State for tab status
   const [tabStatus, setTabStatus] = useState<'attached' | 'detached' | 'unknown' | 'running' | 'idle' | 'error'>('unknown');
-  
+
   // State for approval requests
   const [approvalRequests, setApprovalRequests] = useState<Array<{
     requestId: string;
@@ -26,7 +26,7 @@ export function SidePanel() {
 
   // State to track if any LLM providers are configured
   const [hasConfiguredProviders, setHasConfiguredProviders] = useState<boolean>(false);
-  
+
   // Check if any providers are configured when component mounts
   useEffect(() => {
     const checkProviders = async () => {
@@ -34,31 +34,31 @@ export function SidePanel() {
       const providers = await configManager.getConfiguredProviders();
       setHasConfiguredProviders(providers.length > 0);
     };
-    
+
     checkProviders();
-    
+
     // Listen for provider configuration changes
     const handleMessage = (message: any) => {
       if (message.action === 'providerConfigChanged') {
         checkProviders();
       }
     };
-    
+
     chrome.runtime.onMessage.addListener(handleMessage);
-    
+
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
   }, []);
 
   // Use custom hooks to manage state and functionality
-  const { 
-    tabId, 
+  const {
+    tabId,
     windowId,
-    tabTitle, 
-    setTabTitle 
+    tabTitle,
+    setTabTitle
   } = useTabManagement();
-  
+
   const {
     messages,
     streamingSegments,
@@ -75,20 +75,20 @@ export function SidePanel() {
     clearMessages,
     currentSegmentId
   } = useMessageManagement();
-  
+
   // Heartbeat interval for checking agent status
   useEffect(() => {
     if (!isProcessing) return;
-    
+
     const interval = setInterval(() => {
       // Request agent status
-      chrome.runtime.sendMessage({ 
+      chrome.runtime.sendMessage({
         action: 'checkAgentStatus',
         tabId,
         windowId
       });
     }, 2000); // Check every 2 seconds
-    
+
     return () => clearInterval(interval);
   }, [isProcessing, tabId, windowId]);
 
@@ -112,9 +112,9 @@ export function SidePanel() {
   };
 
   // Set up Chrome messaging with callbacks
-  const { 
-    executePrompt, 
-    cancelExecution, 
+  const {
+    executePrompt,
+    cancelExecution,
     clearHistory,
     approveRequest,
     rejectRequest
@@ -168,18 +168,18 @@ export function SidePanel() {
     },
     setTabTitle,
     // New event handlers for tab events
-    onTabStatusChanged: (status, tabId) => {
+    onTabStatusChanged: (status, _tabId) => {
       // Update the tab status state
       setTabStatus(status);
     },
-    onTargetChanged: (tabId, url) => {
+    onTargetChanged: (_tabId, _url) => {
       // We don't need to do anything here as TabStatusBar handles this
     },
     onActiveTabChanged: (oldTabId, newTabId, title, url) => {
       // Update the tab title when the agent switches tabs
       console.log(`SidePanel: Active tab changed from ${oldTabId} to ${newTabId}`);
       setTabTitle(title);
-      
+
       // Add a system message to indicate the tab change
       addSystemMessage(`Switched to tab: ${title} (${url})`);
     },
@@ -194,17 +194,17 @@ export function SidePanel() {
     onAgentStatusUpdate: (status, lastHeartbeat) => {
       // Log agent status updates for debugging
       console.log(`Agent status update: ${status}, lastHeartbeat: ${lastHeartbeat}, diff: ${Date.now() - lastHeartbeat}ms`);
-      
+
       // Update the tab status based on agent status
       if (status === 'running' || status === 'idle' || status === 'error') {
         setTabStatus(status);
       }
-      
+
       // If agent is running, ensure UI is in processing mode
       if (status === 'running') {
         setIsProcessing(true);
       }
-      
+
       // If agent is idle, ensure UI is not in processing mode
       if (status === 'idle') {
         setIsProcessing(false);
@@ -217,7 +217,7 @@ export function SidePanel() {
     setIsProcessing(true);
     // Update the tab status to running
     setTabStatus('running');
-    
+
     // Add a system message to indicate a new prompt
     addSystemMessage(`New prompt: "${prompt}"`);
 
@@ -238,19 +238,19 @@ export function SidePanel() {
     if (approvalRequests.length > 0) {
       // Add a system message to indicate that approvals were rejected due to cancellation
       addSystemMessage(`❌ Cancelled execution - all pending approval requests were automatically rejected`);
-      
+
       // Reject each pending approval request
       approvalRequests.forEach(req => {
         rejectRequest(req.requestId);
       });
-      
+
       // Clear the approval requests
       setApprovalRequests([]);
     }
-    
+
     // Cancel the execution
     cancelExecution();
-    
+
     // Update the tab status to idle
     setTabStatus('idle');
   };
@@ -259,12 +259,12 @@ export function SidePanel() {
   const handleClearHistory = () => {
     clearMessages();
     clearHistory();
-    
+
     // Reset token tracking
     const tokenTracker = TokenTrackingService.getInstance();
     tokenTracker.reset();
   };
-  
+
   // Handle reflect and learn
   const handleReflectAndLearn = () => {
     // Send message to background script to trigger reflection
@@ -272,7 +272,7 @@ export function SidePanel() {
       action: 'reflectAndLearn',
       tabId
     });
-    
+
     // Add a system message to indicate reflection is happening
     addSystemMessage("🧠 Reflecting on this session to learn useful patterns...");
   };
@@ -287,7 +287,7 @@ export function SidePanel() {
       <header className="mb-4">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-primary">BrowserBee 🐝</h1>
-        <TabStatusBar 
+        <TabStatusBar
           tabId={tabId}
           tabTitle={tabTitle}
           tabStatus={tabStatus}
@@ -302,16 +302,16 @@ export function SidePanel() {
         <>
           <div className="flex flex-col flex-grow gap-4 overflow-hidden md:flex-row shadow-sm">
             <div className="card bg-base-100 shadow-md flex-1 flex flex-col overflow-hidden">
-              <OutputHeader 
+              <OutputHeader
                 onClearHistory={handleClearHistory}
                 onReflectAndLearn={handleReflectAndLearn}
                 isProcessing={isProcessing}
               />
-              <div 
+              <div
                 ref={outputRef}
                 className="card-body p-3 overflow-auto bg-base-100 flex-1"
               >
-                <MessageDisplay 
+                <MessageDisplay
                   messages={messages}
                   streamingSegments={streamingSegments}
                   isStreaming={isStreaming}
@@ -319,10 +319,10 @@ export function SidePanel() {
               </div>
             </div>
           </div>
-          
+
           {/* Add Token Usage Display */}
           <TokenUsageDisplay />
-          
+
           {/* Display approval requests */}
           {approvalRequests.map(req => (
             <ApprovalRequest
@@ -335,8 +335,8 @@ export function SidePanel() {
               onReject={handleReject}
             />
           ))}
-          
-          <PromptForm 
+
+          <PromptForm
             onSubmit={handleSubmit}
             onCancel={handleCancel}
             isProcessing={isProcessing}
@@ -351,7 +351,7 @@ export function SidePanel() {
             <p className="text-gray-600 mb-4">
               You need to configure an LLM provider before you can use BrowserBee.
             </p>
-            <button 
+            <button
               onClick={navigateToOptions}
               className="btn btn-primary"
             >

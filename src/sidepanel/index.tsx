@@ -1,6 +1,6 @@
 // React is needed for JSX
 import React from 'react';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { createRoot } from 'react-dom/client';
 import '../index.css';
 import { SidePanel } from './SidePanel';

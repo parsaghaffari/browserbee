@@ -1,5 +1,3 @@
-import { ModelInfo } from './providers/types';
-
 // Ollama Models
 export type OllamaModelId = string;
 export const ollamaDefaultModelId: OllamaModelId = "";
