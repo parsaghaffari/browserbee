@@ -2,22 +2,24 @@ import { setupMessageListeners } from './messageHandler';
 import { cleanupOnUnload, setupTabListeners } from './tabManager';
 import { logWithTimestamp } from './utils';
 import { MemoryService } from '../tracking/memoryService';
+import { MCPManager } from '../agent/mcp/MCPManager';
 
 /**
  * Initialize the extension
  */
 function initializeExtension(): void {
   logWithTimestamp('BrowserBee 🐝 extension initialized');
-  
+
   // Set up message listeners
   setupMessageListeners();
-  
+
   // Set up tab listeners
   setupTabListeners();
-  
+
   // Set up event listeners
   setupEventListeners();
-  
+  MCPManager.getInstance().listenFromBackground();
+
   // Set up command listeners
   setupCommandListeners();
 }
@@ -30,10 +32,10 @@ function setupEventListeners(): void {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'sync') {
       // Check if any provider configuration has changed
-      const providerConfigChanged = Object.keys(changes).some(key => 
-        key === 'provider' || 
-        key === 'anthropicApiKey' || 
-        key === 'openaiApiKey' || 
+      const providerConfigChanged = Object.keys(changes).some(key =>
+        key === 'provider' ||
+        key === 'anthropicApiKey' ||
+        key === 'openaiApiKey' ||
         key === 'geminiApiKey' ||
         key === 'ollamaApiKey' ||
         key === 'anthropicBaseUrl' ||
@@ -41,33 +43,33 @@ function setupEventListeners(): void {
         key === 'geminiBaseUrl' ||
         key === 'ollamaBaseUrl'
       );
-      
+
       if (providerConfigChanged) {
         // Notify all clients that provider configuration has changed
         chrome.runtime.sendMessage({
           action: 'providerConfigChanged'
         });
-        
+
         logWithTimestamp('Provider configuration changed, notified clients');
       }
     }
   });
-  
+
   // Open options page when the extension is first installed
   chrome.runtime.onInstalled.addListener((details) => {
     logWithTimestamp('BrowserBee 🐝 extension installed');
-    
+
     if (details.reason === 'install') {
       chrome.runtime.openOptionsPage();
     }
-    
+
     // Initialize the memory database on install or update
     if (details.reason === 'install' || details.reason === 'update') {
       logWithTimestamp('Initializing memory database');
       const memoryService = MemoryService.getInstance();
       memoryService.init().then(async () => {
         logWithTimestamp('Memory database initialized successfully');
-        
+
         // Import default memories only on fresh install
         if (details.reason === 'install') {
           try {
@@ -87,12 +89,12 @@ function setupEventListeners(): void {
       });
     }
   });
-  
+
   // Open the side panel when the extension icon is clicked or Alt+Shift+B is pressed
   chrome.action.onClicked.addListener(async (tab) => {
     if (tab.id) {
       logWithTimestamp(`Opening side panel for tab ${tab.id}`);
-      
+
       try {
         await chrome.sidePanel.open({ tabId: tab.id });
         logWithTimestamp(`Side panel opened for tab ${tab.id}`);
@@ -103,23 +105,23 @@ function setupEventListeners(): void {
       logWithTimestamp('No tab ID available for action click', 'error');
     }
   });
-  
+
   // Clean up when the extension is unloaded
   chrome.runtime.onSuspend.addListener(async () => {
     logWithTimestamp('Extension is being suspended, cleaning up resources');
     try {
       await cleanupOnUnload();
       logWithTimestamp('Cleanup completed successfully');
-      
+
       // Delete the memory database on uninstall/disable
       try {
         logWithTimestamp('Deleting memory database');
         const request = indexedDB.deleteDatabase('browserbee-memories');
-        
+
         request.onsuccess = () => {
           logWithTimestamp('Memory database deleted successfully');
         };
-        
+
         request.onerror = (event) => {
           logWithTimestamp(`Error deleting memory database: ${(event.target as IDBRequest).error}`, 'error');
         };
@@ -130,23 +132,23 @@ function setupEventListeners(): void {
       logWithTimestamp(`Error during cleanup: ${String(error)}`, 'error');
     }
   });
-  
+
   // Additional cleanup on update or uninstall
   chrome.runtime.onUpdateAvailable.addListener(async (details) => {
     logWithTimestamp(`Extension update available: ${details.version}, cleaning up resources`);
     try {
       await cleanupOnUnload();
       logWithTimestamp('Cleanup before update completed successfully');
-      
+
       // Delete the memory database before update
       try {
         logWithTimestamp('Deleting memory database before update');
         const request = indexedDB.deleteDatabase('browserbee-memories');
-        
+
         request.onsuccess = () => {
           logWithTimestamp('Memory database deleted successfully before update');
         };
-        
+
         request.onerror = (event) => {
           logWithTimestamp(`Error deleting memory database before update: ${(event.target as IDBRequest).error}`, 'error');
         };
@@ -157,7 +159,7 @@ function setupEventListeners(): void {
       logWithTimestamp(`Error during pre-update cleanup: ${String(error)}`, 'error');
     }
   });
-  
+
   // Try to listen for side panel events if available
   try {
     // @ts-ignore - These events might not be in the type definitions yet
@@ -165,26 +167,26 @@ function setupEventListeners(): void {
       // @ts-ignore
       chrome.sidePanel.onShown.addListener(async (info: { tabId?: number }) => {
         logWithTimestamp(`Side panel shown for tab ${info.tabId}`);
-        
+
         if (info.tabId) {
           // Get the window ID for this tab
           try {
             const tab = await chrome.tabs.get(info.tabId);
             const windowId = tab.windowId;
             logWithTimestamp(`Side panel shown for tab ${info.tabId} in window ${windowId}`);
-            
+
             // Send a message to initialize the tab
-            chrome.runtime.sendMessage({ 
-              action: 'initializeTab', 
+            chrome.runtime.sendMessage({
+              action: 'initializeTab',
               tabId: info.tabId,
               windowId: windowId
             });
           } catch (error) {
             logWithTimestamp(`Error getting window ID for tab ${info.tabId}: ${String(error)}`, 'error');
-            
+
             // Fall back to initializing without window ID
-            chrome.runtime.sendMessage({ 
-              action: 'initializeTab', 
+            chrome.runtime.sendMessage({
+              action: 'initializeTab',
               tabId: info.tabId
             });
           }
@@ -211,24 +213,24 @@ function setupEventListeners(): void {
  */
 function setupCommandListeners(): void {
   logWithTimestamp('Setting up command listeners for keyboard shortcuts');
-  
+
   // Log all registered commands to verify our command is registered
   chrome.commands.getAll().then(commands => {
     logWithTimestamp(`Registered commands: ${JSON.stringify(commands)}`);
   }).catch(error => {
     logWithTimestamp(`Error getting registered commands: ${String(error)}`, 'error');
   });
-  
+
   // Listen for any commands (for future extensibility)
   chrome.commands.onCommand.addListener(async (command) => {
     logWithTimestamp(`Command received: ${command}`);
-    
+
     // The _execute_action command is handled automatically by Chrome
     // and will trigger the action.onClicked handler
-    
+
     // This listener is kept for future custom commands and debugging
   });
-  
+
   logWithTimestamp('Command listeners set up');
 }
 

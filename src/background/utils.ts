@@ -1,4 +1,4 @@
-import { UIMessage } from './types';
+import { v4 } from "uuid";
 
 /**
  * Send a message to the UI
@@ -38,7 +38,7 @@ export function sendUIMessage(action: string, content: any, tabId?: number, wind
 export function logWithTimestamp(message: string, level: 'log' | 'warn' | 'error' = 'log') {
   const timestamp = new Date().toISOString();
   const formattedMessage = `[${timestamp}] ${message}`;
-  
+
   switch (level) {
     case 'warn':
       console.warn(formattedMessage);
@@ -71,4 +71,8 @@ export function handleError(error: any, context: string): string {
  */
 export function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function generateUuid() {
+  return v4();
 }
