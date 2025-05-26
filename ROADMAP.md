@@ -36,9 +36,9 @@
 
 [0.2.1]
 
-- [ ] add support for Gemini 2.5 Flash
+- [x] add support for latest Gemini 2.5 Flash & Pro
 - [x] add support for OpenAI Compatible models
-- [ ] add support for Claude 4
+- [x] add support for Claude 4
 - [ ] enhance support for Ollama models
     - [ ] better handling for <think> tokens when using thinking models
     - [x] improve configuration to accept model, max tokens, etc as parameters
