@@ -37,11 +37,11 @@
 [0.2.1]
 
 - [ ] add support for Gemini 2.5 Flash
-- [ ] add support for OpenAI Compatible models
+- [x] add support for OpenAI Compatible models
 - [ ] add support for Claude 4
 - [ ] enhance support for Ollama models
     - [ ] better handling for <think> tokens when using thinking models
-    - [ ] improve configuration to accept model, max tokens, etc as parameters
+    - [x] improve configuration to accept model, max tokens, etc as parameters
 - [ ] add memory management UI
     - [ ] view all available memories
     - [ ] delete ones not needed  
