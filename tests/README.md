@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **364 passing tests** across **13 test suites**.
+This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **392 passing tests** across **14 test suites**.
 
 ## Running Tests
 
@@ -17,7 +17,7 @@ npm run test:watch
 npm run test:coverage
 
 # Run specific test suites
-npm test -- PageContextManager.test.ts PromptManager.test.ts
+npm test -- PageContextManager.test.ts PromptManager.test.ts MemoryManager.test.ts
 npm test -- memoryTools.test.ts tabTools.test.ts
 ```
 
@@ -38,6 +38,7 @@ tests/
     ├── agent/
     │   ├── AgentCore.test.ts           # Core agent functionality
     │   ├── ExecutionEngine.test.ts     # LLM execution engine
+    │   ├── MemoryManager.test.ts       # Memory lookup and integration
     │   ├── PageContextManager.test.ts  # Page context management
     │   ├── PromptManager.test.ts       # System prompt generation
     │   └── tools/
@@ -105,6 +106,14 @@ Located in `tests/unit/agent/`
 - Tool call parsing and execution
 - Token usage tracking and retry logic
 - Error recovery and fallback mechanisms
+
+**Memory Manager** (`MemoryManager.test.ts`)
+- Memory tool initialization and discovery
+- Domain-based memory lookup and retrieval
+- Message context integration with proper formatting
+- Tool sequence visualization and workflow patterns
+- Error handling for invalid JSON and missing tools
+- Performance testing with large memory datasets
 
 **Page Context Manager** (`PageContextManager.test.ts`)
 - Singleton pattern implementation and enforcement
@@ -190,6 +199,7 @@ Located in `tests/unit/agent/tools/`
 | **Agent Core** | | |
 | AgentCore.test.ts | 15 tests | Core agent functionality, tool coordination |
 | ExecutionEngine.test.ts | 18 tests | LLM execution, streaming, token tracking |
+| MemoryManager.test.ts | 28 tests | Memory lookup, integration, error handling |
 | PageContextManager.test.ts | 29 tests | Page context management, singleton pattern |
 | PromptManager.test.ts | 29 tests | System prompt generation, OS detection |
 | **Agent Tools** | | |
@@ -205,7 +215,7 @@ Located in `tests/unit/agent/tools/`
 | **Model Providers** | | |
 | factory.test.ts | 4 tests | Provider instantiation |
 
-**Total: 364 tests across 13 test suites**
+**Total: 392 tests across 14 test suites**
 
 ## Writing New Tests
 
@@ -311,6 +321,26 @@ it('should detect platform correctly', () => {
 
   const result = detectPlatform();
   expect(result).toContain('Windows');
+});
+```
+
+**Memory Manager Testing Pattern**
+```typescript
+it('should handle memory lookup workflow', async () => {
+  const mockMemories = [
+    {
+      taskDescription: 'Login to website',
+      toolSequence: ['browser_click', 'browser_type', 'browser_click']
+    }
+  ];
+
+  mockMemoryTool.func = jest.fn().mockResolvedValue(JSON.stringify(mockMemories)) as any;
+
+  await memoryManager.lookupMemories('example.com', messages);
+
+  expect(messages).toHaveLength(1);
+  expect(messages[0].content).toContain('I found 1 memories for example.com');
+  expect(messages[0].content).toContain('browser_click → browser_type → browser_click');
 });
 ```
 
@@ -432,7 +462,7 @@ The test suite is designed to run in CI environments:
 - **Cross-Platform Testing**: OS-specific behavior validation
 
 ### Quality Assurance
-- All 364 tests consistently passing
+- All 392 tests consistently passing
 - Comprehensive error handling validation
 - Memory leak prevention testing
 - Performance optimization verification
@@ -448,6 +478,6 @@ Areas for test suite expansion:
 - Integration testing with real LLM providers (in isolated environment)
 - Visual regression testing for UI components
 - Load testing for concurrent operations
-- Additional Agent Core component testing (MemoryManager, TokenManager, etc.)
+- Additional Agent Core component testing (TokenManager, ToolManager, ErrorHandler, etc.)
 - Background service integration testing
 - Extension lifecycle testing
