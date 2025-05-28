@@ -1,5 +1,12 @@
 import '@testing-library/jest-dom';
 import '@anthropic-ai/sdk/shims/node';
+import { TextEncoder, TextDecoder } from 'util';
+import { ReadableStream } from 'stream/web';
+
+// Add Node.js polyfills for browser APIs that LangChain needs
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder as any;
+global.ReadableStream = ReadableStream as any;
 
 // Mock Chrome APIs globally
 const mockChrome = {
