@@ -7,6 +7,9 @@ import tailwindcss from '@tailwindcss/vite';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  optimizeDeps: {
+    exclude: ['playwright-crx']
+  },
   build: {
     // playwright-crx cannot be obfuscated
     minify: false,
