@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **306 passing tests** across **11 test suites**.
+This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **364 passing tests** across **13 test suites**.
 
 ## Running Tests
 
@@ -17,6 +17,7 @@ npm run test:watch
 npm run test:coverage
 
 # Run specific test suites
+npm test -- PageContextManager.test.ts PromptManager.test.ts
 npm test -- memoryTools.test.ts tabTools.test.ts
 ```
 
@@ -35,8 +36,10 @@ tests/
 │   └── toolTestData.ts            # Tool-specific test data
 └── unit/
     ├── agent/
-    │   ├── AgentCore.test.ts       # Core agent functionality
-    │   ├── ExecutionEngine.test.ts # LLM execution engine
+    │   ├── AgentCore.test.ts           # Core agent functionality
+    │   ├── ExecutionEngine.test.ts     # LLM execution engine
+    │   ├── PageContextManager.test.ts  # Page context management
+    │   ├── PromptManager.test.ts       # System prompt generation
     │   └── tools/
     │       ├── interactionTools.test.ts    # Click, fill, select tools
     │       ├── keyboardTools.test.ts       # Keyboard input tools
@@ -84,8 +87,38 @@ global.chrome = mockChromeAPIs;
 - **Chrome Extension APIs**: Tab management, storage, messaging
 - **LLM Providers**: Mock implementations for all supported providers
 - **Page Context**: Realistic browser page state simulation
+- **Navigator API**: Cross-platform user agent detection
 
 ## Test Categories
+
+### Agent Core Tests
+Located in `tests/unit/agent/`
+
+**Agent Core** (`AgentCore.test.ts`)
+- Agent initialization and lifecycle
+- Tool execution coordination
+- State management and error propagation
+- Integration with PageContextManager and PromptManager
+
+**Execution Engine** (`ExecutionEngine.test.ts`)
+- LLM prompt processing and streaming response handling
+- Tool call parsing and execution
+- Token usage tracking and retry logic
+- Error recovery and fallback mechanisms
+
+**Page Context Manager** (`PageContextManager.test.ts`)
+- Singleton pattern implementation and enforcement
+- Page context switching and management
+- Helper function integration and testing
+- Memory management and cleanup
+- Concurrent access patterns and edge cases
+
+**Prompt Manager** (`PromptManager.test.ts`)
+- Dynamic system prompt generation with tool descriptions
+- Page context embedding and integration
+- OS-specific keyboard shortcut detection (macOS, Windows, Linux)
+- Tool management and updates
+- Performance optimization and memory leak validation
 
 ### Agent Tools Tests
 Located in `tests/unit/agent/tools/`
@@ -134,22 +167,7 @@ Located in `tests/unit/agent/tools/`
 - Tab closing and cleanup
 - Window management integration
 
-### Core Engine Tests
-
-**Agent Core** (`AgentCore.test.ts`)
-- Agent initialization and lifecycle
-- Tool execution coordination
-- State management
-- Error propagation
-
-**Execution Engine** (`ExecutionEngine.test.ts`)
-- LLM prompt processing
-- Streaming response handling
-- Tool call parsing and execution
-- Token usage tracking
-- Retry logic and error recovery
-
-### Configuration Tests
+### Background Services Tests
 
 **Config Manager** (`configManager.test.ts`)
 - Configuration loading and validation
@@ -169,6 +187,12 @@ Located in `tests/unit/agent/tools/`
 
 | Test Suite | Tests | Coverage Areas |
 |------------|-------|----------------|
+| **Agent Core** | | |
+| AgentCore.test.ts | 15 tests | Core agent functionality, tool coordination |
+| ExecutionEngine.test.ts | 18 tests | LLM execution, streaming, token tracking |
+| PageContextManager.test.ts | 29 tests | Page context management, singleton pattern |
+| PromptManager.test.ts | 29 tests | System prompt generation, OS detection |
+| **Agent Tools** | | |
 | interactionTools.test.ts | 45 tests | Element interaction, form handling |
 | keyboardTools.test.ts | 42 tests | Keyboard input, key combinations |
 | memoryTools.test.ts | 35 tests | Memory storage, domain management |
@@ -176,12 +200,12 @@ Located in `tests/unit/agent/tools/`
 | navigationTools.test.ts | 25 tests | Page navigation, history |
 | observationTools.test.ts | 55 tests | Screenshots, content extraction |
 | tabTools.test.ts | 21 tests | Tab management, window operations |
-| AgentCore.test.ts | 15 tests | Core agent functionality |
-| ExecutionEngine.test.ts | 18 tests | LLM execution, streaming |
+| **Background Services** | | |
 | configManager.test.ts | 8 tests | Configuration management |
+| **Model Providers** | | |
 | factory.test.ts | 4 tests | Provider instantiation |
 
-**Total: 306 tests across 11 test suites**
+**Total: 364 tests across 13 test suites**
 
 ## Writing New Tests
 
@@ -265,6 +289,31 @@ it('should handle complete workflow', async () => {
 });
 ```
 
+**Singleton Testing Pattern**
+```typescript
+it('should maintain singleton pattern', () => {
+  const instance1 = Manager.getInstance();
+  const instance2 = Manager.getInstance();
+
+  expect(instance1).toBe(instance2);
+  expect(instance1).toBeInstanceOf(Manager);
+});
+```
+
+**Cross-Platform Testing Pattern**
+```typescript
+it('should detect platform correctly', () => {
+  // Mock different user agents
+  Object.defineProperty(global, 'navigator', {
+    value: { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+    writable: true
+  });
+
+  const result = detectPlatform();
+  expect(result).toContain('Windows');
+});
+```
+
 ### Using Fixtures
 ```typescript
 import { mockConfigurations, mockErrorScenarios } from '../../fixtures/toolTestData';
@@ -281,6 +330,12 @@ const error = mockErrorScenarios.elementNotFound;
 3. **Import required mocks** from `tests/mocks/`
 4. **Use fixtures** from `tests/fixtures/` for test data
 5. **Follow established patterns** for consistency
+6. **Add comprehensive test categories**:
+   - Constructor/initialization tests
+   - Core functionality tests
+   - Integration scenario tests
+   - Edge case and error handling tests
+   - Memory and performance tests
 
 ## Mock Development
 
@@ -296,6 +351,13 @@ When adding new functionality that requires mocking:
 - Return realistic data structures
 - Support both success and error scenarios
 - Use Jest mock functions for call tracking
+- Ensure proper TypeScript typing with `as any` when needed
+
+### Enhanced Mock Features
+- **Navigator mocking**: Cross-platform user agent simulation
+- **Console mocking**: Capture and verify logging output
+- **Error simulation**: Realistic error scenarios for robust testing
+- **State management**: Proper cleanup and isolation between tests
 
 ## Test Data Management
 
@@ -322,20 +384,22 @@ export const newTestScenario = {
 - **Mock not working**: Ensure mocks are imported before the module under test
 - **Async issues**: Use `await` for all async operations in tests
 - **State pollution**: Use `beforeEach` to reset mocks and state
-- **TypeScript errors**: Ensure proper type annotations for mock functions
+- **TypeScript errors**: Use proper type annotations or `as any` for mock functions
+- **Navigator undefined**: Ensure navigator is properly mocked in global scope
 
 ### Debug Commands
 ```bash
 # Run specific test file
-npm test -- interactionTools.test.ts
+npm test -- PageContextManager.test.ts
 
 # Run tests with verbose output
 npm test -- --verbose
 
 # Run single test
-npm test -- --testNamePattern="should handle normal case"
+npm test -- --testNamePattern="should handle singleton pattern"
 
-# Run tests for specific tool category
+# Run tests for specific category
+npm test -- --testPathPattern="agent"
 npm test -- --testPathPattern="tools"
 ```
 
@@ -346,6 +410,7 @@ npm test -- --testPathPattern="tools"
 - Use `beforeEach` for setup to ensure test isolation
 - Keep test data small and focused
 - Average test execution time: ~5 seconds for full suite
+- Memory management tests ensure no leaks in core components
 
 ## Continuous Integration
 
@@ -355,6 +420,23 @@ The test suite is designed to run in CI environments:
 - Fast execution (typically < 10 seconds)
 - Clear error reporting
 - Comprehensive coverage of core functionality
+- Cross-platform compatibility testing
+
+## Test Quality Metrics
+
+### Coverage Areas
+- **Unit Testing**: Individual component functionality
+- **Integration Testing**: Component interaction workflows
+- **Edge Case Testing**: Error scenarios and boundary conditions
+- **Performance Testing**: Memory leaks and execution efficiency
+- **Cross-Platform Testing**: OS-specific behavior validation
+
+### Quality Assurance
+- All 364 tests consistently passing
+- Comprehensive error handling validation
+- Memory leak prevention testing
+- Performance optimization verification
+- Cross-platform compatibility assurance
 
 ## Future Enhancements
 
@@ -366,3 +448,6 @@ Areas for test suite expansion:
 - Integration testing with real LLM providers (in isolated environment)
 - Visual regression testing for UI components
 - Load testing for concurrent operations
+- Additional Agent Core component testing (MemoryManager, TokenManager, etc.)
+- Background service integration testing
+- Extension lifecycle testing
