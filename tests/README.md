@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension.
+This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **306 passing tests** across **11 test suites**.
 
 ## Running Tests
 
@@ -15,6 +15,9 @@ npm run test:watch
 
 # Run tests with coverage
 npm run test:coverage
+
+# Run specific test suites
+npm test -- memoryTools.test.ts tabTools.test.ts
 ```
 
 ## Test Structure
@@ -37,9 +40,11 @@ tests/
     │   └── tools/
     │       ├── interactionTools.test.ts    # Click, fill, select tools
     │       ├── keyboardTools.test.ts       # Keyboard input tools
+    │       ├── memoryTools.test.ts         # Memory storage and retrieval
     │       ├── mouseTools.test.ts          # Mouse operation tools
     │       ├── navigationTools.test.ts     # Page navigation tools
-    │       └── observationTools.test.ts    # Screenshot, content tools
+    │       ├── observationTools.test.ts    # Screenshot, content tools
+    │       └── tabTools.test.ts            # Tab management tools
     ├── background/
     │   └── configManager.test.ts   # Configuration management
     └── models/
@@ -97,6 +102,13 @@ Located in `tests/unit/agent/tools/`
 - Special key handling (arrows, function keys, modifiers)
 - Input validation and error handling
 
+**Memory Tools** (`memoryTools.test.ts`)
+- Memory storage and retrieval for task automation
+- Domain-based memory organization
+- Memory validation and error handling
+- Memory lifecycle management (save, lookup, delete, clear)
+- Domain normalization and consistency
+
 **Mouse Tools** (`mouseTools.test.ts`)
 - Mouse movement and positioning
 - Click operations at coordinates
@@ -114,6 +126,13 @@ Located in `tests/unit/agent/tools/`
 - Page content extraction
 - Element visibility detection
 - Accessibility tree analysis
+
+**Tab Tools** (`tabTools.test.ts`)
+- Tab creation and management
+- Tab switching and selection
+- Tab listing and organization
+- Tab closing and cleanup
+- Window management integration
 
 ### Core Engine Tests
 
@@ -145,6 +164,24 @@ Located in `tests/unit/agent/tools/`
 - Configuration validation
 - Error handling for invalid providers
 - Provider-specific feature support
+
+## Test Coverage Summary
+
+| Test Suite | Tests | Coverage Areas |
+|------------|-------|----------------|
+| interactionTools.test.ts | 45 tests | Element interaction, form handling |
+| keyboardTools.test.ts | 42 tests | Keyboard input, key combinations |
+| memoryTools.test.ts | 35 tests | Memory storage, domain management |
+| mouseTools.test.ts | 38 tests | Mouse operations, coordinates |
+| navigationTools.test.ts | 25 tests | Page navigation, history |
+| observationTools.test.ts | 55 tests | Screenshots, content extraction |
+| tabTools.test.ts | 21 tests | Tab management, window operations |
+| AgentCore.test.ts | 15 tests | Core agent functionality |
+| ExecutionEngine.test.ts | 18 tests | LLM execution, streaming |
+| configManager.test.ts | 8 tests | Configuration management |
+| factory.test.ts | 4 tests | Provider instantiation |
+
+**Total: 306 tests across 11 test suites**
 
 ## Writing New Tests
 
@@ -208,6 +245,26 @@ it('should handle errors gracefully', async () => {
 });
 ```
 
+**Integration Testing Pattern**
+```typescript
+it('should handle complete workflow', async () => {
+  const tool1 = createTool1(mockPage);
+  const tool2 = createTool2(mockPage);
+
+  // Setup mock chain
+  mockPage.method1.mockResolvedValue(result1);
+  mockPage.method2.mockResolvedValue(result2);
+
+  // Execute workflow
+  const result1 = await tool1.func(input1);
+  const result2 = await tool2.func(input2);
+
+  // Verify workflow
+  expect(result1).toBe(expectedResult1);
+  expect(result2).toBe(expectedResult2);
+});
+```
+
 ### Using Fixtures
 ```typescript
 import { mockConfigurations, mockErrorScenarios } from '../../fixtures/toolTestData';
@@ -265,6 +322,7 @@ export const newTestScenario = {
 - **Mock not working**: Ensure mocks are imported before the module under test
 - **Async issues**: Use `await` for all async operations in tests
 - **State pollution**: Use `beforeEach` to reset mocks and state
+- **TypeScript errors**: Ensure proper type annotations for mock functions
 
 ### Debug Commands
 ```bash
@@ -276,6 +334,9 @@ npm test -- --verbose
 
 # Run single test
 npm test -- --testNamePattern="should handle normal case"
+
+# Run tests for specific tool category
+npm test -- --testPathPattern="tools"
 ```
 
 ## Performance Considerations
@@ -284,14 +345,16 @@ npm test -- --testNamePattern="should handle normal case"
 - Mocks prevent external network calls
 - Use `beforeEach` for setup to ensure test isolation
 - Keep test data small and focused
+- Average test execution time: ~5 seconds for full suite
 
 ## Continuous Integration
 
 The test suite is designed to run in CI environments:
 - No external dependencies required
 - Deterministic results
-- Fast execution (typically < 2 seconds)
+- Fast execution (typically < 10 seconds)
 - Clear error reporting
+- Comprehensive coverage of core functionality
 
 ## Future Enhancements
 
@@ -301,3 +364,5 @@ Areas for test suite expansion:
 - Security and input validation testing
 - Cross-browser compatibility testing
 - Integration testing with real LLM providers (in isolated environment)
+- Visual regression testing for UI components
+- Load testing for concurrent operations
