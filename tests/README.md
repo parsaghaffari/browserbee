@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **467 passing tests** across **16 test suites**.
+This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **548 passing tests** across **18 test suites**.
 
 ## Running Tests
 
@@ -19,6 +19,7 @@ npm run test:coverage
 # Run specific test suites
 npm test -- PageContextManager.test.ts PromptManager.test.ts MemoryManager.test.ts TokenManager.test.ts ToolManager.test.ts
 npm test -- memoryTools.test.ts tabTools.test.ts
+npm test -- ErrorHandler.test.ts approvalManager.test.ts
 ```
 
 ## Test Structure
@@ -37,6 +38,8 @@ tests/
 └── unit/
     ├── agent/
     │   ├── AgentCore.test.ts           # Core agent functionality
+    │   ├── approvalManager.test.ts     # User approval workflow management
+    │   ├── ErrorHandler.test.ts        # Error handling and retry logic
     │   ├── ExecutionEngine.test.ts     # LLM execution engine
     │   ├── MemoryManager.test.ts       # Memory lookup and integration
     │   ├── PageContextManager.test.ts  # Page context management
@@ -102,6 +105,28 @@ Located in `tests/unit/agent/`
 - Tool execution coordination
 - State management and error propagation
 - Integration with PageContextManager and PromptManager
+
+**Approval Manager** (`approvalManager.test.ts`)
+- User approval request creation and handling
+- Chrome runtime message integration
+- Window ID resolution via tabManager
+- Unique request ID generation and management
+- Approval/rejection response handling
+- Timeout scenarios and error recovery
+- Memory leak prevention with extensive request cycles
+- Performance optimization for concurrent operations
+- Integration with extension context and lifecycle
+
+**Error Handler** (`ErrorHandler.test.ts`)
+- Error type detection (rate limit, overloaded, retryable errors)
+- Error message formatting for different error types
+- Exponential backoff calculation with jitter
+- Streaming support detection and browser compatibility
+- Cancellation state management and reset operations
+- Integration scenarios and complete error workflows
+- Edge cases and malformed error object handling
+- Performance considerations for rapid operations
+- Cross-platform error handling consistency
 
 **Execution Engine** (`ExecutionEngine.test.ts`)
 - LLM prompt processing and streaming response handling
@@ -219,6 +244,8 @@ Located in `tests/unit/agent/tools/`
 |------------|-------|----------------|
 | **Agent Core** | | |
 | AgentCore.test.ts | 15 tests | Core agent functionality, tool coordination |
+| approvalManager.test.ts | 30 tests | User approval workflows, Chrome integration |
+| ErrorHandler.test.ts | 51 tests | Error handling, retry logic, streaming support |
 | ExecutionEngine.test.ts | 18 tests | LLM execution, streaming, token tracking |
 | MemoryManager.test.ts | 28 tests | Memory lookup, integration, error handling |
 | PageContextManager.test.ts | 29 tests | Page context management, singleton pattern |
@@ -238,7 +265,7 @@ Located in `tests/unit/agent/tools/`
 | **Model Providers** | | |
 | factory.test.ts | 4 tests | Provider instantiation |
 
-**Total: 467 tests across 16 test suites**
+**Total: 548 tests across 18 test suites**
 
 ## Writing New Tests
 
@@ -319,6 +346,53 @@ it('should handle complete workflow', async () => {
   // Verify workflow
   expect(result1).toBe(expectedResult1);
   expect(result2).toBe(expectedResult2);
+});
+```
+
+**Approval Manager Testing Pattern**
+```typescript
+it('should handle approval workflow', async () => {
+  const approvalManager = new ApprovalManager(mockTabManager);
+  
+  // Mock Chrome runtime
+  global.chrome.runtime.sendMessage = jest.fn((message, callback) => {
+    setTimeout(() => callback({ approved: true }), 10);
+  });
+  
+  const result = await approvalManager.requestApproval('test action', 'test details');
+  
+  expect(result).toBe(true);
+  expect(global.chrome.runtime.sendMessage).toHaveBeenCalledWith(
+    expect.objectContaining({
+      type: 'APPROVAL_REQUEST',
+      action: 'test action',
+      details: 'test details'
+    }),
+    expect.any(Function)
+  );
+});
+```
+
+**Error Handler Testing Pattern**
+```typescript
+it('should handle error classification and backoff', () => {
+  const errorHandler = new ErrorHandler();
+  
+  const rateLimitError = {
+    error: { type: 'rate_limit_error', message: 'Rate limited' }
+  };
+  
+  // Test error classification
+  expect(errorHandler.isRetryableError(rateLimitError)).toBe(true);
+  
+  // Test error formatting
+  const formatted = errorHandler.formatErrorMessage(rateLimitError);
+  expect(formatted).toContain('Rate limit error');
+  
+  // Test backoff calculation
+  const backoffTime = errorHandler.calculateBackoffTime(rateLimitError, 1);
+  expect(backoffTime).toBeGreaterThan(1000);
+  expect(Number.isInteger(backoffTime)).toBe(true);
 });
 ```
 
@@ -542,7 +616,7 @@ The test suite is designed to run in CI environments:
 - **Cross-Platform Testing**: OS-specific behavior validation
 
 ### Quality Assurance
-- All 467 tests consistently passing
+- All 548 tests consistently passing
 - Comprehensive error handling validation
 - Memory leak prevention testing
 - Performance optimization verification
@@ -558,6 +632,5 @@ Areas for test suite expansion:
 - Integration testing with real LLM providers (in isolated environment)
 - Visual regression testing for UI components
 - Load testing for concurrent operations
-- Additional Agent Core component testing (ErrorHandler, approvalManager, etc.)
 - Background service integration testing
 - Extension lifecycle testing
