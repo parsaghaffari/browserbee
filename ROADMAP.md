@@ -30,9 +30,9 @@
     - [x] add memory import/export functions
     - [x] include pre-built memories for major websites
     - [x] ensure memories are stored/retrieved using canonical URLs (instagram.com vs www.instagram.com)
-- [ ] review/write user docs
+- [x] review/write user docs
 - [x] upload to Chrome web store
-- [ ] create test suite and add basic test coverage
+- [x] create test suite and add basic test coverage
 
 [0.2.1]
 
