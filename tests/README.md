@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **392 passing tests** across **14 test suites**.
+This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **421 passing tests** across **15 test suites**.
 
 ## Running Tests
 
@@ -17,7 +17,7 @@ npm run test:watch
 npm run test:coverage
 
 # Run specific test suites
-npm test -- PageContextManager.test.ts PromptManager.test.ts MemoryManager.test.ts
+npm test -- PageContextManager.test.ts PromptManager.test.ts MemoryManager.test.ts TokenManager.test.ts
 npm test -- memoryTools.test.ts tabTools.test.ts
 ```
 
@@ -41,6 +41,7 @@ tests/
     │   ├── MemoryManager.test.ts       # Memory lookup and integration
     │   ├── PageContextManager.test.ts  # Page context management
     │   ├── PromptManager.test.ts       # System prompt generation
+    │   ├── TokenManager.test.ts        # Token estimation and history trimming
     │   └── tools/
     │       ├── interactionTools.test.ts    # Click, fill, select tools
     │       ├── keyboardTools.test.ts       # Keyboard input tools
@@ -129,6 +130,14 @@ Located in `tests/unit/agent/`
 - Tool management and updates
 - Performance optimization and memory leak validation
 
+**Token Manager** (`TokenManager.test.ts`)
+- Token estimation using character-based approximation
+- Context token counting for message arrays
+- Intelligent message history trimming with user message preservation
+- Custom and default token limit enforcement
+- Performance optimization for large datasets
+- Integration workflows for complete token management
+
 ### Agent Tools Tests
 Located in `tests/unit/agent/tools/`
 
@@ -202,6 +211,7 @@ Located in `tests/unit/agent/tools/`
 | MemoryManager.test.ts | 28 tests | Memory lookup, integration, error handling |
 | PageContextManager.test.ts | 29 tests | Page context management, singleton pattern |
 | PromptManager.test.ts | 29 tests | System prompt generation, OS detection |
+| TokenManager.test.ts | 29 tests | Token estimation, history trimming, context management |
 | **Agent Tools** | | |
 | interactionTools.test.ts | 45 tests | Element interaction, form handling |
 | keyboardTools.test.ts | 42 tests | Keyboard input, key combinations |
@@ -215,7 +225,7 @@ Located in `tests/unit/agent/tools/`
 | **Model Providers** | | |
 | factory.test.ts | 4 tests | Provider instantiation |
 
-**Total: 392 tests across 14 test suites**
+**Total: 421 tests across 15 test suites**
 
 ## Writing New Tests
 
@@ -344,6 +354,28 @@ it('should handle memory lookup workflow', async () => {
 });
 ```
 
+**Token Manager Testing Pattern**
+```typescript
+it('should handle token estimation and trimming', () => {
+  // Test token estimation
+  expect(approxTokens('hello world')).toBe(3); // 11 chars / 4 = 2.75, ceil = 3
+
+  // Test message trimming
+  const messages = [
+    { role: 'user', content: 'request' },
+    { role: 'assistant', content: 'a'.repeat(4000) }, // Large response
+    { role: 'user', content: 'follow up' }
+  ];
+
+  const trimmed = trimHistory(messages, 100);
+  
+  // Should preserve user messages
+  const userMessages = trimmed.filter(m => m.role === 'user');
+  expect(userMessages.length).toBe(2);
+  expect(contextTokenCount(trimmed)).toBeLessThanOrEqual(100);
+});
+```
+
 ### Using Fixtures
 ```typescript
 import { mockConfigurations, mockErrorScenarios } from '../../fixtures/toolTestData';
@@ -462,7 +494,7 @@ The test suite is designed to run in CI environments:
 - **Cross-Platform Testing**: OS-specific behavior validation
 
 ### Quality Assurance
-- All 392 tests consistently passing
+- All 421 tests consistently passing
 - Comprehensive error handling validation
 - Memory leak prevention testing
 - Performance optimization verification
@@ -478,6 +510,6 @@ Areas for test suite expansion:
 - Integration testing with real LLM providers (in isolated environment)
 - Visual regression testing for UI components
 - Load testing for concurrent operations
-- Additional Agent Core component testing (TokenManager, ToolManager, ErrorHandler, etc.)
+- Additional Agent Core component testing (ToolManager, ErrorHandler, approvalManager, etc.)
 - Background service integration testing
 - Extension lifecycle testing
