@@ -30,6 +30,8 @@ export interface MockPage {
     click: jest.MockedFunction<any>;
     move: jest.MockedFunction<any>;
     wheel: jest.MockedFunction<any>;
+    down: jest.MockedFunction<any>;
+    up: jest.MockedFunction<any>;
   };
   goBack: jest.MockedFunction<any>;
   goForward: jest.MockedFunction<any>;
@@ -220,6 +222,8 @@ export function createMockPage(): MockPage {
       click: jest.fn().mockResolvedValue(undefined),
       move: jest.fn().mockResolvedValue(undefined),
       wheel: jest.fn().mockResolvedValue(undefined),
+      down: jest.fn().mockResolvedValue(undefined),
+      up: jest.fn().mockResolvedValue(undefined),
     },
     goBack: jest.fn().mockResolvedValue(null),
     goForward: jest.fn().mockResolvedValue(null),
