@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **421 passing tests** across **15 test suites**.
+This document describes the test suite structure, configuration, and development practices for the BrowserBee browser automation extension. The test suite provides comprehensive coverage with **467 passing tests** across **16 test suites**.
 
 ## Running Tests
 
@@ -17,7 +17,7 @@ npm run test:watch
 npm run test:coverage
 
 # Run specific test suites
-npm test -- PageContextManager.test.ts PromptManager.test.ts MemoryManager.test.ts TokenManager.test.ts
+npm test -- PageContextManager.test.ts PromptManager.test.ts MemoryManager.test.ts TokenManager.test.ts ToolManager.test.ts
 npm test -- memoryTools.test.ts tabTools.test.ts
 ```
 
@@ -42,6 +42,7 @@ tests/
     │   ├── PageContextManager.test.ts  # Page context management
     │   ├── PromptManager.test.ts       # System prompt generation
     │   ├── TokenManager.test.ts        # Token estimation and history trimming
+    │   ├── ToolManager.test.ts         # Tool management and health checking
     │   └── tools/
     │       ├── interactionTools.test.ts    # Click, fill, select tools
     │       ├── keyboardTools.test.ts       # Keyboard input tools
@@ -138,6 +139,17 @@ Located in `tests/unit/agent/`
 - Performance optimization for large datasets
 - Integration workflows for complete token management
 
+**Tool Manager** (`ToolManager.test.ts`)
+- Tool initialization and wrapping with health check behavior
+- Tab vs non-tab tool identification and differential handling
+- Connection health monitoring and automatic recovery
+- Smart error handling with context-aware messages
+- Tool metadata preservation during wrapping
+- Performance optimization for large tool sets
+- Integration scenarios with mixed tool execution
+- Error message specificity for different tool types
+- Memory management and concurrent execution support
+
 ### Agent Tools Tests
 Located in `tests/unit/agent/tools/`
 
@@ -212,6 +224,7 @@ Located in `tests/unit/agent/tools/`
 | PageContextManager.test.ts | 29 tests | Page context management, singleton pattern |
 | PromptManager.test.ts | 29 tests | System prompt generation, OS detection |
 | TokenManager.test.ts | 29 tests | Token estimation, history trimming, context management |
+| ToolManager.test.ts | 46 tests | Tool management, health checking, error handling |
 | **Agent Tools** | | |
 | interactionTools.test.ts | 45 tests | Element interaction, form handling |
 | keyboardTools.test.ts | 42 tests | Keyboard input, key combinations |
@@ -225,7 +238,7 @@ Located in `tests/unit/agent/tools/`
 | **Model Providers** | | |
 | factory.test.ts | 4 tests | Provider instantiation |
 
-**Total: 421 tests across 15 test suites**
+**Total: 467 tests across 16 test suites**
 
 ## Writing New Tests
 
@@ -376,6 +389,41 @@ it('should handle token estimation and trimming', () => {
 });
 ```
 
+**Tool Manager Testing Pattern**
+```typescript
+it('should handle tool health check wrapping', async () => {
+  const mockTools = [
+    {
+      name: 'browser_navigate',
+      description: 'Navigate to a URL',
+      func: jest.fn(async (input: string) => 'Navigation successful')
+    },
+    {
+      name: 'browser_tab_new',
+      description: 'Create a new tab',
+      func: jest.fn(async (input: string) => 'New tab created')
+    }
+  ];
+
+  const toolManager = new ToolManager(mockPage, mockTools);
+  
+  // Test healthy connection
+  mockPage.evaluate.mockResolvedValue(true);
+  const navigateTool = toolManager.findTool('browser_navigate');
+  const result = await navigateTool!.func('https://example.com');
+  
+  expect(result).toBe('Navigation successful');
+  expect(mockPage.evaluate).toHaveBeenCalled(); // Health check performed
+  
+  // Test tab tool bypass
+  const tabTool = toolManager.findTool('browser_tab_new');
+  const tabResult = await tabTool!.func('https://example.com');
+  
+  expect(tabResult).toBe('New tab created');
+  // Tab tools should not trigger health checks
+});
+```
+
 ### Using Fixtures
 ```typescript
 import { mockConfigurations, mockErrorScenarios } from '../../fixtures/toolTestData';
@@ -494,7 +542,7 @@ The test suite is designed to run in CI environments:
 - **Cross-Platform Testing**: OS-specific behavior validation
 
 ### Quality Assurance
-- All 421 tests consistently passing
+- All 467 tests consistently passing
 - Comprehensive error handling validation
 - Memory leak prevention testing
 - Performance optimization verification
@@ -510,6 +558,6 @@ Areas for test suite expansion:
 - Integration testing with real LLM providers (in isolated environment)
 - Visual regression testing for UI components
 - Load testing for concurrent operations
-- Additional Agent Core component testing (ToolManager, ErrorHandler, approvalManager, etc.)
+- Additional Agent Core component testing (ErrorHandler, approvalManager, etc.)
 - Background service integration testing
 - Extension lifecycle testing
