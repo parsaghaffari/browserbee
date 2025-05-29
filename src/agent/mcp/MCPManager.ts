@@ -1,26 +1,19 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { JSONRPCMessage } from "../a2a/schema";
 import MCPClientTransport, { MCPClientTransportSourceId } from "./MCPClientTransport";
-import pkg from "../../../package.json";
-import { BrowserTool, ToolExecutionContext } from "../tools/types";
-import { Page } from "playwright-crx";
+import { JSONRPCMessage } from "../a2a/schema";
+import { BrowserTool } from "../tools/types";
 import { TabState } from "../../background/types";
-import { getTabState } from "../../background/tabManager";
+import pkg from "../../../package.json";
 
 export interface MCPMessageFromContentScript extends JSONRPCMessage {
   mcpSessionId: string;
   method?: string;
   tabId: number;
+  senderId?: string;
   source: string;
 }
 
 interface PingMessage extends MCPMessageFromContentScript {
-}
-
-interface MCPToolSpec {
-  name: string;
-  description: string;
-  sessionId: string;
 }
 
 /** MCP Manager for the background script & tab */
@@ -63,13 +56,17 @@ export class MCPManager {
       //   }
       // }
 
-      const { method } = message;
-      // if (source === MCPClientTransportSourceId &&
-      if (method?.startsWith('mcp:')) {
-        this.handleMCPMessage(method.slice(4), message);
-      }
+      this.handleMessage(message);
 
       // return true;  // true or Promise if using sendResponse()
+    });
+
+    chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+      if (message.method !== "mcp:ping") {
+        console.info('MCPManager received external message', message, sender);
+      }
+      message.senderId = sender.id;
+      this.handleMessage(message);
     });
   }
 
@@ -82,6 +79,10 @@ export class MCPManager {
     console.info('MCPManager.requestToolsForAgent', this.tabId, new Date().getTime());
 
     this.onToolsReceived = onToolsReceived;
+
+    // chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+    //   this.handleMessage(message);
+    // });
 
     console.info('MCPManager.requestToolsForAgent sending mcp:activate message to tabId:', this.tabId);
     chrome.tabs.sendMessage(this.tabId, {
@@ -105,6 +106,14 @@ export class MCPManager {
   //   return true;
   // }
 
+  private handleMessage(message: any) {
+    const { method } = message;
+    // if (source === MCPClientTransportSourceId &&
+    if (method?.startsWith('mcp:')) {
+      this.handleMCPMessage(method.slice(4), message);
+    }
+  }
+
   private handleMCPMessage(method: string, message: Record<string, any>) {
       // const message = { method: method.slice(4), ...rest } as JSONRPCMessage;
       // const message = { method, ...rest } as JSONRPCMessage;
@@ -118,10 +127,10 @@ export class MCPManager {
   }
 
   private handlePing(message: PingMessage) {
-    const { mcpSessionId: sessionId, tabId } = message;
+    const { mcpSessionId: sessionId, tabId, senderId } = message;
     if (sessionId in this.clientsBySession === false) {
-      console.info('MCPManager.handlePing creating new MCP client for session:', sessionId);
-      const transport = new MCPClientTransport(sessionId, tabId);
+      console.info('MCPManager.handlePing creating new MCP client for session:', sessionId, tabId, senderId);
+      const transport = new MCPClientTransport(sessionId, tabId, senderId);
       const client = new Client(
         {
           name: pkg.name,
@@ -144,7 +153,8 @@ export class MCPManager {
         name: tool.name,
         description: tool.description || JSON.stringify(schema),
         func: async (input: string) => {
-          const toolResult = await client.callTool({name: tool.name, arguments: JSON.parse(input)});
+          const args = input ? JSON.parse(input) : undefined;
+          const toolResult = await client.callTool({ name: tool.name, arguments: args });
           console.info('toolResult:', toolResult);
           return (typeof toolResult === 'string') ? toolResult : JSON.stringify(toolResult);
         }
@@ -228,115 +238,4 @@ export class MCPContentManager {
       console.info('MCPContentManager.handleMCPMessageFromBackground received message event', message);
     }
   }
-
-  // handlePing(message: PingMessage) {
-  //   const sessionId = message.mcpSessionId;
-  //   if (sessionId in this.clients === false) {
-  //     console.info('MCPContentManager.handlePing creating new MCP client for session:', sessionId);
-  //     const transport = new MCPClientTransport(sessionId);
-  //     const client = new Client(
-  //       {
-  //         name: pkg.name,
-  //         version: pkg.version
-  //       }
-  //     );
-
-  //     client.connect(transport);
-  //     this.clients[sessionId] = client;
-
-  //     client.listTools().then(({ tools }) => {
-  //       console.info('MCPContentManager.handlePing received tools', tools);
-  //       try {
-  //         chrome.runtime.sendMessage({
-  //           action: 'mcp:toolsReceived',
-  //           tools: tools.map<MCPToolSpec>(tool => {
-  //             const { $schema, ...schema } = tool.inputSchema;
-  //             return {
-  //               name: tool.name,
-  //               description: tool.description || JSON.stringify(schema),
-  //               sessionId: sessionId
-  //             }
-  //           })
-  //         });
-  //       } catch (error) {
-  //         console.info('MCPContentManager.handlePing received tools error', error);
-  //       }
-  //   });
-  //   }
-  // }
-
-  // TODO: call from background
-  // listenFromBackground() {
-  //   console.info('listenFromBackground...');
-  //   chrome.runtime.onMessageExternal.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-  //     console.info('MCPManager.listenFromBackground received external message:', message, sender, sendResponse);
-
-  //     // if (message.method === 'mcp:server/started') {
-
-  //     // }
-
-  //     return true; // allow async
-  //   });
-
-  //   chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-  //     const { method, source, ...rest } = message as { method?: string, source?: string };
-
-  //     console.info('MCPManager.listenFromBackground received message:', message,
-  //       ', sender:', sender,
-  //       ', sendResponse:', sendResponse);
-
-  //     // if (source === MCPManager.sourceId && method?.startsWith('mcp:')) {
-  //     //   // const message = { method: method.slice(4), ...rest } as JSONRPCMessage;
-  //     //   // const message = { method, ...rest } as JSONRPCMessage;
-  //     //   console.info('MCPManager.listenFromBackground forwarding MCP message to app', message);
-  //     //   window.postMessage(message, '*');
-  //     // }
-
-  //     // if (message.method === 'mcp:server/started') {
-
-  //     // }
-
-  //     return true; // allow async
-  //   });
-  // }
-
-  // async createClient() {
-  //   const transport = new MCPClientTransport();
-
-  //   console.info('createClient...', pkg.name, pkg.version);
-  //   const client = new Client(
-  //     {
-  //       name: pkg.name,
-  //       version: pkg.version
-  //     }
-  //   );
-
-  //   await client.connect(transport);
-  //   console.info('client connected');
-
-  //   const { tools } = await client.listTools();
-  //   console.info('tools', tools);
-
-  //   return client;
-  // }
 }
-
-
-// async function foo() {
-//   const transport = new MCPClientTransport();
-
-//   const client = new Client(
-//     {
-//       name: pkg.name,
-//       version: pkg.version
-//     }
-//   );
-
-//   await client.connect(transport);
-//   console.info('client connected');
-
-//   const tools = await client.listTools();
-//   console.info('tools', tools);
-// }
-
-// foo();

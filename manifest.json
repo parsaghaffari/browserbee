@@ -42,6 +42,8 @@
     }
   },
   "externally_connectable": {
-    "matches": ["<all_urls>"]
+    "ids": ["*"],
+    "matches": ["<all_urls>"],
+    "accepts_tls_channel_id": false
   }
 }

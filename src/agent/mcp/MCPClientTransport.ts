@@ -21,6 +21,7 @@ export default class MCPClientTransport implements Transport {
   constructor(
     sessionId: string,
     private tabId: number,
+    private senderId?: string,
   ) {
     this.expectedSessionId = sessionId;
   }
@@ -30,7 +31,12 @@ export default class MCPClientTransport implements Transport {
       this.handleMessage(message);
     });
 
-    console.info('MCPClientTransport started for sessionId:', this.sessionId);
+    chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+      if (message.method !== "mcp:ping") {
+        console.debug('MCPClientTransport received external message', message, sender);
+      }
+      this.handleMessage(message);
+    });
   }
 
   async send(message: JSONRPCMessage): Promise<void> {
@@ -55,7 +61,7 @@ export default class MCPClientTransport implements Transport {
     if ((message as JSONRPCNotification).method === "mcp:ping") {
       return;
     }
-    const { method, source, mcpSessionId, tabId, ...rest } = message as MCPMessageFromContentScript;
+    const { method, source, mcpSessionId, tabId, senderId, ...rest } = message as MCPMessageFromContentScript;
       if (this._sessionId === undefined && mcpSessionId === this.expectedSessionId) {
         console.debug('MCPClientTransport received message from MCP server with new sessionId:', method, mcpSessionId);
         this._sessionId = mcpSessionId;
@@ -79,7 +85,11 @@ export default class MCPClientTransport implements Transport {
   }
 
   private sendMessage(message: any) {
-    console.debug('MCPClientTransport sendMessage to tabId:', this.tabId, message);
-    chrome.tabs.sendMessage(this.tabId, { source: this.sourceId, ...message });
+    console.info('MCPClientTransport sendMessage to tabId:', this.tabId, this.senderId, message);
+    if (this.tabId) {
+      chrome.tabs.sendMessage(this.tabId, { source: this.sourceId, ...message });
+    } else {
+      chrome.runtime.sendMessage(this.senderId, { source: this.sourceId, ...message });
+    }
   }
 }

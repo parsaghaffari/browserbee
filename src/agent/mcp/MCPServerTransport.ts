@@ -21,7 +21,7 @@ export default class MCPServerTransport implements Transport {
     // Periodically send a ping to notify the extension that the MCP server is available
     this.pingInterval = setInterval(() => {
       this.sendRequestOrNotificationToExtension('ping', {});
-    }, 5000);
+    }, 1000);
   }
 
   async start(): Promise<void> {
