@@ -27,14 +27,14 @@ interface MCPToolSpec {
 export class MCPManager {
   private onToolsReceived?: (tools: BrowserTool[]) => void;
   private tabId: number;
-  private windowId: number = 0;
+  // private windowId: number = 0;
   private clientsBySession: Record<string, Client> = {};
 
   constructor(tabState: TabState) {
     this.tabId = tabState.tabId!;
-    chrome.tabs.get(this.tabId).then((tab) => {
-      this.windowId = tab.windowId;
-    });
+    // chrome.tabs.get(this.tabId).then((tab) => {
+    //   this.windowId = tab.windowId;
+    // });
 
   //   // @ts-ignore
   //   if (chrome.sidePanel.onHidden) {
@@ -69,76 +69,11 @@ export class MCPManager {
         this.handleMCPMessage(method.slice(4), message);
       }
 
-      // return true;
+      // return true;  // true or Promise if using sendResponse()
     });
   }
 
-  // handleActionMessage(message: { action: string }) {
-  //   switch (message.action) {
-  //     case 'requestToolsForAgent':
-  //       if (!this.active) {
-  //         this.active = true;
-  //         window.addEventListener('message', this.handleMessageFromWindow.bind(this));
-  //       }
-  //   }
-  //   return true;
-  // }
-
-  private handleMCPMessage(method: string, message: Record<string, any>) {
-      // const message = { method: method.slice(4), ...rest } as JSONRPCMessage;
-      // const message = { method, ...rest } as JSONRPCMessage;
-
-    // window.postMessage(message, '*');
-    if (method === 'ping') {
-      this.handlePing(message as PingMessage);
-    } else {
-      console.info('MCPManager.handleMCPMessage received MCP message', method, message);
-    }
-
-    // return true;
-  }
-
-  private handlePing(message: PingMessage) {
-    const { mcpSessionId: sessionId, tabId } = message;
-    if (sessionId in this.clientsBySession === false) {
-      console.info('MCPManager.handlePing creating new MCP client for session:', sessionId);
-      const transport = new MCPClientTransport(sessionId, tabId);
-      const client = new Client(
-        {
-          name: pkg.name,
-          version: pkg.version
-        }
-      );
-
-      this.clientsBySession[sessionId] = client;
-
-      client.connect(transport).then(() => {
-        client.listTools().then(({ tools }) => {
-          console.info('MCPManager.handlePing received tools', tools);
-          // try {
-          //   chrome.runtime.sendMessage({
-          //     action: 'mcp:toolsReceived',
-          //     tools: tools.map<MCPToolSpec>(tool => {
-          //       const { $schema, ...schema } = tool.inputSchema;
-          //       return {
-          //         name: tool.name,
-          //         description: tool.description || JSON.stringify(schema),
-          //         sessionId: sessionId
-          //       }
-          //     })
-          //   });
-          // } catch (error) {
-          //   console.info('MCPManager.handlePing received tools error', error);
-          // }
-        });
-      })
-    }
-
-    // return true;
-  }
-
-
-  // when side panel shown - chrome.runtime.sendMessage({ action: 'initializeTab', tabId, windowId? });
+    // when side panel shown - chrome.runtime.sendMessage({ action: 'initializeTab', tabId, windowId? });
   //       messageHandler.handleInitializeTab()
   //            initializeAgent()
 
@@ -171,6 +106,66 @@ export class MCPManager {
 
     // console.info('MCPManager.requestToolsForAgent done');
   }
+
+  // handleActionMessage(message: { action: string }) {
+  //   switch (message.action) {
+  //     case 'requestToolsForAgent':
+  //       if (!this.active) {
+  //         this.active = true;
+  //         window.addEventListener('message', this.handleMessageFromWindow.bind(this));
+  //       }
+  //   }
+  //   return true;
+  // }
+
+  private handleMCPMessage(method: string, message: Record<string, any>) {
+      // const message = { method: method.slice(4), ...rest } as JSONRPCMessage;
+      // const message = { method, ...rest } as JSONRPCMessage;
+
+    // window.postMessage(message, '*');
+    if (method === 'ping') {
+      this.handlePing(message as PingMessage);
+    } else {
+      console.info('MCPManager.handleMCPMessage received MCP message', method, message);
+    }
+  }
+
+  private handlePing(message: PingMessage) {
+    const { mcpSessionId: sessionId, tabId } = message;
+    if (sessionId in this.clientsBySession === false) {
+      console.info('MCPManager.handlePing creating new MCP client for session:', sessionId);
+      const transport = new MCPClientTransport(sessionId, tabId);
+      const client = new Client(
+        {
+          name: pkg.name,
+          version: pkg.version
+        }
+      );
+
+      this.clientsBySession[sessionId] = client;
+
+      client.connect(transport).then(() => this.fetchToolsFromMCP(client));
+    }
+  }
+
+  private async fetchToolsFromMCP(client: Client) {
+    const { tools } = await client.listTools();
+    console.info('MCPManager.fetchToolsFromMCP received tools', tools);
+    const browserTools = tools.map<BrowserTool>(tool => {
+      const { $schema, ...schema } = tool.inputSchema;
+      return {
+        name: tool.name,
+        description: tool.description || JSON.stringify(schema),
+        func: async (input: string) => {
+          const toolResult = await client.callTool({name: tool.name, arguments: JSON.parse(input)});
+          console.info('toolResult:', toolResult);
+          return (typeof toolResult === 'string') ? toolResult : JSON.stringify(toolResult);
+        }
+      }
+    });
+
+    this.onToolsReceived?.(browserTools);
+  }
 }
 
 /** MCP Manager for content script */
@@ -196,7 +191,7 @@ export class MCPContentManager {
         this.handleMCPMessageFromBackground(message);
       }
 
-      // return true;  // or Promise if using sendResponse()
+      // return true;  // true or Promise if using sendResponse()
     });
   }
 
@@ -242,11 +237,11 @@ export class MCPContentManager {
         }
         // forward to background script
         chrome.runtime.sendMessage(message);
-      } else {
-        console.info('MCPContentManager.handleMessageFromWindow received unhandled message event', event.data);
+      // } else {
+      //   console.info('MCPContentManager.handleMessageFromWindow received unhandled message event', event.data);
       }
-    } else {
-      console.info('MCPContentManager.handleMessageFromWindow received message event without data', event);
+    // } else {
+    //   console.info('MCPContentManager.handleMessageFromWindow received message event without data', event);
     }
   }
 

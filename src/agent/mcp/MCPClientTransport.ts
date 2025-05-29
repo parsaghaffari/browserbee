@@ -64,19 +64,23 @@ export default class MCPClientTransport implements Transport {
     console.log("MCPClientTransport.handleMessage:", message);
     const { method, source, mcpSessionId, tabId, ...rest } = message as MCPMessageFromContentScript;
       if (this._sessionId === undefined && mcpSessionId === this.expectedSessionId) {
+        console.info('MCPClientTransport received message from MCP server with new sessionId:', method, mcpSessionId);
         this._sessionId = mcpSessionId;
       }
       // if (mcpSessionId && mcpSessionId !== this._sessionId) {
       //   return;
       // }
 
-      if (source !== this.sourceId && method?.startsWith('mcp:') || (mcpSessionId && mcpSessionId === this._sessionId)) {
+      if (mcpSessionId && mcpSessionId === this._sessionId) {
+      // if (source !== this.sourceId && method?.startsWith('mcp:')) {
         const message = { ...rest } as JSONRPCMessage;
         if (method) {
           (message as JSONRPCRequest).method = method;
         }
         console.log("MCPClientTransport received message from MCP server:", message);
         this.onmessage?.(message);
+      // } else {
+      //   console.warn('MCPClientTransport received message from MCP server with wrong sessionId:', mcpSessionId);
       }
   }
 

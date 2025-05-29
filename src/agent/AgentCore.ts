@@ -63,14 +63,18 @@ export class BrowserAgent {
     const browserTools = this.getBrowserTools(page);
 
     // Initialize all the components
-    new MCPManager(tabState).requestToolsForAgent((tools) => {
-      console.info('MCPManager.getInstance().getTools() tools:', tools);
-    });
     this.toolManager = new ToolManager(page, browserTools);
     this.promptManager = new PromptManager(this.toolManager.getTools());
     this.memoryManager = new MemoryManager(this.toolManager.getTools());
     this.errorHandler = new ErrorHandler();
-    // this.initializeMCPClient(page);
+
+    // TODO: test with:   change the greeting to say Hi to Nick
+    new MCPManager(tabState).requestToolsForAgent((tools) => {
+      console.info('MCPManager.getInstance().getTools() tools:', tools);
+      for (const tool of tools) {
+        this.toolManager.updateTool(tool);
+      }
+    });
 
     // Initialize the execution engine with all the components
     this.executionEngine = new ExecutionEngine(
@@ -102,7 +106,7 @@ export class BrowserAgent {
   //     return null;
   //   }
 
-  //   // TODO: test with:   change the greeting to say Hi to Nick
+  //
   //   client.listTools().then(({tools}) => {
   //     console.info('BrowserAgent.initializeMCPClient received tools list:', tools);
   //     for (const tool of tools) {
