@@ -1,9 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import MCPClientTransport, { MCPClientTransportSourceId } from "./MCPClientTransport";
+import pkg from "../../../package.json";
+import { TabState } from "../../background/types";
 import { JSONRPCMessage } from "../a2a/schema";
 import { BrowserTool } from "../tools/types";
-import { TabState } from "../../background/types";
-import pkg from "../../../package.json";
+import MCPClientTransport, { MCPClientTransportSourceId } from "./MCPClientTransport";
 
 export interface MCPMessageFromContentScript extends JSONRPCMessage {
   mcpSessionId: string;
@@ -11,9 +11,6 @@ export interface MCPMessageFromContentScript extends JSONRPCMessage {
   tabId: number;
   senderId?: string;
   source: string;
-}
-
-interface PingMessage extends MCPMessageFromContentScript {
 }
 
 /** MCP Manager for the background script & tab */
@@ -120,13 +117,13 @@ export class MCPManager {
 
     // window.postMessage(message, '*');
     if (method === 'ping') {
-      this.handlePing(message as PingMessage);
+      this.handlePing(message as MCPMessageFromContentScript);
     } else {
       console.info('MCPManager.handleMCPMessage received MCP message', method, message);
     }
   }
 
-  private handlePing(message: PingMessage) {
+  private handlePing(message: MCPMessageFromContentScript) {
     const { mcpSessionId: sessionId, tabId, senderId } = message;
     if (sessionId in this.clientsBySession === false) {
       console.info('MCPManager.handlePing creating new MCP client for session:', sessionId, tabId, senderId);

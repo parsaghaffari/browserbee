@@ -1,5 +1,5 @@
-import { getWindowForTab } from './tabManager';
 import { v4 } from "uuid";
+import { getWindowForTab } from './tabManager';
 
 /**
  * Send a message to the UI

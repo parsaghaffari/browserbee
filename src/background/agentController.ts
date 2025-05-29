@@ -1,24 +1,12 @@
 // Import provider-specific types
 import Anthropic from "@anthropic-ai/sdk";
-import { BrowserAgent, createBrowserAgent, executePromptWithFallback, needsReinitialization } from "../agent/AgentCore";
+import { createBrowserAgent, executePromptWithFallback, needsReinitialization } from "../agent/AgentCore";
 import { ExecutionCallbacks } from "../agent/ExecutionEngine";
 import { contextTokenCount } from "../agent/TokenManager";
 import { ScreenshotManager } from "../tracking/screenshotManager";
 import { TokenTrackingService } from "../tracking/tokenTrackingService";
-import { ExecutionCallbacks } from "../agent/ExecutionEngine";
-import { sendUIMessage, logWithTimestamp, handleError } from "./utils";
-import {
-  getCurrentTabId,
-  getTabState,
-  setTabState,
-  getWindowForTab,
-  getAgentForWindow,
-  setAgentForWindow,
-  getAgentForTab,
-  isConnectionHealthy
-} from "./tabManager";
-import { saveReflectionMemory } from "./reflectionController";
 import { ConfigManager } from "./configManager";
+import { saveReflectionMemory } from "./reflectionController";
 import {
   resetStreamingState,
   addToStreamingBuffer,
@@ -34,11 +22,9 @@ import {
 import {
   getCurrentTabId,
   getTabState,
-  setTabState,
   getWindowForTab,
   getAgentForWindow,
   setAgentForWindow,
-  getAgentForTab,
   isConnectionHealthy
 } from "./tabManager";
 import { ProviderType, AgentStatus, AgentStatusInfo } from "./types";

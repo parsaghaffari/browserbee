@@ -18,7 +18,7 @@ export default class MCPServerTransport implements Transport {
 
   onclose?: () => void;
   onerror?: (error: Error) => void;
-  onmessage?: (message: JSONRPCMessage, extra?: { /*authInfo?: AuthInfo*/ }) => void;
+  onmessage?: (message: JSONRPCMessage, extra?: any) => void; // extra: { authInfo?: AuthInfo }
 
   constructor() {
     this._sessionId = generateUuid();

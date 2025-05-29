@@ -2,11 +2,6 @@ import { MemoryService } from '../tracking/memoryService';
 import { setupMessageListeners } from './messageHandler';
 import { cleanupOnUnload, setupTabListeners } from './tabManager';
 import { logWithTimestamp } from './utils';
-import { MemoryService } from '../tracking/memoryService';
-import { MCPManager } from '../agent/mcp/MCPManager';
-import MCPClientTransport from '../agent/mcp/MCPClientTransport';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import pkg from '../../package.json';
 
 /**
  * Initialize the extension

@@ -1,6 +1,6 @@
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { JSONRPCMessage } from "../a2a/schema";
 import { JSONRPCNotification, JSONRPCRequest } from "@modelcontextprotocol/sdk/types.js";
+import { JSONRPCMessage } from "../a2a/schema";
 import { MCPMessageFromContentScript } from "./MCPManager";
 
 export const MCPClientTransportSourceId = 'mcp-client';
@@ -15,7 +15,7 @@ export default class MCPClientTransport implements Transport {
 
   onclose?: () => void;
   onerror?: (error: Error) => void;
-  onmessage?: (message: JSONRPCMessage, extra?: { /*authInfo?: AuthInfo*/ }) => void;
+  onmessage?: (message: JSONRPCMessage, extra?: any) => void; // extra?: { authInfo?: AuthInfo }
 
   // MCP Client Transport is created when MCPManager receives a MCP ping for an unknown sessionId
   constructor(
