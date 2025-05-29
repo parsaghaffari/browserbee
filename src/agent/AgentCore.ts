@@ -63,7 +63,7 @@ export class BrowserAgent {
     const browserTools = this.getBrowserTools(page);
 
     // Initialize all the components
-    new MCPManager().requestToolsForAgent(tabState, (tools) => {
+    new MCPManager(tabState).requestToolsForAgent((tools) => {
       console.info('MCPManager.getInstance().getTools() tools:', tools);
     });
     this.toolManager = new ToolManager(page, browserTools);

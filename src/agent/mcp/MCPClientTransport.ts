@@ -2,6 +2,7 @@ import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 // import { generateUuid } from "../../background/utils";
 import { JSONRPCMessage } from "../a2a/schema";
 import { JSONRPCNotification, JSONRPCRequest } from "@modelcontextprotocol/sdk/types.js";
+import { MCPMessageFromContentScript } from "./MCPManager";
 
 export const MCPClientTransportSourceId = 'mcp-client';
 
@@ -10,6 +11,9 @@ export const MCPClientTransportSourceId = 'mcp-client';
  */
 export default class MCPClientTransport implements Transport {
   private _sessionId?: string;
+  private expectedSessionId: string;
+  // private tabId: number;
+  // private windowId: number;
   sourceId = MCPClientTransportSourceId;
 
   onclose?: () => void;
@@ -17,8 +21,14 @@ export default class MCPClientTransport implements Transport {
   onmessage?: (message: JSONRPCMessage, extra?: { /*authInfo?: AuthInfo*/ }) => void;
 
   // MCP Client Transport is created when MCPManager receives a MCP ping for an unknown sessionId
-  constructor(sessionId: string) {
-    this._sessionId = sessionId;
+  constructor(
+    sessionId: string,
+    private tabId: number,
+    // windowId: number
+  ) {
+    this.expectedSessionId = sessionId;
+    // this.tabId = tabId;
+    // this.windowId = windowId;
   }
 
   async start(): Promise<void> {
@@ -33,16 +43,18 @@ export default class MCPClientTransport implements Transport {
     //   return true; // allow async
     // });
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      console.log("MCPClientTransport received runtime message:", message, sender);
+      // console.log("MCPClientTransport received runtime message:", message, sender);
       this.handleMessage(message);
     });
 
-    if (typeof window !== "undefined") {
-      window.addEventListener("message", (event) => {
-        // console.log("MCPClientTransport received message:", event);
-        this.handleMessage(event.data);
-      });
-    }
+    // if (typeof window !== "undefined") {
+    //   window.addEventListener("message", (event) => {
+    //     // console.log("MCPClientTransport received message:", event);
+    //     this.handleMessage(event.data);
+    //   });
+    // }
+
+    console.info('MCPClientTransport started for sessionId:', this.sessionId);
   }
 
   private handleMessage(message: JSONRPCMessage): void {
@@ -50,10 +62,10 @@ export default class MCPClientTransport implements Transport {
       return;
     }
     console.log("MCPClientTransport.handleMessage:", message);
-    const { method, source, mcpSessionId, ...rest } = message as { method?: string, source?: string, mcpSessionId?: string };
-      // if (this._sessionId === undefined) {
-      //   this._sessionId = mcpSessionId;
-      // }
+    const { method, source, mcpSessionId, tabId, ...rest } = message as MCPMessageFromContentScript;
+      if (this._sessionId === undefined && mcpSessionId === this.expectedSessionId) {
+        this._sessionId = mcpSessionId;
+      }
       // if (mcpSessionId && mcpSessionId !== this._sessionId) {
       //   return;
       // }
@@ -61,7 +73,7 @@ export default class MCPClientTransport implements Transport {
       if (source !== this.sourceId && method?.startsWith('mcp:') || (mcpSessionId && mcpSessionId === this._sessionId)) {
         const message = { ...rest } as JSONRPCMessage;
         if (method) {
-          (message as JSONRPCNotification).method = method;
+          (message as JSONRPCRequest).method = method;
         }
         console.log("MCPClientTransport received message from MCP server:", message);
         this.onmessage?.(message);
@@ -85,13 +97,14 @@ export default class MCPClientTransport implements Transport {
   }
 
   private sendMessage(message: any) {
-    console.info('MCPClientTransport sendMessage:', message);
-    if (typeof window !== "undefined") {
-      window.postMessage({ source: this.sourceId, ...message }, '*');
-    } else {
-      console.info('MCPClientTransport sendMessage using chrome.runtime.sendMessage', new Date().getTime());
-      chrome.runtime.sendMessage({ source: this.sourceId, ...message });
-    }
+    console.info('MCPClientTransport sendMessage to tabId:', this.tabId, message);
+    // if (typeof window !== "undefined") {
+    //   window.postMessage({ source: this.sourceId, ...message }, '*');
+    // } else {
+    //   console.info('MCPClientTransport sendMessage using chrome.runtime.sendMessage', new Date().getTime());
+    //   chrome.runtime.sendMessage({ source: this.sourceId, ...message });
+    // }
+    chrome.tabs.sendMessage(this.tabId, { source: this.sourceId, ...message });
   }
 
   async close(): Promise<void> {
