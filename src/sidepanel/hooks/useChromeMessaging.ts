@@ -52,7 +52,7 @@ export const useChromeMessaging = ({
   onPageError,
   onAgentStatusUpdate
 }: UseChromeMessagingProps) => {
-  
+
   // Listen for updates from the background script
   useEffect(() => {
     const messageListener = (message: ChromeMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
@@ -60,18 +60,18 @@ export const useChromeMessaging = ({
       // If the message has a tabId, check if it matches this tab's ID
       // If the message has a windowId, check if it matches this window's ID
       // If the message doesn't have a tabId or windowId, process it (for backward compatibility)
-      if ((message.tabId && message.tabId !== tabId) || 
+      if ((message.tabId && message.tabId !== tabId) ||
           (message.windowId && windowId && message.windowId !== windowId)) {
         return false; // Skip messages for other tabs or windows
       }
-      
+
       if (message.action === 'updateOutput') {
         // For complete messages (system messages or non-streaming LLM output)
         onUpdateOutput(message.content);
-        
+
         // Check if this is a system message about tab connection
-        if (message.content?.type === 'system' && 
-            typeof message.content.content === 'string' && 
+        if (message.content?.type === 'system' &&
+            typeof message.content.content === 'string' &&
             message.content.content.startsWith('Connected to tab:')) {
           // Extract the tab title from the message
           const titleMatch = message.content.content.match(/Connected to tab: (.+)/);
@@ -111,13 +111,13 @@ export const useChromeMessaging = ({
         // Handle approval requests
         // Check if the fields exist rather than if they're truthy
         // This allows empty strings for toolInput which is valid in some cases
-        if ('requestId' in message && 
-            'toolName' in message && 
-            'toolInput' in message && 
-            typeof message.requestId === 'string' && 
-            typeof message.toolName === 'string' && 
+        if ('requestId' in message &&
+            'toolName' in message &&
+            'toolInput' in message &&
+            typeof message.requestId === 'string' &&
+            typeof message.toolName === 'string' &&
             typeof message.toolInput === 'string') {
-          
+
           if (onRequestApproval) {
             onRequestApproval({
               requestId: message.requestId,
@@ -128,7 +128,7 @@ export const useChromeMessaging = ({
           } else {
             console.error('onRequestApproval handler is not defined, cannot process approval request');
           }
-          
+
           // Send a response to keep the message channel open
           sendResponse({ success: true });
           return true; // Keep the message channel open for async response
@@ -136,7 +136,7 @@ export const useChromeMessaging = ({
           console.warn('Received incomplete requestApproval message');
           sendResponse({ success: false, error: 'Incomplete approval request' });
         }
-      } 
+      }
       else if (message.action === 'tabStatusChanged' && onTabStatusChanged && message.status && message.tabId) {
         onTabStatusChanged(message.status, message.tabId);
       } else if (message.action === 'targetCreated' && onTargetCreated && message.tabId && message.targetInfo) {
@@ -149,7 +149,7 @@ export const useChromeMessaging = ({
         // Special handling for active tab changed message
         // This message is sent when the agent switches tabs
         console.log(`Active tab changed from ${message.oldTabId} to ${message.newTabId}`);
-        
+
         // Update the UI's tabId state by sending a special message to SidePanel
         chrome.runtime.sendMessage({
           action: 'updateActiveTab',
@@ -158,17 +158,17 @@ export const useChromeMessaging = ({
           title: message.title || 'Unknown Tab',
           url: message.url || 'about:blank'
         });
-        
+
         // If there's a callback for this event, call it
         if (onActiveTabChanged) {
           onActiveTabChanged(
-            message.oldTabId, 
-            message.newTabId, 
-            message.title || 'Unknown Tab', 
+            message.oldTabId,
+            message.newTabId,
+            message.title || 'Unknown Tab',
             message.url || 'about:blank'
           );
         }
-        
+
         // Update the tab title in the UI
         if (setTabTitle && message.title) {
           setTabTitle(message.title);
@@ -192,7 +192,7 @@ export const useChromeMessaging = ({
           }
         }
       }
-      
+
       // Send a response for any message that doesn't explicitly return true
       sendResponse({ success: true });
       return false; // Don't keep the message channel open by default
@@ -230,8 +230,8 @@ export const useChromeMessaging = ({
     return new Promise<void>((resolve, reject) => {
       try {
         // Send message to background script with tab ID
-        chrome.runtime.sendMessage({ 
-          action: 'executePrompt', 
+        chrome.runtime.sendMessage({
+          action: 'executePrompt',
           prompt,
           tabId,
           windowId
@@ -252,7 +252,7 @@ export const useChromeMessaging = ({
   };
 
   const cancelExecution = () => {
-    chrome.runtime.sendMessage({ 
+    chrome.runtime.sendMessage({
       action: 'cancelExecution',
       tabId,
       windowId
@@ -264,21 +264,21 @@ export const useChromeMessaging = ({
   };
 
   const clearHistory = () => {
-    chrome.runtime.sendMessage({ 
-      action: 'clearHistory', 
+    chrome.runtime.sendMessage({
+      action: 'clearHistory',
       tabId,
       windowId
     });
   };
 
   const approveRequest = (requestId: string) => {
-    chrome.runtime.sendMessage({ 
+    chrome.runtime.sendMessage({
       action: 'approvalResponse',
       requestId,
       approved: true,
       tabId,
       windowId
-    }, (response) => {
+    }, (_response) => {
       if (chrome.runtime.lastError) {
         console.error('Error sending approval response:', chrome.runtime.lastError);
       }
@@ -286,13 +286,13 @@ export const useChromeMessaging = ({
   };
 
   const rejectRequest = (requestId: string) => {
-    chrome.runtime.sendMessage({ 
+    chrome.runtime.sendMessage({
       action: 'approvalResponse',
       requestId,
       approved: false,
       tabId,
       windowId
-    }, (response) => {
+    }, (_response) => {
       if (chrome.runtime.lastError) {
         console.error('Error sending rejection response:', chrome.runtime.lastError);
       }

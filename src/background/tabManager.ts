@@ -1,7 +1,7 @@
 import { crx } from 'playwright-crx';
+import { BrowserAgent } from '../agent/AgentCore';
 import { TabState, WindowState } from './types';
 import { logWithTimestamp, handleError } from './utils';
-import { BrowserAgent } from '../agent/AgentCore';
 
 // Track attached tabs and their windows
 const attachedTabIds = new Set<number>();

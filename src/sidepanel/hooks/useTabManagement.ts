@@ -15,16 +15,16 @@ export const useTabManagement = () => {
           const activeTabId = tabs[0].id;
           const windowId = tabs[0].windowId;
           const activeTabTitle = tabs[0].title || 'Unknown Tab';
-          
+
           setTabId(activeTabId);
           setWindowId(windowId);
           setTabTitle(activeTabTitle);
           console.log(`Using tab ID ${activeTabId} in window ${windowId} from last focused window`);
           console.log(`Tab title: ${activeTabTitle}`);
-          
+
           // Initialize tab attachment early, including the window ID
-          chrome.runtime.sendMessage({ 
-            action: 'initializeTab', 
+          chrome.runtime.sendMessage({
+            action: 'initializeTab',
             tabId: activeTabId,
             windowId: windowId
           }, (response) => {
@@ -39,35 +39,35 @@ export const useTabManagement = () => {
         console.error('Error getting current tab:', error);
       }
     };
-    
+
     getCurrentTab();
   }, []);
-  
+
   // Listen for tab updates to update the tab title in real-time
   useEffect(() => {
     if (!tabId) return;
-    
-    const handleTabUpdated = (updatedTabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
+
+    const handleTabUpdated = (updatedTabId: number, changeInfo: chrome.tabs.TabChangeInfo, _tab: chrome.tabs.Tab) => {
       // Only update if this is our tab and the title has changed
       if (updatedTabId === tabId && changeInfo.title) {
         console.log(`Tab ${updatedTabId} title updated to: ${changeInfo.title}`);
         setTabTitle(changeInfo.title);
       }
     };
-    
+
     // Add listener for tab updates
     chrome.tabs.onUpdated.addListener(handleTabUpdated);
-    
+
     // Clean up listener when component unmounts or tabId changes
     return () => {
       chrome.tabs.onUpdated.removeListener(handleTabUpdated);
     };
   }, [tabId]);
-  
+
   // Listen for tab replacement and active tab change events
   useEffect(() => {
     if (!tabId) return;
-    
+
     const messageListener = (
       message: any,
       sender: chrome.runtime.MessageSender,
@@ -76,23 +76,23 @@ export const useTabManagement = () => {
       // Handle tab replacement
       if (message.action === 'tabReplaced' && message.oldTabId === tabId) {
         console.log(`Tab ${tabId} was replaced with new tab ${message.newTabId}`);
-        
+
         // Update the tab ID and title
         setTabId(message.newTabId);
         setTabTitle(message.title || "New BrowserBee Tab");
-        
+
         sendResponse({ received: true });
         return true;
       }
-      
+
       // Handle active tab changed by the agent
       if (message.action === 'updateActiveTab' && message.oldTabId === tabId) {
         console.log(`Active tab changed from ${message.oldTabId} to ${message.newTabId}`);
-        
+
         // Update the tab ID and title
         setTabId(message.newTabId);
         setTabTitle(message.title || "Unknown Tab");
-        
+
         // Add a system message to indicate the tab change
         chrome.runtime.sendMessage({
           action: 'updateOutput',
@@ -101,17 +101,17 @@ export const useTabManagement = () => {
             content: `Switched to tab: ${message.title} (${message.url})`
           }
         });
-        
+
         sendResponse({ received: true });
         return true;
       }
-      
+
       return false;
     };
-    
+
     // Add the message listener
     chrome.runtime.onMessage.addListener(messageListener);
-    
+
     // Clean up the listener when the component unmounts or tabId changes
     return () => {
       chrome.runtime.onMessage.removeListener(messageListener);

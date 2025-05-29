@@ -1,7 +1,7 @@
 // Import provider-specific types
 import Anthropic from "@anthropic-ai/sdk";
-import { ProviderType, AgentStatus, AgentStatusInfo } from "./types";
 import { BrowserAgent, createBrowserAgent, executePromptWithFallback, needsReinitialization } from "../agent/AgentCore";
+import { ExecutionCallbacks } from "../agent/ExecutionEngine";
 import { contextTokenCount } from "../agent/TokenManager";
 import { ScreenshotManager } from "../tracking/screenshotManager";
 import { TokenTrackingService } from "../tracking/tokenTrackingService";
@@ -31,6 +31,18 @@ import {
   incrementSegmentId,
   signalStreamingComplete
 } from "./streamingManager";
+import {
+  getCurrentTabId,
+  getTabState,
+  setTabState,
+  getWindowForTab,
+  getAgentForWindow,
+  setAgentForWindow,
+  getAgentForTab,
+  isConnectionHealthy
+} from "./tabManager";
+import { ProviderType, AgentStatus, AgentStatusInfo } from "./types";
+import { sendUIMessage, logWithTimestamp, handleError } from "./utils";
 
 // Generic message format that works with all providers
 interface GenericMessage {

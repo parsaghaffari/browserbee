@@ -1,5 +1,5 @@
-import type { Page, BrowserContext, Dialog } from "playwright-crx/test";
 import { DynamicTool } from "langchain/tools";
+import type { Page, BrowserContext, Dialog } from "playwright-crx/test";
 
 export interface BrowserTool {
   name: string;

@@ -1,3 +1,4 @@
+import { getWindowForTab } from './tabManager';
 import { v4 } from "uuid";
 
 /**
@@ -14,8 +15,6 @@ export function sendUIMessage(action: string, content: any, tabId?: number, wind
     if (!windowId) {
       try {
         // Try to get the window ID from the tab manager
-        // Using require to avoid circular dependencies
-        const getWindowForTab = require('./tabManager').getWindowForTab;
         if (typeof getWindowForTab === 'function') {
           windowId = getWindowForTab(tabId);
         }

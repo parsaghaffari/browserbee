@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Model } from './components/ModelList';
-import { OllamaModel } from './components/OllamaModelList';
 import { 
   anthropicModels, 
   openaiModels, 
@@ -15,8 +13,10 @@ import {
 // Import components
 import { AboutSection } from './components/AboutSection';
 import { LLMProviderConfig } from './components/LLMProviderConfig';
-import { ModelPricingTable } from './components/ModelPricingTable';
 import { MemoryManagement } from './components/MemoryManagement';
+import { Model } from './components/ModelList';
+import { ModelPricingTable } from './components/ModelPricingTable';
+import { OllamaModel } from './components/OllamaModelList';
 
 export function Options() {
   // Function to process and sort model pricing data

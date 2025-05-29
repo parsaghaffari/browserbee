@@ -1,13 +1,13 @@
-import { BackgroundMessage } from './types';
-import { logWithTimestamp, handleError } from './utils';
+import { handleApprovalResponse } from '../agent/approvalManager';
+import { TokenTrackingService } from '../tracking/tokenTrackingService';
 import { executePrompt } from './agentController';
 import { cancelExecution } from './agentController';
 import { clearMessageHistory } from './agentController';
-import { attachToTab, getTabState, getWindowForTab, forceResetPlaywright } from './tabManager';
 import { initializeAgent } from './agentController';
-import { TokenTrackingService } from '../tracking/tokenTrackingService';
-import { handleApprovalResponse } from '../agent/approvalManager';
 import { triggerReflection } from './reflectionController';
+import { attachToTab, getTabState, getWindowForTab, forceResetPlaywright } from './tabManager';
+import { BackgroundMessage } from './types';
+import { logWithTimestamp, handleError } from './utils';
 
 /**
  * Handle messages from the UI

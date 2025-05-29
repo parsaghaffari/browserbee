@@ -1,11 +1,11 @@
 import React from 'react';
 import { AnthropicSettings } from './AnthropicSettings';
-import { OpenAISettings } from './OpenAISettings';
 import { GeminiSettings } from './GeminiSettings';
-import { OllamaSettings } from './OllamaSettings';
-import { OpenAICompatibleSettings } from './OpenAICompatibleSettings';
 import { Model } from './ModelList';
 import { OllamaModel } from './OllamaModelList';
+import { OllamaSettings } from './OllamaSettings';
+import { OpenAICompatibleSettings } from './OpenAICompatibleSettings';
+import { OpenAISettings } from './OpenAISettings';
 
 interface ProviderSettingsProps {
   provider: string;

@@ -1,11 +1,14 @@
 import type { Page } from "playwright-crx";
-import { getAllTools } from "./tools/index";
-import { ToolManager } from "./ToolManager";
-import { PromptManager } from "./PromptManager";
-import { MemoryManager } from "./MemoryManager";
+import { ConfigManager, ProviderConfig } from "../background/configManager";
+import { createProvider } from "../models/providers/factory";
+import { LLMProvider } from "../models/providers/types";
 import { ErrorHandler } from "./ErrorHandler";
 import { ExecutionEngine, ExecutionCallbacks } from "./ExecutionEngine";
+import { MemoryManager } from "./MemoryManager";
 import { initializePageContext } from "./PageContextManager";
+import { PromptManager } from "./PromptManager";
+import { ToolManager } from "./ToolManager";
+import { getAllTools } from "./tools/index";
 import { BrowserTool, ToolExecutionContext } from "./tools/types";
 
 // Define our own DynamicTool interface to avoid import issues
@@ -57,20 +60,14 @@ export class BrowserAgent {
     this.llmProvider = provider!;
 
     // Get all tools from the tools module and convert them to BrowserTool objects
-    const browserTools = this.getBrowserTools(page);
+    const rawTools = getAllTools(page);
+    const browserTools = this.convertToBrowserTools(rawTools);
 
     // Initialize all the components
     this.toolManager = new ToolManager(page, browserTools);
     this.promptManager = new PromptManager(this.toolManager.getTools());
     this.memoryManager = new MemoryManager(this.toolManager.getTools());
     this.errorHandler = new ErrorHandler();
-
-    new MCPManager(tabState).requestToolsForAgent((tools) => {
-      console.info('MCPManager.getInstance().getTools() tools:', tools);
-      for (const tool of tools) {
-        this.toolManager.updateTool(tool);
-      }
-    });
 
     // Initialize the execution engine with all the components
     this.executionEngine = new ExecutionEngine(
@@ -80,11 +77,6 @@ export class BrowserAgent {
       this.memoryManager,
       this.errorHandler
     );
-  }
-
-  private getBrowserTools(page: Page): BrowserTool[] {
-    const rawTools = getAllTools(page);
-    return this.convertToBrowserTools(rawTools);
   }
 
   /**
@@ -99,7 +91,7 @@ export class BrowserAgent {
         return {
           name: tool.name,
           description: tool.description,
-          func: async (input: string, context?: ToolExecutionContext) => {
+          func: async (input: string, _context?: ToolExecutionContext) => {
             // Call the original function, ignoring any extra parameters
             return await tool.func(input);
           }

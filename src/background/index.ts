@@ -1,3 +1,4 @@
+import { MemoryService } from '../tracking/memoryService';
 import { setupMessageListeners } from './messageHandler';
 import { cleanupOnUnload, setupTabListeners } from './tabManager';
 import { logWithTimestamp } from './utils';
@@ -21,7 +22,6 @@ function initializeExtension(): void {
 
   // Set up event listeners
   setupEventListeners();
-  // MCPManager.getInstance().listenFromBackground();
 
   // Set up command listeners
   setupCommandListeners();
@@ -165,9 +165,9 @@ function setupEventListeners(): void {
 
   // Try to listen for side panel events if available
   try {
-    // @ts-ignore - These events might not be in the type definitions yet
+    // @ts-expect-error - These events might not be in the type definitions yet
     if (chrome.sidePanel.onShown) {
-      // @ts-ignore
+      // @ts-expect-error - These events might not be in the type definitions yet
       chrome.sidePanel.onShown.addListener(async (info: { tabId?: number }) => {
         logWithTimestamp(`Side panel shown for tab ${info.tabId}`);
 
@@ -197,9 +197,9 @@ function setupEventListeners(): void {
       });
     }
 
-    // @ts-ignore
+    // @ts-expect-error - These events might not be in the type definitions yet
     if (chrome.sidePanel.onHidden) {
-      // @ts-ignore
+      // @ts-expect-error - These events might not be in the type definitions yet
       chrome.sidePanel.onHidden.addListener((info: { tabId?: number }) => {
         logWithTimestamp(`Side panel hidden for tab ${info.tabId}`);
         // We don't need to clean up here, but we could if needed

@@ -1,8 +1,8 @@
 import { DynamicTool } from "langchain/tools";
 import type { Page } from "playwright-crx";
-import { ToolFactory } from "./types";
 import { createNewTab, getWindowForTab, getCrxAppForTab } from "../../background/tabManager";
 import { setCurrentPage } from "../PageContextManager";
+import { ToolFactory } from "./types";
 import { getCurrentTabId } from "./utils";
 
 export const browserTabList: ToolFactory = (page: Page) =>

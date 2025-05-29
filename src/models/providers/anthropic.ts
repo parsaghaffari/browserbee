@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming";
-import { LLMProvider, ProviderOptions, ModelInfo, ApiStream, StreamChunk } from './types';
 import { anthropicModels, anthropicDefaultModelId } from '../models';
+import { LLMProvider, ProviderOptions, ModelInfo, ApiStream, StreamChunk } from './types';
 
 export class AnthropicProvider implements LLMProvider {
   // Static method to get available models
@@ -26,11 +26,11 @@ export class AnthropicProvider implements LLMProvider {
   async *createMessage(systemPrompt: string, messages: any[], tools?: any[]): ApiStream {
     const model = this.getModel();
     const modelId = model.id;
-    
+
     // Configure thinking budget if available
     const budget_tokens = this.options.thinkingBudgetTokens || 0;
     const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0;
-    
+
     // Find user message indices for cache control
     const userMsgIndices = messages.reduce(
       (acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
@@ -38,7 +38,7 @@ export class AnthropicProvider implements LLMProvider {
     );
     const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1;
     const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1;
-    
+
     // Create message stream with thinking config and cache control
     const stream = await this.client.messages.create(
       {
@@ -56,9 +56,9 @@ export class AnthropicProvider implements LLMProvider {
         // Process messages to filter out system instructions and ensure clean conversation
         messages: messages
           // First filter out system instructions embedded in user messages
-          .filter(message => 
-            !(message.role === "user" && 
-              typeof message.content === "string" && 
+          .filter(message =>
+            !(message.role === "user" &&
+              typeof message.content === "string" &&
               message.content.startsWith("[SYSTEM INSTRUCTION:"))
           )
           // Then apply cache control to user messages
@@ -103,15 +103,17 @@ export class AnthropicProvider implements LLMProvider {
     for await (const chunk of stream) {
       switch (chunk.type) {
         case "message_start":
-          // Token usage information
-          const usage = chunk.message.usage;
-          yield {
-            type: "usage",
-            inputTokens: usage.input_tokens || 0,
-            outputTokens: usage.output_tokens || 0,
-            cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
-            cacheReadTokens: usage.cache_read_input_tokens || undefined,
-          };
+          {
+            // Token usage information
+            const usage = chunk.message.usage;
+            yield {
+              type: "usage",
+              inputTokens: usage.input_tokens || 0,
+              outputTokens: usage.output_tokens || 0,
+              cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
+              cacheReadTokens: usage.cache_read_input_tokens || undefined,
+            };
+          }
           break;
         case "message_delta":
           // Output token updates
@@ -181,12 +183,12 @@ export class AnthropicProvider implements LLMProvider {
 
   getModel(): { id: string; info: ModelInfo } {
     const modelId = this.options.apiModelId || anthropicDefaultModelId;
-    
+
     // Check if the model ID exists in our models, otherwise use the default
-    const safeModelId = Object.keys(anthropicModels).includes(modelId) 
-      ? modelId as keyof typeof anthropicModels 
+    const safeModelId = Object.keys(anthropicModels).includes(modelId)
+      ? modelId as keyof typeof anthropicModels
       : anthropicDefaultModelId;
-    
+
     return {
       id: modelId,
       info: anthropicModels[safeModelId],

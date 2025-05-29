@@ -167,7 +167,7 @@ Please refer to [ROADMAP.md](ROADMAP.md) for an up to date list of features we'r
 - Ability to memorize key information as needed (in your local Chrome instance using [IndexedDB](https://developer.chrome.com/docs/devtools/storage/indexeddb))
 - Scheduled task execution (e.g. check news and social media every morning)
 
-If you're interested in contributing to build any of these features or to improve BrowserBee in any way, please head over to [CONTRIBUTING.md](CONTRIBUTING.md).
+If you're interested in contributing to build any of these features or to improve BrowserBee in any way, please head over to [CONTRIBUTING.md](CONTRIBUTING.md). For information about our testing infrastructure and CI/CD pipeline, see [.github/WORKFLOWS.md](.github/WORKFLOWS.md).
 
 ## ▶️ Installation
 

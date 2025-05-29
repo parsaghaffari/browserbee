@@ -1,7 +1,7 @@
 import type { Page } from "playwright-crx";
-import { MemoryService, AgentMemory } from '../../tracking/memoryService';
 import { logWithTimestamp } from '../../background/utils';
 import { normalizeDomain } from '../../tracking/domainUtils';
+import { MemoryService, AgentMemory } from '../../tracking/memoryService';
 
 export function saveMemory(page: Page) {
   return {
@@ -10,29 +10,30 @@ export function saveMemory(page: Page) {
     func: async (input: string): Promise<string> => {
       try {
         const inputObj = JSON.parse(input);
-        let { domain, taskDescription, toolSequence } = inputObj;
-        
+        const { taskDescription, toolSequence } = inputObj;
+        let { domain } = inputObj;
+
         if (!domain || !taskDescription || !toolSequence) {
           return "Error: Missing required fields. Please provide domain, taskDescription, and toolSequence.";
         }
-        
+
         // Normalize the domain
         domain = normalizeDomain(domain);
-        
+
         if (!domain) {
           return "Error: Invalid domain provided.";
         }
-        
+
         const memory: AgentMemory = {
           domain,
           taskDescription,
           toolSequence,
           createdAt: Date.now()
         };
-        
+
         const memoryService = MemoryService.getInstance();
         const id = await memoryService.storeMemory(memory);
-        
+
         return `Memory saved successfully with ID: ${id}`;
       } catch (error) {
         logWithTimestamp(`Error saving memory: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -50,24 +51,24 @@ export function lookupMemories(page: Page) {
       try {
         // Extract and normalize domain from input
         let domain = input.trim();
-        
+
         // Normalize the domain using the utility function
         domain = normalizeDomain(domain);
-        
+
         if (!domain) {
           return "Error: Please provide a valid domain to lookup memories for.";
         }
-        
+
         const memoryService = MemoryService.getInstance();
         const memories = await memoryService.getMemoriesByDomain(domain);
-        
+
         if (memories.length === 0) {
           return `No memories found for domain: ${domain}`;
         }
-        
+
         // Sort memories by creation date (newest first)
         memories.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        
+
         // Format the memories in a more concise way
         const formattedMemories = memories.map(memory => ({
           domain: memory.domain,
@@ -75,7 +76,7 @@ export function lookupMemories(page: Page) {
           toolSequence: memory.toolSequence,
           createdAt: memory.createdAt ? new Date(memory.createdAt).toISOString() : 'unknown'
         }));
-        
+
         return JSON.stringify(formattedMemories, null, 2);
       } catch (error) {
         logWithTimestamp(`Error looking up memories: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -93,11 +94,11 @@ export function getAllMemories(page: Page) {
       try {
         const memoryService = MemoryService.getInstance();
         const memories = await memoryService.getAllMemories();
-        
+
         if (memories.length === 0) {
           return "No memories found.";
         }
-        
+
         return JSON.stringify(memories, null, 2);
       } catch (error) {
         logWithTimestamp(`Error retrieving all memories: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -114,14 +115,14 @@ export function deleteMemory(page: Page) {
     func: async (input: string): Promise<string> => {
       try {
         const id = parseInt(input.trim(), 10);
-        
+
         if (isNaN(id)) {
           return "Error: Please provide a valid numeric ID.";
         }
-        
+
         const memoryService = MemoryService.getInstance();
         await memoryService.deleteMemory(id);
-        
+
         return `Memory with ID ${id} deleted successfully.`;
       } catch (error) {
         logWithTimestamp(`Error deleting memory: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -139,7 +140,7 @@ export function clearAllMemories(page: Page) {
       try {
         const memoryService = MemoryService.getInstance();
         await memoryService.clearMemories();
-        
+
         return "All memories cleared successfully.";
       } catch (error) {
         logWithTimestamp(`Error clearing memories: ${error instanceof Error ? error.message : String(error)}`, 'error');

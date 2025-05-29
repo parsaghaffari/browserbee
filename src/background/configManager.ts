@@ -1,7 +1,7 @@
 import { AnthropicProvider } from '../models/providers/anthropic';
-import { OpenAIProvider } from '../models/providers/openai';
 import { GeminiProvider } from '../models/providers/gemini';
 import { OllamaProvider, OllamaProviderOptions } from '../models/providers/ollama';
+import { OpenAIProvider } from '../models/providers/openai';
 import { OpenAICompatibleProvider } from '../models/providers/openai-compatible';
 
 export interface ProviderConfig {
