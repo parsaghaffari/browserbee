@@ -2,13 +2,18 @@ import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { generateUuid } from "../../background/utils";
 import { JSONRPCMessage } from "../a2a/schema";
 
+interface MCPMessage {
+  method: string;
+  source?: string;
+}
+
 /**
  * This class could be used with https://github.com/modelcontextprotocol/typescript-sdk
  * by web apps or content scripts ofbrowser extensions to provide tools which can be used by browserbee.
  */
 export default class MCPServerTransport implements Transport {
   private _sessionId: string;
-  private sourceId = 'mcp-server';
+  protected sourceId = 'mcp-server';
   private pingInterval: NodeJS.Timeout;
 
   onclose?: () => void;
@@ -26,17 +31,7 @@ export default class MCPServerTransport implements Transport {
 
   async start(): Promise<void> {
     window.addEventListener('message', (e) => {
-      const { method, source, ...rest } = e.data as { method?: string, source?: string };
-      if (source === this.sourceId) {
-        // ignore messages from this mcp-server
-        return;
-      }
-
-      if (method?.startsWith('mcp:')) {
-        const message = { method: method.slice(4), ...rest } as JSONRPCMessage;
-        console.debug('MCPServerTransport received MCP message:', message);
-        this.onmessage?.(message);
-      }
+      this.handleMessage(e.data as MCPMessage);
     });
   }
 
@@ -54,6 +49,20 @@ export default class MCPServerTransport implements Transport {
     clearInterval(this.pingInterval);
   }
 
+  protected handleMessage(message: MCPMessage) {
+    const { method, source, ...rest } = message;
+      if (source === this.sourceId) {
+        // ignore messages from this mcp-server
+        return;
+      }
+
+      if (method?.startsWith('mcp:')) {
+        const message = { method: method.slice(4), ...rest } as JSONRPCMessage;
+        console.info('Demo MCPServerTransport received MCP message:', message);
+        this.onmessage?.(message);
+      }
+  }
+
   private sendRequestOrNotificationToExtension(method: string, params: any) {
     method = 'mcp:' + method;
     this.sendMessageToExtension({ method, params });
@@ -61,7 +70,7 @@ export default class MCPServerTransport implements Transport {
 
   protected sendMessageToExtension(message: any) {
     if (message.method !== 'mcp:ping') {
-      console.debug('MCPServerTransport sending message:', message);
+      console.info('MCPServerTransport sending message:', message);
     }
     message.mcpSessionId = this.sessionId;
     message.source = this.sourceId;
