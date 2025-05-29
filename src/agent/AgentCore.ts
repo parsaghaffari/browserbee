@@ -1,5 +1,5 @@
-import type { Page } from "playwright-crx";
 import { ConfigManager, ProviderConfig } from "../background/configManager";
+import { TabState } from "../background/types";
 import { createProvider } from "../models/providers/factory";
 import { LLMProvider } from "../models/providers/types";
 import { ErrorHandler } from "./ErrorHandler";
@@ -29,11 +29,6 @@ function isDynamicTool(obj: any): obj is DynamicTool {
     typeof obj.func === 'function'
   );
 }
-import { LLMProvider } from "../models/providers/types";
-import { createProvider } from "../models/providers/factory";
-import { ConfigManager, ProviderConfig } from "../background/configManager";
-import { MCPManager } from "./mcp/MCPManager";
-import { TabState } from "../background/types";
 
 /**
  * BrowserAgent is the main class for the browser automation agent.

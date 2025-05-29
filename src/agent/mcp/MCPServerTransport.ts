@@ -9,7 +9,7 @@ interface MCPMessage {
 
 /**
  * This class could be used with https://github.com/modelcontextprotocol/typescript-sdk
- * by web apps or content scripts ofbrowser extensions to provide tools which can be used by browserbee.
+ * by web apps or content scripts of browser extensions to provide tools which can be used by browserbee.
  */
 export default class MCPServerTransport implements Transport {
   private _sessionId: string;

@@ -37,7 +37,6 @@
     "@langchain/core": "^0.3.45",
     "@langchain/langgraph": "^0.2.64",
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "@samrum/vite-plugin-web-extension": "^5.1.1",
     "langchain": "^0.3.22",
     "ollama": "^0.5.15",
     "openai": "^4.28.0",
