@@ -1,3 +1,3 @@
-import { MCPManager } from "./agent/mcp/MCPManager";
+import { MCPContentManager } from "./agent/mcp/MCPManager";
 
-MCPManager.getInstance().listenFromContentScript();
+new MCPContentManager().listenFromContentScript();

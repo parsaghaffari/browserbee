@@ -7,6 +7,8 @@ import { ErrorHandler } from "./ErrorHandler";
 import { ExecutionEngine, ExecutionCallbacks } from "./ExecutionEngine";
 import { initializePageContext } from "./PageContextManager";
 import { BrowserTool, ToolExecutionContext } from "./tools/types";
+import pkg from "../../package.json";
+
 // Define our own DynamicTool interface to avoid import issues
 interface DynamicTool {
   name: string;
@@ -28,6 +30,10 @@ function isDynamicTool(obj: any): obj is DynamicTool {
 import { LLMProvider } from "../models/providers/types";
 import { createProvider } from "../models/providers/factory";
 import { ConfigManager, ProviderConfig } from "../background/configManager";
+import { MCPManager } from "./mcp/MCPManager";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import MCPClientTransport from "./mcp/MCPClientTransport";
+import { TabState } from "../background/types";
 
 /**
  * BrowserAgent is the main class for the browser automation agent.
@@ -40,27 +46,32 @@ export class BrowserAgent {
   private memoryManager: MemoryManager;
   private errorHandler: ErrorHandler;
   private executionEngine: ExecutionEngine;
-  
+
   /**
    * Create a new BrowserAgent
    */
-  constructor(page: Page, config: ProviderConfig, provider?: LLMProvider) {
+  constructor(tabState: TabState, config: ProviderConfig, provider?: LLMProvider) {
+    console.info('AgentCore.BrowserAgent constructor...');
+    const page = tabState.page;
     // Initialize the PageContextManager with the initial page
     initializePageContext(page);
-    
+
     // Use the provided provider or create a new one
     this.llmProvider = provider!;
-    
+
     // Get all tools from the tools module and convert them to BrowserTool objects
-    const rawTools = getAllTools(page);
-    const browserTools = this.convertToBrowserTools(rawTools);
-    
+    const browserTools = this.getBrowserTools(page);
+
     // Initialize all the components
+    new MCPManager().requestToolsForAgent(tabState, (tools) => {
+      console.info('MCPManager.getInstance().getTools() tools:', tools);
+    });
     this.toolManager = new ToolManager(page, browserTools);
     this.promptManager = new PromptManager(this.toolManager.getTools());
     this.memoryManager = new MemoryManager(this.toolManager.getTools());
     this.errorHandler = new ErrorHandler();
-    
+    // this.initializeMCPClient(page);
+
     // Initialize the execution engine with all the components
     this.executionEngine = new ExecutionEngine(
       this.llmProvider,
@@ -70,7 +81,63 @@ export class BrowserAgent {
       this.errorHandler
     );
   }
-  
+
+  // private async initializeMCPClient(page: Page): Promise<Client | null> {
+  //   // TODO: we could have multiple MCP servers provided by various extensions and the page.
+  //   const transport = new MCPClientTransport();
+  //   const client = new Client(
+  //     {
+  //       name: pkg.name,
+  //       version: pkg.version
+  //     }
+  //   );
+
+  //   try {
+  //     console.info('Connecting to MCP server...');
+  //     await client.connect(transport);
+  //     console.info('Connected to MCP server');
+  //   } catch (error) {
+  //     // this will timeout if there is no MCP server for the page or in other extensions
+  //     console.info('Failed to connect to MCP server:', error);
+  //     return null;
+  //   }
+
+  //   // TODO: test with:   change the greeting to say Hi to Nick
+  //   client.listTools().then(({tools}) => {
+  //     console.info('BrowserAgent.initializeMCPClient received tools list:', tools);
+  //     for (const tool of tools) {
+  //       const { $schema, ...schema } = tool.inputSchema;
+  //       const browserTool: BrowserTool = {
+  //         name: tool.name,
+  //         description: tool.description || JSON.stringify(schema),
+  //         func: async (input: string, context?: ToolExecutionContext) => {
+  //           const toolResult = await client.callTool({name: tool.name, arguments: JSON.parse(input)});
+  //           console.info('toolResult:', toolResult);
+  //           if (typeof toolResult === 'string') {
+  //             return toolResult;
+  //           }
+  //           return JSON.stringify(toolResult);
+  //         }
+  //       };
+
+  //       console.info('browserTool:', browserTool);
+  //       this.toolManager.updateTool(browserTool);
+  //     }
+  //   }, (error) => {
+  //     console.info('Failed to list tools:', error);
+  //     this.toolManager.updateTools(this.getBrowserTools(page));
+  //   }).finally(() => {
+  //     this.promptManager.updateTools(this.toolManager.getTools());
+  //   });
+
+  //   return client;
+  // }
+
+  private getBrowserTools(page: Page): BrowserTool[] {
+    const rawTools = getAllTools(page);
+    return this.convertToBrowserTools(rawTools);
+  }
+
   /**
    * Convert tools from DynamicTool to BrowserTool format
    * This is needed because the tools are created using langchain's DynamicTool,
@@ -111,28 +178,28 @@ export class BrowserAgent {
       }
     });
   }
-  
+
   /**
    * Cancel the current execution
    */
   cancel(): void {
     this.errorHandler.cancel();
   }
-  
+
   /**
    * Reset the cancel flag
    */
   resetCancel(): void {
     this.errorHandler.resetCancel();
   }
-  
+
   /**
    * Check if streaming is supported in the current environment
    */
   async isStreamingSupported(): Promise<boolean> {
     return this.errorHandler.isStreamingSupported();
   }
-  
+
   /**
    * Execute a prompt with fallback support
    */
@@ -147,7 +214,7 @@ export class BrowserAgent {
       initialMessages
     );
   }
-  
+
   /**
    * Execute a prompt without fallback
    */
@@ -173,13 +240,13 @@ export class BrowserAgent {
  * Create a new BrowserAgent
  */
 export async function createBrowserAgent(
-  page: Page,
+  tabState: TabState,
   apiKey: string
 ): Promise<BrowserAgent> {
   // Get provider configuration
   const configManager = ConfigManager.getInstance();
   let providerConfig: ProviderConfig;
-  
+
   try {
     providerConfig = await configManager.getProviderConfig();
   } catch (error) {
@@ -190,7 +257,7 @@ export async function createBrowserAgent(
       apiModelId: 'claude-3-7-sonnet-20250219',
     };
   }
-  
+
   // Special case for Ollama: it doesn't require an API key
   if (providerConfig.provider === 'ollama') {
     // Use a dummy API key if none is provided
@@ -198,12 +265,12 @@ export async function createBrowserAgent(
       providerConfig.apiKey = 'dummy-key';
     }
   }
-  
+
   // Use the provided API key as a fallback if the stored one is empty
   if (!providerConfig.apiKey) {
     providerConfig.apiKey = apiKey;
   }
-  
+
   // Create the provider with the configuration
   const provider = await createProvider(providerConfig.provider, {
     apiKey: providerConfig.apiKey,
@@ -212,9 +279,9 @@ export async function createBrowserAgent(
     thinkingBudgetTokens: providerConfig.thinkingBudgetTokens,
     dangerouslyAllowBrowser: true,
   });
-  
+
   // Create the agent with the provider configuration and provider
-  return new BrowserAgent(page, providerConfig, provider);
+  return new BrowserAgent(tabState, providerConfig, provider);
 }
 
 /**
@@ -228,13 +295,13 @@ export async function needsReinitialization(
   currentProvider?: ProviderConfig
 ): Promise<boolean> {
   if (!agent) return true;
-  
+
   // Get current provider configuration if not provided
   if (!currentProvider) {
     const configManager = ConfigManager.getInstance();
     currentProvider = await configManager.getProviderConfig();
   }
-  
+
   // Check if the provider has changed
   // We can't directly access the agent's provider, so we'll need to reinitialize
   // if the provider has changed in the config

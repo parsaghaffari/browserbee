@@ -3,9 +3,15 @@
   "version": "0.2.0",
   "manifest_version": 3,
   "background": {
-    "service_worker": "background.js",
+    "service_worker": "src/background.ts",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/contentScript.ts"]
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -20,9 +26,9 @@
     }
   },
   "side_panel": {
-    "default_path": "sidepanel.html"
+    "default_path": "src/sidepanel.html"
   },
-  "options_page": "options.html",
+  "options_page": "src/options.html",
   "permissions": ["debugger", "tabs", "sidePanel", "storage", "activeTab", "commands"],
   "host_permissions": ["<all_urls>"],
   "commands": {
@@ -34,5 +40,8 @@
       "description": "Open the BrowserBee side panel",
       "global": false
     }
+  },
+  "externally_connectable": {
+    "matches": ["<all_urls>"]
   }
 }

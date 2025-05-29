@@ -10,6 +10,7 @@ Since BrowserBee runs entirely within your browser (with the exception of the LL
 ## 🎲 Features 
 
 - Supports major LLM providers such as **Anthropic**, **OpenAI**, **Gemini**, and **Ollama** with more coming soon
+- Supports [MCP](https://modelcontextprotocol.io/introduction) servers embedded in web apps & browser extensions.
 - Tracks **token use** and **price** so you know how much you're spending on each task
 - Has access to a wide range of **🕹️ browser tools** (listed below) for interacting and understanding browser state
 - Uses **Playwright** in the background which is a robust browser automation tool
@@ -148,6 +149,15 @@ Since BrowserBee runs entirely within your browser (with the exception of the LL
 - **Research assistant**: Assists with deep dives into topics like companies, job listings, market trends, and academic publications by gathering and organizing information.
 - **Knowledge bookmarking & summarization**: Quickly summarizes articles, extracts key information, and saves useful insights for later reference.
 - **Chat with any website**: Ask questions, generate summaries, fill out forms, etc.
+
+## MCP
+
+### Building an MCP server for BrowserBee
+
+A minimalist demo of a web app and browser extension can be found at [https://github.com/nalbion/browserbee-mcp-demo].
+
+- MCP Servers advertise their availability by broadcasting a `ping` message which includes their unique sessionId.
+- `MCPManager` creates and manages a new MCP `Client` for each MCP Server it discovers.
 
 ## 🛫 Roadmap
 

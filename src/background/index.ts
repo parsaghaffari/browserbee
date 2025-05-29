@@ -3,6 +3,9 @@ import { cleanupOnUnload, setupTabListeners } from './tabManager';
 import { logWithTimestamp } from './utils';
 import { MemoryService } from '../tracking/memoryService';
 import { MCPManager } from '../agent/mcp/MCPManager';
+import MCPClientTransport from '../agent/mcp/MCPClientTransport';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import pkg from '../../package.json';
 
 /**
  * Initialize the extension
@@ -18,7 +21,7 @@ function initializeExtension(): void {
 
   // Set up event listeners
   setupEventListeners();
-  MCPManager.getInstance().listenFromBackground();
+  // MCPManager.getInstance().listenFromBackground();
 
   // Set up command listeners
   setupCommandListeners();

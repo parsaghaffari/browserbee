@@ -19,7 +19,7 @@ export default class MCPServerTransport { // implements Transport {
 
   async start(): Promise<void> {
     // Notify the extension that the MCP server is available
-    this.sendRequestOrNotificationToExtension('server/started', { sessionId: this.sessionId });
+    // this.sendRequestOrNotificationToExtension('server/started', { sessionId: this.sessionId });
 
     window.addEventListener('message', (e) => {
       const { method, source, ...rest } = e.data as { method?: string, source?: string };
@@ -56,6 +56,7 @@ export default class MCPServerTransport { // implements Transport {
   }
 
   protected sendMessageToExtension(message: any) {
+    message.mcpSessionId = this.sessionId;
     window.postMessage(message, '*');
   }
 
