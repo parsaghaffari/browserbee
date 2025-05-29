@@ -7,7 +7,6 @@ import { ErrorHandler } from "./ErrorHandler";
 import { ExecutionEngine, ExecutionCallbacks } from "./ExecutionEngine";
 import { initializePageContext } from "./PageContextManager";
 import { BrowserTool, ToolExecutionContext } from "./tools/types";
-import pkg from "../../package.json";
 
 // Define our own DynamicTool interface to avoid import issues
 interface DynamicTool {
@@ -31,8 +30,6 @@ import { LLMProvider } from "../models/providers/types";
 import { createProvider } from "../models/providers/factory";
 import { ConfigManager, ProviderConfig } from "../background/configManager";
 import { MCPManager } from "./mcp/MCPManager";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import MCPClientTransport from "./mcp/MCPClientTransport";
 import { TabState } from "../background/types";
 
 /**
@@ -68,7 +65,6 @@ export class BrowserAgent {
     this.memoryManager = new MemoryManager(this.toolManager.getTools());
     this.errorHandler = new ErrorHandler();
 
-    // TODO: test with:   change the greeting to say Hi to Nick
     new MCPManager(tabState).requestToolsForAgent((tools) => {
       console.info('MCPManager.getInstance().getTools() tools:', tools);
       for (const tool of tools) {
@@ -85,57 +81,6 @@ export class BrowserAgent {
       this.errorHandler
     );
   }
-
-  // private async initializeMCPClient(page: Page): Promise<Client | null> {
-  //   // TODO: we could have multiple MCP servers provided by various extensions and the page.
-  //   const transport = new MCPClientTransport();
-  //   const client = new Client(
-  //     {
-  //       name: pkg.name,
-  //       version: pkg.version
-  //     }
-  //   );
-
-  //   try {
-  //     console.info('Connecting to MCP server...');
-  //     await client.connect(transport);
-  //     console.info('Connected to MCP server');
-  //   } catch (error) {
-  //     // this will timeout if there is no MCP server for the page or in other extensions
-  //     console.info('Failed to connect to MCP server:', error);
-  //     return null;
-  //   }
-
-  //
-  //   client.listTools().then(({tools}) => {
-  //     console.info('BrowserAgent.initializeMCPClient received tools list:', tools);
-  //     for (const tool of tools) {
-  //       const { $schema, ...schema } = tool.inputSchema;
-  //       const browserTool: BrowserTool = {
-  //         name: tool.name,
-  //         description: tool.description || JSON.stringify(schema),
-  //         func: async (input: string, context?: ToolExecutionContext) => {
-  //           const toolResult = await client.callTool({name: tool.name, arguments: JSON.parse(input)});
-  //           console.info('toolResult:', toolResult);
-  //           if (typeof toolResult === 'string') {
-  //             return toolResult;
-  //           }
-  //           return JSON.stringify(toolResult);
-  //         }
-  //       };
-
-  //       console.info('browserTool:', browserTool);
-  //       this.toolManager.updateTool(browserTool);
-  //     }
-  //   }, (error) => {
-  //     console.info('Failed to list tools:', error);
-  //     this.toolManager.updateTools(this.getBrowserTools(page));
-  //   }).finally(() => {
-  //     this.promptManager.updateTools(this.toolManager.getTools());
-  //   });
-
-  //   return client;
-  // }
 
   private getBrowserTools(page: Page): BrowserTool[] {
     const rawTools = getAllTools(page);
