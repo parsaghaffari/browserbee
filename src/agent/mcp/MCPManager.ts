@@ -172,25 +172,14 @@ export class MCPManager {
 export class MCPContentManager {
   private active = false;
   private tabId: number = 0;
-  // private clients: Record<string, Client> = {};
 
   listenFromContentScript() {
-    // chrome.tabs.getCurrent((tab) => {
-    //   this.tabId = tab!.id || 0;
-    // });
-
     chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-      // sender provides id (extension ID) & origin only (chrome-extension://{extensionId})
-      // console.info('MCPManager.listenFromContentScript received message:', message,
-      //   ', sender:', sender,
-      //   ', sendResponse:', sendResponse);
-
       if ('action' in message) {
         this.handleActionMessage(message);
       } else {
         this.handleMCPMessageFromBackground(message);
       }
-
       // return true;  // true or Promise if using sendResponse()
     });
   }
@@ -204,13 +193,9 @@ export class MCPContentManager {
           window.addEventListener('message', this.handleMessageFromWindow.bind(this));
         }
     }
-    // return true;
   }
 
   private handleMessageFromWindow(event: MessageEvent) {
-    // Only accept messages from the page itself, not iframes or other extensions
-    // if (event.source !== window) return;
-
     if (event.data) {
       if (event.data.source == 'react-devtools-content-script') {
         return;
