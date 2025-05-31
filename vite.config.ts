@@ -1,38 +1,14 @@
 import path from 'path';
-import sourcemaps from 'rollup-plugin-sourcemaps';
 import { defineConfig } from 'vite';
+import sourcemaps from 'rollup-plugin-sourcemaps';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { crx, ManifestV3Export } from '@crxjs/vite-plugin';
-import manifest from './manifest.json'
-import pkg from './package.json'
 
-const localize = false;
-const isDev = process.env.__DEV__ === 'true';
-
-export const baseManifest = {
-  ...manifest,
-  version: pkg.version,
-  ...(localize ? {
-    name: '__MSG_extName__',
-    description: '__MSG_extDescription__',
-    default_locale : 'en'
-  } : {})
-} as ManifestV3Export
+const isContentScriptBuild = process.env.CONTENT_SCRIPT_BUILD === 'true';
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  plugins: [
-    react(),
-    crx({
-      manifest: baseManifest,
-      browser: 'chrome',
-      contentScripts: {
-        injectCss: true,
-      }
-    }),
-    tailwindcss(),
-  ],
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
   optimizeDeps: {
     exclude: ['playwright-crx']
   },
@@ -40,6 +16,29 @@ export default defineConfig(({ mode }) => ({
     // playwright-crx cannot be obfuscated
     minify: false,
     sourcemap: true,
-    emptyOutDir: mode == 'production',
+    rollupOptions: {
+      // @ts-ignore
+      plugins: [sourcemaps()],
+      input: isContentScriptBuild
+        ? { contentScript: path.resolve(__dirname, 'src/contentScript.ts') }
+        : {
+            background: path.resolve(__dirname, 'src/background.ts'),
+            sidepanel: path.resolve(__dirname, 'src/sidepanel/index.tsx'),
+            options: path.resolve(__dirname, 'src/options/index.tsx'),
+          },
+      output: {
+        entryFileNames: '[name].js',
+        assetFileNames: (assetInfo) => {
+          // Use a fixed name for CSS files
+          if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+            return 'assets/styles.css';
+          }
+          // Use the default naming pattern for other assets
+          return 'assets/[name].[hash].[ext]';
+        },
+        format: isContentScriptBuild ? 'iife' : 'es',
+      },
+    },
+    emptyOutDir: !isContentScriptBuild,
   },
-}));
+});

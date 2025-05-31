@@ -26,11 +26,10 @@ export class MCPManager {
     chrome.runtime.onMessage.addListener(this.handleMessage.bind(this));
 
     chrome.runtime.onMessageExternal.addListener((message, sender) => {
-      if (message.method !== "mcp:ping") {
-        console.debug('MCPManager received external message', message, sender);
+      if (message.method === "mcp:ping") {
+        message.senderId = sender.id;
+        this.handleMessage(message);
       }
-      message.senderId = sender.id;
-      this.handleMessage(message);
     });
   }
 
@@ -61,8 +60,6 @@ export class MCPManager {
   private handleMCPMessage(method: string, message: Record<string, any>) {
     if (method === 'ping') {
       this.handlePing(message as MCPMessageFromContentScript);
-    } else {
-      console.debug('MCPManager.handleMCPMessage received MCP message', method, message);
     }
   }
 

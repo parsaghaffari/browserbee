@@ -4,6 +4,7 @@ import { createProvider } from "../models/providers/factory";
 import { LLMProvider } from "../models/providers/types";
 import { ErrorHandler } from "./ErrorHandler";
 import { ExecutionEngine, ExecutionCallbacks } from "./ExecutionEngine";
+import { MCPManager } from "./mcp/MCPManager";
 import { MemoryManager } from "./MemoryManager";
 import { initializePageContext } from "./PageContextManager";
 import { PromptManager } from "./PromptManager";
@@ -63,6 +64,13 @@ export class BrowserAgent {
     this.promptManager = new PromptManager(this.toolManager.getTools());
     this.memoryManager = new MemoryManager(this.toolManager.getTools());
     this.errorHandler = new ErrorHandler();
+
+    new MCPManager(tabState).requestToolsForAgent((tools) => {
+      console.info('MCPManager.getInstance().getTools() tools:', tools);
+      for (const tool of tools) {
+        this.toolManager.updateTool(tool);
+      }
+    });
 
     // Initialize the execution engine with all the components
     this.executionEngine = new ExecutionEngine(

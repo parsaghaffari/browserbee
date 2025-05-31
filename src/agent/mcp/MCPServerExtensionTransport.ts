@@ -20,6 +20,11 @@ export default class MCPServerExtensionTransport extends MCPServerTransport {
     }
     message.mcpSessionId = this.sessionId;
     message.source = this.sourceId;
-    chrome.runtime.sendMessage(browserbeeExtensionId, message);
+    chrome.runtime.sendMessage(browserbeeExtensionId, message, () => {
+      if (chrome.runtime.lastError) {
+        // browserbee is probably not installed/listening
+        console.debug('MCPServerExtensionTransport received error:', chrome.runtime.lastError.message);
+      }
+    });
   }
 }
