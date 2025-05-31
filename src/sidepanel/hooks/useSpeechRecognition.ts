@@ -3,34 +3,45 @@ import { useEffect } from "react";
 export const useSpeechRecognition = (
   tabId: number | null,
   continuous: boolean = false,
-  oninterimResults?: (result: string) => void,
+  {
+    onInterimResult,
+    onSpeechResult,
+    onSpeechEnd,
+  }: {
+    onInterimResult?: (result: string) => void,
+    onSpeechResult?: (result: string) => void,
+    onSpeechEnd?: () => void,
+  }
 ) => {
   const recognitionSupported = ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 
   useEffect(() => {
-    if (!oninterimResults) return;
+    if (!onInterimResult) return;
     const onMessage = (message: { action: string, result: string }) => {
-      if (message.action === "speech:interimResult") {
-        oninterimResults(message.result);
+      switch (message.action) {
+        case "speech:interimResult":
+          onInterimResult(message.result);
+          break;
+        case "speech:result":
+          onSpeechResult?.(message.result);
+          break;
+        case "speech:end":
+          onSpeechEnd?.();
+          break;
       }
     }
     chrome.runtime.onMessage.addListener(onMessage);
     return () => {
       chrome.runtime.onMessage.removeListener(onMessage);
     }
-  }, [oninterimResults]);
+  }, [onInterimResult]);
 
   const startSpeechRecognition = () => {
     if (!tabId) return;
     chrome.tabs.sendMessage(tabId, {
       action: 'speech:start',
       continuous,
-      interimResults: oninterimResults !== undefined,
-    // }, (response) => {
-    //   if (chrome.runtime.lastError) {
-    //     console.error("startSpeechRecognition error", chrome.runtime.lastError);
-    //   }
-    //   console.log("startSpeechRecognition response", response);
+      interimResults: onInterimResult !== undefined,
     });
   };
 

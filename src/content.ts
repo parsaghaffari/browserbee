@@ -32,10 +32,10 @@ function initSpeechRecognition() {
   }
 
   // recognition.onspeechstart = event => console.log("speech started");
-  // recognition.onspeechend = event => {
-  //   console.info("Speech has stopped being detected, active?", active, ", recognition.continuous?", recognition.continuous);
-  //   // stopSpeechRecognition();
-  // }
+  recognition.onspeechend = event => {
+    console.info("Speech has stopped being detected, active?", active, ", recognition.continuous?", recognition.continuous);
+    // stopSpeechRecognition();
+  }
 
 
   const handleStartSpeechRecognition = async (
@@ -48,18 +48,20 @@ function initSpeechRecognition() {
         let interim_transcript = lastTranscript; // ? lastTranscript + ' ' : '';
         let final_transcript = interim_transcript;
 
+        // console.info('event.results', event.results);
+
         for (var i = event.resultIndex; i < event.results.length; ++i) {
           // Verify if the recognized text is the last with the isFinal property
           if (event.results[i].isFinal) {
             final_transcript += event.results[i][0].transcript;
-            // console.info('final_transcript', final_transcript);
             lastTranscript = final_transcript;
-            // if (recognition.continuous) {
-
-            // } else {
-            //   console.info('resolving final_transcript', final_transcript);
-            //   resolve(final_transcript);
-            // }
+            if (recognition.continuous) {
+              // console.info('final_transcript', final_transcript);
+              lastTranscript += '. ';
+            } else {
+              // console.info('resolving final_transcript', final_transcript);
+              // resolve(final_transcript);
+            }
           } else {
             interim_transcript += event.results[i][0].transcript;
             onInterimResult?.(interim_transcript);
@@ -68,17 +70,33 @@ function initSpeechRecognition() {
       }
 
       recognition.onend = () => {
-        // console.info('SpeechRecognition.onend, continuous?', recognition.continuous, ', active?', active);
-        if (recognition.continuous) {
-          console.info('SpeechRecognition.onend resolving', lastTranscript);
-          resolve(lastTranscript);
-        } else if (active) {
-          // stop was not requested, restart
-          lastTranscript += '. ';
+        console.info('SpeechRecognition.onend, continuous?', recognition.continuous, ', active?', active, ', lastTranscript', lastTranscript);
+        // if (active) {
+        //   // stop was not requested, restart
+        //   lastTranscript += '. ';
+        // }
+
+        lastTranscript = lastTranscript.trim();
+        if (lastTranscript) {
+          chrome.runtime.sendMessage({
+            action: 'speech:result',
+            result: lastTranscript
+          })
+
+          lastTranscript = '';
+        }
+
+        if (!recognition.continuous || !active) {
+          // console.info('SpeechRecognition.onend resolving', lastTranscript);
+          // resolve(lastTranscript.trim());
+        }
+        if (recognition.continuous && active) {
+          // Chrome emits `end` after about 5s of silence, restart recognition
           startSpeechRecognition();
         } else {
-          console.info('SpeechRecognition.onend resolving for non-continuous', lastTranscript);
-          resolve(lastTranscript.trim());
+          chrome.runtime.sendMessage({
+            action: 'speech:end',
+          })
         }
       }
 
@@ -99,6 +117,7 @@ function initSpeechRecognition() {
     });
 
     startSpeechRecognition();
+    return !recognition.continuous;
   }
 
   const handleProcessSpeechRecognition = (sendResponse: (response: string) => void,) => {
@@ -122,7 +141,7 @@ function initSpeechRecognition() {
           result
         })
       };
-      handleStartSpeechRecognition(onInterimResult);
+      return handleStartSpeechRecognition(onInterimResult);
     } else {
       stopSpeechRecognition();
 

@@ -25,9 +25,20 @@ export const PromptForm: React.FC<PromptFormProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const { tabId } = useTabManagement();
 
-  const continuousSpeechRecognition = false;
+  const continuousSpeechRecognition = true;
+  const autoSubmitSpeechResult = true;
   const onInterimResult = useCallback((result: string) => {
     setPrompt(result);
+  }, []);
+  const onSpeechResult = useCallback((result: string) => {
+    if (autoSubmitSpeechResult) {
+      console.info('onSpeechResult submitting:', result);
+      onSubmit(result);
+      setPrompt('');
+      if (!continuousSpeechRecognition) {
+        cancelSpeechRecognition();
+      }
+    }
   }, []);
 
   const {
@@ -35,7 +46,15 @@ export const PromptForm: React.FC<PromptFormProps> = ({
     startSpeechRecognition,
     processSpeechRecognition,
     cancelSpeechRecognition,
-  } = useSpeechRecognition(tabId, continuousSpeechRecognition, onInterimResult);
+  } = useSpeechRecognition(
+    tabId,
+    continuousSpeechRecognition,
+    {
+      onInterimResult,
+      onSpeechResult,
+      onSpeechEnd: () => setIsRecording(false),
+    }
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,14 +64,14 @@ export const PromptForm: React.FC<PromptFormProps> = ({
   };
 
   const toggleRecording = async () => {
-    if (!recognitionSupported) return;
+    if (!recognitionSupported || tabStatus === 'detached') return;
 
     if (!isRecording) {
       setPrompt('');
       startSpeechRecognition();
     } else {
       const result = await processSpeechRecognition();
-      console.log("toggleRecording result", result);
+      console.log("toggleRecording result", isRecording, result);
       setPrompt(result);
     }
 
