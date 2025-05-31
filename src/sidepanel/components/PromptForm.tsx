@@ -1,6 +1,6 @@
-import { faPaperPlane, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faMicrophone, faMicrophoneSlash, faPaperPlane, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 
 interface PromptFormProps {
@@ -17,12 +17,53 @@ export const PromptForm: React.FC<PromptFormProps> = ({
   tabStatus
 }) => {
   const [prompt, setPrompt] = useState('');
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+      // TODO: this needs to be moved into content script - see https://github.com/charliegerard/speak-extension/blob/master/popup.js
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
+      recognitionInstance.continuous = true;
+      recognitionInstance.interimResults = true;
+
+      recognitionInstance.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+
+        setPrompt(transcript);
+      };
+
+      recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.error('Speech recognition error', event.error ? event.message : 'Unknown error');
+        setIsRecording(false);
+      };
+
+      setRecognition(recognitionInstance);
+    }
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || isProcessing || tabStatus === 'detached') return;
     onSubmit(prompt);
     setPrompt(''); // Clear the prompt after submission
+  };
+
+  const toggleRecording = () => {
+    if (!recognition) return;
+
+    if (isRecording) {
+      recognition.stop();
+    } else {
+      setPrompt('');
+      recognition.start();
+    }
+
+    setIsRecording(!isRecording);
   };
 
   return (
@@ -65,15 +106,28 @@ export const PromptForm: React.FC<PromptFormProps> = ({
             <FontAwesomeIcon icon={faXmark} />
           </button>
         ) : (
-          <button 
-            type="submit" 
-            className="btn btn-sm btn-circle btn-primary absolute"
-            style={{ bottom: '5px', right: '5px' }}
-            disabled={!prompt.trim() || tabStatus === 'detached'}
-            title={tabStatus === 'detached' ? "Refresh tab to continue" : "Execute"}
-          >
-            <FontAwesomeIcon icon={faPaperPlane} />
-          </button>
+          <>
+            {recognition && (
+              <button 
+                type="button" 
+                onClick={toggleRecording}
+                className="btn btn-sm btn-circle absolute"
+                style={{ bottom: '5px', right: '40px' }}
+                title={isRecording ? "Stop recording" : "Start recording"}
+              >
+                <FontAwesomeIcon icon={isRecording ? faMicrophoneSlash : faMicrophone} />
+              </button>
+            )}
+            <button 
+              type="submit" 
+              className="btn btn-sm btn-circle btn-primary absolute"
+              style={{ bottom: '5px', right: '5px' }}
+              disabled={!prompt.trim() || tabStatus === 'detached'}
+              title={tabStatus === 'detached' ? "Refresh tab to continue" : "Execute"}
+            >
+              <FontAwesomeIcon icon={faPaperPlane} />
+            </button>
+          </>
         )}
       </div>
     </form>
