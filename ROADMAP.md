@@ -52,6 +52,7 @@
     - [ ] token tracker not isolated by window?
 - [ ] evaluate puppeteer as an alternative to playwright
 - [ ] evaluate optimisation strategies for DOM representations
+- [ ] disable prompt input during cancellation process
 
 [0.3.0]
 - [ ] add saved prompts with persistence in local DB
