@@ -20,7 +20,7 @@ export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-2025
 export const anthropicModels = {
   // Claude 4 Models
   "claude-opus-4-20250514": {
-    name: "Claude Opus 4",
+    name: "Claude 4 Opus",
     inputPrice: 15.0,
     outputPrice: 75.0,
     maxTokens: 8192,
@@ -31,7 +31,7 @@ export const anthropicModels = {
     cacheReadsPrice: 1.5,
   },
   "claude-sonnet-4-20250514": {
-    name: "Claude Sonnet 4",
+    name: "Claude 4 Sonnet",
     inputPrice: 3.0,
     outputPrice: 15.0,
     maxTokens: 8192,
