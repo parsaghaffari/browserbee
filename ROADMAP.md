@@ -54,6 +54,7 @@
 - [ ] evaluate optimisation strategies for DOM representations
 - [ ] disable prompt input during cancellation process
 - [ ] add support for tiered LLM pricing
+- [ ] chat UI enhancements
 
 [0.3.0]
 - [ ] add saved prompts with persistence in local DB
