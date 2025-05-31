@@ -152,6 +152,10 @@ Since BrowserBee runs entirely within your browser (with the exception of the LL
 
 ## MCP
 
+Browserbee automatically connects to [MCP](https://modelcontextprotocol.io/) servers embedded in web apps and browser extensions.
+
+Browserbee _does not_ implement an MCP server - for that, see [Browser MCP](https://browsermcp.io/)
+
 ### Building an MCP server for BrowserBee
 
 A minimalist demo of a web app and browser extension implementing MCP servers can be found at [https://github.com/nalbion/browserbee-mcp-demo].
