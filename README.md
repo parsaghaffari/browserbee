@@ -3,7 +3,7 @@
 
 https://github.com/user-attachments/assets/209c7042-6d54-4fce-92a7-ddf8519156c6
 
-[![Discord](https://img.shields.io/discord/1378036731038662807?color=7289da&logo=discord&logoColor=white&label=Discord)](https://discord.gg/g42ww3wn)
+[![Join our Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/g42ww3wn)
 
 BrowserBee is a privacy-first open source Chrome extension that lets you control your browser using natural language. It combines the power of an LLM for instruction parsing & planning, and Playwright for robust browser automation to accomplish tasks.
 
@@ -203,9 +203,9 @@ BrowserBee is now available on [Chrome Web Store](https://chromewebstore.google.
 
 ## 🫂 Community
 
-Join our Discord community to get help, share your automations, and connect with other BrowserBee users:
+Join our Discord community to connect with BrowserBee users and developers:
 
-[![Discord](https://img.shields.io/discord/1378036731038662807?color=7289da&logo=discord&logoColor=white&label=Join%20Discord)](https://discord.gg/g42ww3wn)
+[![Join our Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/g42ww3wn)
 
 ## 🫂 Acknowledgements
 
