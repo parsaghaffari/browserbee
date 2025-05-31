@@ -50,7 +50,7 @@ function initSpeechRecognition() {
 
         // console.info('event.results', event.results);
 
-        for (var i = event.resultIndex; i < event.results.length; ++i) {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
           // Verify if the recognized text is the last with the isFinal property
           if (event.results[i].isFinal) {
             final_transcript += event.results[i][0].transcript;

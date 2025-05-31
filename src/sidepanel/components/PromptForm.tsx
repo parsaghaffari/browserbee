@@ -3,8 +3,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import React, { useCallback, useEffect, useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { useChromeMessaging } from '../hooks/useChromeMessaging';
-import { useTabManagement } from '../hooks/useTabManagement';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useTabManagement } from '../hooks/useTabManagement';
 
 
 interface PromptFormProps {
