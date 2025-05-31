@@ -4,6 +4,8 @@ import sourcemaps from 'rollup-plugin-sourcemaps';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
+const isContentScriptBuild = process.env.CONTENT_SCRIPT_BUILD === 'true';
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -17,11 +19,13 @@ export default defineConfig({
     rollupOptions: {
       // @ts-ignore
       plugins: [sourcemaps()],
-      input: {
-        'background': path.resolve(__dirname, 'src/background.ts'),
-        'sidepanel': path.resolve(__dirname, 'src/sidepanel/index.tsx'),
-        'options': path.resolve(__dirname, 'src/options/index.tsx'),
-      },
+      input: isContentScriptBuild
+        ? { content: path.resolve(__dirname, 'src/content.ts') }
+        : {
+            background: path.resolve(__dirname, 'src/background.ts'),
+            sidepanel: path.resolve(__dirname, 'src/sidepanel/index.tsx'),
+            options: path.resolve(__dirname, 'src/options/index.tsx'),
+          },
       output: {
         entryFileNames: '[name].js',
         assetFileNames: (assetInfo) => {
@@ -32,7 +36,9 @@ export default defineConfig({
           // Use the default naming pattern for other assets
           return 'assets/[name].[hash].[ext]';
         },
+        format: isContentScriptBuild ? 'iife' : 'es',
       },
     },
+    emptyOutDir: !isContentScriptBuild,
   },
 });

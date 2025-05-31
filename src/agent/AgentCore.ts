@@ -1,15 +1,17 @@
-import type { Page } from "playwright-crx";
 import { ConfigManager, ProviderConfig } from "../background/configManager";
+import { TabState } from "../background/types";
 import { createProvider } from "../models/providers/factory";
 import { LLMProvider } from "../models/providers/types";
 import { ErrorHandler } from "./ErrorHandler";
 import { ExecutionEngine, ExecutionCallbacks } from "./ExecutionEngine";
+import { MCPManager } from "./mcp/MCPManager";
 import { MemoryManager } from "./MemoryManager";
 import { initializePageContext } from "./PageContextManager";
 import { PromptManager } from "./PromptManager";
 import { ToolManager } from "./ToolManager";
 import { getAllTools } from "./tools/index";
 import { BrowserTool, ToolExecutionContext } from "./tools/types";
+
 // Define our own DynamicTool interface to avoid import issues
 interface DynamicTool {
   name: string;
@@ -44,7 +46,8 @@ export class BrowserAgent {
   /**
    * Create a new BrowserAgent
    */
-  constructor(page: Page, config: ProviderConfig, provider?: LLMProvider) {
+  constructor(tabState: TabState, config: ProviderConfig, provider?: LLMProvider) {
+    const page = tabState.page;
     // Initialize the PageContextManager with the initial page
     initializePageContext(page);
 
@@ -60,6 +63,12 @@ export class BrowserAgent {
     this.promptManager = new PromptManager(this.toolManager.getTools());
     this.memoryManager = new MemoryManager(this.toolManager.getTools());
     this.errorHandler = new ErrorHandler();
+
+    new MCPManager(tabState).requestToolsForAgent((tools) => {
+      for (const tool of tools) {
+        this.toolManager.updateTool(tool);
+      }
+    });
 
     // Initialize the execution engine with all the components
     this.executionEngine = new ExecutionEngine(
@@ -173,7 +182,7 @@ export class BrowserAgent {
  * Create a new BrowserAgent
  */
 export async function createBrowserAgent(
-  page: Page,
+  tabState: TabState,
   apiKey: string
 ): Promise<BrowserAgent> {
   // Get provider configuration
@@ -214,7 +223,7 @@ export async function createBrowserAgent(
   });
 
   // Create the agent with the provider configuration and provider
-  return new BrowserAgent(page, providerConfig, provider);
+  return new BrowserAgent(tabState, providerConfig, provider);
 }
 
 /**
