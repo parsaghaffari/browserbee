@@ -11,11 +11,8 @@ import {
 } from '../models/models';
 
 // Import components
-import { AboutSection } from './components/AboutSection';
-import { LLMProviderConfig } from './components/LLMProviderConfig';
-import { MemoryManagement } from './components/MemoryManagement';
+import { VerticalTabs } from './components/VerticalTabs';
 import { Model } from './components/ModelList';
-import { ModelPricingTable } from './components/ModelPricingTable';
 import { OllamaModel } from './components/OllamaModelList';
 
 export function Options() {
@@ -229,74 +226,62 @@ export function Options() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-5 font-sans text-gray-800">
-      <h1 className="text-2xl font-bold mb-6 text-primary">BrowserBee 🐝</h1>
-      
-      {/* About Section */}
-      <AboutSection />
-      
-      {/* LLM Provider Configuration */}
-      <LLMProviderConfig
-        // Provider selection
-        provider={provider}
-        setProvider={setProvider}
-        // Anthropic
-        anthropicApiKey={anthropicApiKey}
-        setAnthropicApiKey={setAnthropicApiKey}
-        anthropicBaseUrl={anthropicBaseUrl}
-        setAnthropicBaseUrl={setAnthropicBaseUrl}
-        thinkingBudgetTokens={thinkingBudgetTokens}
-        setThinkingBudgetTokens={setThinkingBudgetTokens}
-        // OpenAI
-        openaiApiKey={openaiApiKey}
-        setOpenaiApiKey={setOpenaiApiKey}
-        openaiBaseUrl={openaiBaseUrl}
-        setOpenaiBaseUrl={setOpenaiBaseUrl}
-        // Gemini
-        geminiApiKey={geminiApiKey}
-        setGeminiApiKey={setGeminiApiKey}
-        geminiBaseUrl={geminiBaseUrl}
-        setGeminiBaseUrl={setGeminiBaseUrl}
-        // Ollama
-        ollamaApiKey={ollamaApiKey}
-        setOllamaApiKey={setOllamaApiKey}
-        ollamaBaseUrl={ollamaBaseUrl}
-        setOllamaBaseUrl={setOllamaBaseUrl}
-        ollamaModelId={ollamaModelId}
-        setOllamaModelId={setOllamaModelId}
-        ollamaCustomModels={ollamaCustomModels}
-        setOllamaCustomModels={setOllamaCustomModels}
-        newOllamaModel={newOllamaModel}
-        setNewOllamaModel={setNewOllamaModel}
-        handleAddOllamaModel={handleAddOllamaModel}
-        handleRemoveOllamaModel={handleRemoveOllamaModel}
-        handleEditOllamaModel={handleEditOllamaModel}
-        // OpenAI-compatible
-        openaiCompatibleApiKey={openaiCompatibleApiKey}
-        setOpenaiCompatibleApiKey={setOpenaiCompatibleApiKey}
-        openaiCompatibleBaseUrl={openaiCompatibleBaseUrl}
-        setOpenaiCompatibleBaseUrl={setOpenaiCompatibleBaseUrl}
-        openaiCompatibleModelId={openaiCompatibleModelId}
-        setOpenaiCompatibleModelId={setOpenaiCompatibleModelId}
-        openaiCompatibleModels={openaiCompatibleModels}
-        setOpenaiCompatibleModels={setOpenaiCompatibleModels}
-        newModel={newModel}
-        setNewModel={setNewModel}
-        // Save functionality
-        isSaving={isSaving}
-        saveStatus={saveStatus}
-        handleSave={handleSave}
-        // Model operations
-        handleAddModel={handleAddModel}
-        handleRemoveModel={handleRemoveModel}
-        handleEditModel={handleEditModel}
-      />
-      
-      {/* Model Pricing Table */}
-      <ModelPricingTable getModelPricingData={getModelPricingData} />
-      
-      {/* Memory Management */}
-      <MemoryManagement />
-    </div>
+    <VerticalTabs
+      // Provider selection
+      provider={provider}
+      setProvider={setProvider}
+      // Anthropic settings
+      anthropicApiKey={anthropicApiKey}
+      setAnthropicApiKey={setAnthropicApiKey}
+      anthropicBaseUrl={anthropicBaseUrl}
+      setAnthropicBaseUrl={setAnthropicBaseUrl}
+      thinkingBudgetTokens={thinkingBudgetTokens}
+      setThinkingBudgetTokens={setThinkingBudgetTokens}
+      // OpenAI settings
+      openaiApiKey={openaiApiKey}
+      setOpenaiApiKey={setOpenaiApiKey}
+      openaiBaseUrl={openaiBaseUrl}
+      setOpenaiBaseUrl={setOpenaiBaseUrl}
+      // Gemini settings
+      geminiApiKey={geminiApiKey}
+      setGeminiApiKey={setGeminiApiKey}
+      geminiBaseUrl={geminiBaseUrl}
+      setGeminiBaseUrl={setGeminiBaseUrl}
+      // Ollama settings
+      ollamaApiKey={ollamaApiKey}
+      setOllamaApiKey={setOllamaApiKey}
+      ollamaBaseUrl={ollamaBaseUrl}
+      setOllamaBaseUrl={setOllamaBaseUrl}
+      ollamaModelId={ollamaModelId}
+      setOllamaModelId={setOllamaModelId}
+      ollamaCustomModels={ollamaCustomModels}
+      setOllamaCustomModels={setOllamaCustomModels}
+      newOllamaModel={newOllamaModel}
+      setNewOllamaModel={setNewOllamaModel}
+      handleAddOllamaModel={handleAddOllamaModel}
+      handleRemoveOllamaModel={handleRemoveOllamaModel}
+      handleEditOllamaModel={handleEditOllamaModel}
+      // OpenAI-compatible settings
+      openaiCompatibleApiKey={openaiCompatibleApiKey}
+      setOpenaiCompatibleApiKey={setOpenaiCompatibleApiKey}
+      openaiCompatibleBaseUrl={openaiCompatibleBaseUrl}
+      setOpenaiCompatibleBaseUrl={setOpenaiCompatibleBaseUrl}
+      openaiCompatibleModelId={openaiCompatibleModelId}
+      setOpenaiCompatibleModelId={setOpenaiCompatibleModelId}
+      openaiCompatibleModels={openaiCompatibleModels}
+      setOpenaiCompatibleModels={setOpenaiCompatibleModels}
+      newModel={newModel}
+      setNewModel={setNewModel}
+      // Save functionality
+      isSaving={isSaving}
+      saveStatus={saveStatus}
+      handleSave={handleSave}
+      // Model operations
+      handleAddModel={handleAddModel}
+      handleRemoveModel={handleRemoveModel}
+      handleEditModel={handleEditModel}
+      // Pricing data
+      getModelPricingData={getModelPricingData}
+    />
   );
 }
