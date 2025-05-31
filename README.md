@@ -3,6 +3,8 @@
 
 https://github.com/user-attachments/assets/209c7042-6d54-4fce-92a7-ddf8519156c6
 
+[![Discord](https://img.shields.io/discord/1378036731038662807?color=7289da&logo=discord&logoColor=white&label=Discord)](https://discord.gg/g42ww3wn)
+
 BrowserBee is a privacy-first open source Chrome extension that lets you control your browser using natural language. It combines the power of an LLM for instruction parsing & planning, and Playwright for robust browser automation to accomplish tasks.
 
 Since BrowserBee runs entirely within your browser (with the exception of the LLM), it can safely interact with logged-in websites, like your social media accounts or email, without compromising security or requiring backend infrastructure. This makes it more convenient for personal use than other "browser use" type products out there.
@@ -198,6 +200,12 @@ BrowserBee is now available on [Chrome Web Store](https://chromewebstore.google.
 1. Since BrowserBee uses Chrome DevTools Protocol (CDP) to attach to tabs, it's best to leave it attached to a base tab that you leave open throughout your session (BrowserBee can open new tabs if needed). If you close the attached tab, use the ![reattach button](<reattach-button.png>) button to reattach to a new tab.
 2. You can have one instance of BrowserBee running per Chrome window and the instances will be working in isolation from one another.
 3. BrowserBee can't attach to tabs without a URL (e.g. a new tab), or with URLs starting with 'chrome://' or 'chrome-extension://'.
+
+## 🫂 Community
+
+Join our Discord community to get help, share your automations, and connect with other BrowserBee users:
+
+[![Discord](https://img.shields.io/discord/1378036731038662807?color=7289da&logo=discord&logoColor=white&label=Join%20Discord)](https://discord.gg/g42ww3wn)
 
 ## 🫂 Acknowledgements
 
