@@ -47,7 +47,6 @@ export class BrowserAgent {
    * Create a new BrowserAgent
    */
   constructor(tabState: TabState, config: ProviderConfig, provider?: LLMProvider) {
-    console.info('AgentCore.BrowserAgent constructor...');
     const page = tabState.page;
     // Initialize the PageContextManager with the initial page
     initializePageContext(page);
@@ -66,7 +65,6 @@ export class BrowserAgent {
     this.errorHandler = new ErrorHandler();
 
     new MCPManager(tabState).requestToolsForAgent((tools) => {
-      console.info('MCPManager.getInstance().getTools() tools:', tools);
       for (const tool of tools) {
         this.toolManager.updateTool(tool);
       }
