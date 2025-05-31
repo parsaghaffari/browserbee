@@ -25,12 +25,14 @@ export class MCPManager {
     // sender.id is the extension ID, sender.origin = chrome-extension://{extensionId}, sender.url = {origin}/src/sidepanel.html
     chrome.runtime.onMessage.addListener(this.handleMessage.bind(this));
 
-    chrome.runtime.onMessageExternal.addListener((message, sender) => {
-      if (message.method === "mcp:ping") {
-        message.senderId = sender.id;
-        this.handleMessage(message);
-      }
-    });
+    if (chrome.runtime.onMessageExternal) {
+      chrome.runtime.onMessageExternal.addListener((message, sender) => {
+        if (message.method === "mcp:ping") {
+          message.senderId = sender.id;
+          this.handleMessage(message);
+        }
+      });
+    }
   }
 
   // AgentCore/BrowserAgent requests tools from MCP servers
