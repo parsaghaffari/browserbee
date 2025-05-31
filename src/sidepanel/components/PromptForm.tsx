@@ -1,6 +1,6 @@
 import { faMicrophone, faMicrophoneSlash, faPaperPlane, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { useChromeMessaging } from '../hooks/useChromeMessaging';
 import { useTabManagement } from '../hooks/useTabManagement';
@@ -23,18 +23,19 @@ export const PromptForm: React.FC<PromptFormProps> = ({
   const [prompt, setPrompt] = useState('');
   // const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const { tabId } = useTabManagement();
 
-  const {
-      tabId,
-      windowId,
-    } = useTabManagement();
+  const continuousSpeechRecognition = false;
+  const onInterimResult = useCallback((result: string) => {
+    setPrompt(result);
+  }, []);
 
   const {
     recognitionSupported,
     startSpeechRecognition,
     processSpeechRecognition,
     cancelSpeechRecognition,
-  } = useSpeechRecognition(tabId);
+  } = useSpeechRecognition(tabId, continuousSpeechRecognition, onInterimResult);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,13 +47,13 @@ export const PromptForm: React.FC<PromptFormProps> = ({
   const toggleRecording = async () => {
     if (!recognitionSupported) return;
 
-    if (isRecording) {
+    if (!isRecording) {
+      setPrompt('');
+      startSpeechRecognition();
+    } else {
       const result = await processSpeechRecognition();
       console.log("toggleRecording result", result);
       setPrompt(result);
-    } else {
-      setPrompt('');
-      startSpeechRecognition();
     }
 
     setIsRecording(!isRecording);
