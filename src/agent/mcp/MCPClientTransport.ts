@@ -27,11 +27,11 @@ export default class MCPClientTransport implements Transport {
   }
 
   async start(): Promise<void> {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((message) => {
       this.handleMessage(message);
     });
 
-    chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+    chrome.runtime.onMessageExternal.addListener((message, sender) => {
       if (message.method !== "mcp:ping") {
         console.debug('MCPClientTransport received external message', message, sender);
       }
@@ -74,8 +74,6 @@ export default class MCPClientTransport implements Transport {
         }
         console.debug("MCPClientTransport received message from MCP server:", message);
         this.onmessage?.(message);
-      // } else {
-      //   console.warn('MCPClientTransport received message from MCP server with wrong sessionId:', mcpSessionId);
       }
   }
 
@@ -85,7 +83,7 @@ export default class MCPClientTransport implements Transport {
   }
 
   private sendMessage(message: any) {
-    console.info('MCPClientTransport sendMessage to tabId:', this.tabId, this.senderId, message);
+    console.debug('MCPClientTransport sendMessage to tabId:', this.tabId, this.senderId, message);
     if (this.tabId) {
       chrome.tabs.sendMessage(this.tabId, { source: this.sourceId, ...message });
     } else {

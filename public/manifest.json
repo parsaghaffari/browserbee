@@ -3,13 +3,13 @@
   "version": "0.2.0",
   "manifest_version": 3,
   "background": {
-    "service_worker": "src/background.ts",
+    "service_worker": "background.js",
     "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/contentScript.ts"]
+      "js": ["contentScript.js"]
     }
   ],
   "icons": {
@@ -26,9 +26,9 @@
     }
   },
   "side_panel": {
-    "default_path": "src/sidepanel.html"
+    "default_path": "sidepanel.html"
   },
-  "options_page": "src/options.html",
+  "options_page": "options.html",
   "permissions": ["debugger", "tabs", "sidePanel", "storage", "activeTab", "commands"],
   "host_permissions": ["<all_urls>"],
   "commands": {

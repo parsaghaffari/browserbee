@@ -51,7 +51,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.27.0",
-    "@crxjs/vite-plugin": "^2.0.0-beta.33",
     "@tailwindcss/vite": "^4.1.4",
     "@types/chrome": "^0.0.281",
     "@types/react": "^18.2.66",

@@ -2,21 +2,21 @@ import MCPServerTransport from "./MCPServerTransport";
 
 const browserbeeExtensionId = 'ilkklnfjpfoibgokaobmjhmdamogjcfj';
 
+/**
+ * This class could be used with https://github.com/modelcontextprotocol/typescript-sdk
+ * by browser extensions to provide tools which can be used by browserbee.
+ */
 export default class MCPServerExtensionTransport extends MCPServerTransport {
   async start(): Promise<void> {
-    // chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    //   this.handleMessage(message);
-    // });
-
-    chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-      console.info('MCPServerTransport received external message:', message);
+    chrome.runtime.onMessageExternal.addListener((message) => {
+      console.debug('MCPServerExtensionTransport received external message:', message);
       this.handleMessage(message);
     });
   }
 
   protected sendMessageToExtension(message: any) {
     if (message.method !== 'mcp:ping') {
-      console.info('MCPServerTransport sending message:', message);
+      console.debug('MCPServerExtensionTransport sending message:', message);
     }
     message.mcpSessionId = this.sessionId;
     message.source = this.sourceId;

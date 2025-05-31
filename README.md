@@ -154,8 +154,9 @@ Since BrowserBee runs entirely within your browser (with the exception of the LL
 
 ### Building an MCP server for BrowserBee
 
-A minimalist demo of a web app and browser extension can be found at [https://github.com/nalbion/browserbee-mcp-demo].
+A minimalist demo of a web app and browser extension implementing MCP servers can be found at [https://github.com/nalbion/browserbee-mcp-demo].
 
+- MCP messages are published using `window.postMessage()` and `chrome.runtime.sendMessage()` with methods prefixed with `mcp:`.
 - MCP Servers advertise their availability by broadcasting a `ping` message which includes their unique sessionId.
 - `MCPManager` creates and manages a new MCP `Client` for each MCP Server it discovers.
 

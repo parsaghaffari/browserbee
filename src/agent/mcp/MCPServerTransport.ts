@@ -20,13 +20,13 @@ export default class MCPServerTransport implements Transport {
   onerror?: (error: Error) => void;
   onmessage?: (message: JSONRPCMessage, extra?: any) => void; // extra: { authInfo?: AuthInfo }
 
-  constructor() {
+  constructor(pingIntervalMs = 1000) {
     this._sessionId = generateUuid();
 
     // Periodically send a ping to notify the extension that the MCP server is available
     this.pingInterval = setInterval(() => {
       this.sendRequestOrNotificationToExtension('ping', {});
-    }, 1000);
+    }, pingIntervalMs);
   }
 
   async start(): Promise<void> {
@@ -58,7 +58,7 @@ export default class MCPServerTransport implements Transport {
 
       if (method?.startsWith('mcp:')) {
         const message = { method: method.slice(4), ...rest } as JSONRPCMessage;
-        console.info('Demo MCPServerTransport received MCP message:', message);
+        console.debug('MCPServerTransport received MCP message:', message);
         this.onmessage?.(message);
       }
   }
@@ -70,7 +70,7 @@ export default class MCPServerTransport implements Transport {
 
   protected sendMessageToExtension(message: any) {
     if (message.method !== 'mcp:ping') {
-      console.info('MCPServerTransport sending message:', message);
+      console.debug('MCPServerTransport sending message:', message);
     }
     message.mcpSessionId = this.sessionId;
     message.source = this.sourceId;
