@@ -53,6 +53,7 @@
 - [ ] evaluate puppeteer as an alternative to playwright
 - [ ] evaluate optimisation strategies for DOM representations
 - [ ] disable prompt input during cancellation process
+- [ ] add support for tiered LLM pricing
 
 [0.3.0]
 - [ ] add saved prompts with persistence in local DB
