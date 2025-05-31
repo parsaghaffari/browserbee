@@ -1,32 +1,30 @@
 // Import provider-specific types
 import Anthropic from "@anthropic-ai/sdk";
-import { BrowserAgent, createBrowserAgent, executePromptWithFallback, needsReinitialization } from "../agent/AgentCore";
+import { createBrowserAgent, executePromptWithFallback, needsReinitialization } from "../agent/AgentCore";
 import { ExecutionCallbacks } from "../agent/ExecutionEngine";
 import { contextTokenCount } from "../agent/TokenManager";
 import { ScreenshotManager } from "../tracking/screenshotManager";
 import { TokenTrackingService } from "../tracking/tokenTrackingService";
 import { ConfigManager } from "./configManager";
 import { saveReflectionMemory } from "./reflectionController";
-import { 
-  resetStreamingState, 
-  addToStreamingBuffer, 
-  getStreamingBuffer, 
+import {
+  resetStreamingState,
+  addToStreamingBuffer,
+  getStreamingBuffer,
   setStreamingBuffer,
-  clearStreamingBuffer, 
-  finalizeStreamingSegment, 
-  startNewSegment, 
-  getCurrentSegmentId, 
+  clearStreamingBuffer,
+  finalizeStreamingSegment,
+  startNewSegment,
+  getCurrentSegmentId,
   incrementSegmentId,
   signalStreamingComplete
 } from "./streamingManager";
-import { 
-  getCurrentTabId, 
-  getTabState, 
-  setTabState, 
-  getWindowForTab, 
-  getAgentForWindow, 
+import {
+  getCurrentTabId,
+  getTabState,
+  getWindowForTab,
+  getAgentForWindow,
   setAgentForWindow,
-  getAgentForTab,
   isConnectionHealthy
 } from "./tabManager";
 import { ProviderType, AgentStatus, AgentStatusInfo } from "./types";
@@ -62,13 +60,13 @@ const agentStatusMap = new Map<number, AgentStatusInfo>();
 export function setAgentStatus(windowId: number, status: AgentStatus): void {
   const current = agentStatusMap.get(windowId);
   const now = Date.now();
-  
-  agentStatusMap.set(windowId, { 
-    status, 
+
+  agentStatusMap.set(windowId, {
+    status,
     timestamp: now,
     lastHeartbeat: now
   });
-  
+
   // Log state transitions
   if (!current || current.status !== status) {
     logWithTimestamp(`Agent status transition: ${current?.status || 'undefined'} -> ${status} for window ${windowId}`);
@@ -95,8 +93,8 @@ export function updateAgentHeartbeat(windowId: number): void {
  * @returns The agent status info
  */
 export function getAgentStatus(windowId: number): AgentStatusInfo {
-  return agentStatusMap.get(windowId) || { 
-    status: AgentStatus.IDLE, 
+  return agentStatusMap.get(windowId) || {
+    status: AgentStatus.IDLE,
     timestamp: Date.now(),
     lastHeartbeat: 0
   };
@@ -119,15 +117,15 @@ async function getCurrentProvider(): Promise<ProviderType> {
 export async function clearMessageHistory(tabId?: number, windowId?: number): Promise<void> {
   // Get the screenshot manager
   const screenshotManager = ScreenshotManager.getInstance();
-  
+
   // Get current provider
   const provider = await getCurrentProvider();
-  
+
   // If windowId is not provided but tabId is, try to get the window ID
   if (tabId && !windowId) {
     windowId = getWindowForTab(tabId);
   }
-  
+
   // If we have a window ID, clear that specific window's history
   if (windowId) {
     // Clear message history for a specific window
@@ -166,31 +164,31 @@ export async function getMessageHistory(tabId: number): Promise<Anthropic.Messag
     logWithTimestamp(`Cannot get message history: No window ID found for tab ${tabId}`, 'warn');
     return [];
   }
-  
+
   // Get current provider
   const provider = await getCurrentProvider();
-  
+
   if (!windowMessageHistories.has(windowId)) {
     windowMessageHistories.set(windowId, { provider, originalRequest: null, conversationHistory: [] });
   }
-  
+
   const history = windowMessageHistories.get(windowId)!;
-  
+
   // Update provider if it has changed
   if (history.provider !== provider) {
     history.provider = provider;
     windowMessageHistories.set(windowId, history);
   }
-  
+
   // Check if we need to avoid duplication of the first message
   let messagesToConvert: GenericMessage[] = [];
-  
+
   if (history.originalRequest) {
     // Check if the first message in conversationHistory is the same as originalRequest
-    const isDuplicate = history.conversationHistory.length > 0 && 
+    const isDuplicate = history.conversationHistory.length > 0 &&
                         history.conversationHistory[0].role === history.originalRequest.role &&
                         history.conversationHistory[0].content === history.originalRequest.content;
-    
+
     if (isDuplicate) {
       // If duplicate, only use conversationHistory
       messagesToConvert = history.conversationHistory;
@@ -203,13 +201,13 @@ export async function getMessageHistory(tabId: number): Promise<Anthropic.Messag
     // If no originalRequest, just use conversationHistory
     messagesToConvert = history.conversationHistory;
   }
-  
+
   // Convert generic messages to provider-specific format
   const convertedMessages = convertMessagesToProviderFormat(
     messagesToConvert,
     provider
   );
-  
+
   return convertedMessages;
 }
 
@@ -225,59 +223,59 @@ function convertMessagesToProviderFormat(messages: GenericMessage[], provider: P
       // Convert to Anthropic format
       return messages.map(msg => {
         // Ensure role is either "user" or "assistant" for Anthropic
-        const role = msg.role === "user" || msg.role === "assistant" 
+        const role = msg.role === "user" || msg.role === "assistant"
           ? msg.role as "user" | "assistant"
           : "user"; // Default to user for any other role
-        
+
         return {
           role,
           content: msg.content
         };
       });
-      
+
     case 'openai':
       // Convert to OpenAI format (which is compatible with Anthropic's format for our purposes)
       return messages.map(msg => {
         // Map roles: system -> user, user -> user, assistant -> assistant
         const role = msg.role === "assistant" ? "assistant" : "user";
-        
+
         return {
           role,
           content: msg.content
         };
       });
-      
+
     case 'gemini':
       // Convert to Gemini format (which is compatible with Anthropic's format for our purposes)
       return messages.map(msg => {
         // Map roles: system -> user, user -> user, assistant -> assistant
         const role = msg.role === "assistant" ? "assistant" : "user";
-        
+
         return {
           role,
           content: msg.content
         };
       });
-      
+
     case 'ollama':
       // Convert to Ollama format (which is compatible with Anthropic's format for our purposes)
       return messages.map(msg => {
         // Map roles: system -> user, user -> user, assistant -> assistant
         const role = msg.role === "assistant" ? "assistant" : "user";
-        
+
         return {
           role,
           content: msg.content
         };
       });
-      
+
     default:
       // Default to Anthropic format
       return messages.map(msg => {
-        const role = msg.role === "user" || msg.role === "assistant" 
+        const role = msg.role === "user" || msg.role === "assistant"
           ? msg.role as "user" | "assistant"
           : "user";
-        
+
         return {
           role,
           content: msg.content
@@ -300,22 +298,22 @@ export async function getStructuredMessageHistory(tabId: number): Promise<Messag
     const provider = await getCurrentProvider();
     return { provider, originalRequest: null, conversationHistory: [] };
   }
-  
+
   // Get current provider
   const provider = await getCurrentProvider();
-  
+
   if (!windowMessageHistories.has(windowId)) {
     windowMessageHistories.set(windowId, { provider, originalRequest: null, conversationHistory: [] });
   }
-  
+
   const history = windowMessageHistories.get(windowId)!;
-  
+
   // Update provider if it has changed
   if (history.provider !== provider) {
     history.provider = provider;
     windowMessageHistories.set(windowId, history);
   }
-  
+
   return history;
 }
 
@@ -331,7 +329,7 @@ export async function setOriginalRequest(tabId: number, request: Anthropic.Messa
     logWithTimestamp(`Cannot set original request: No window ID found for tab ${tabId}`, 'warn');
     return;
   }
-  
+
   const history = await getStructuredMessageHistory(tabId);
   history.originalRequest = request;
   windowMessageHistories.set(windowId, history);
@@ -349,7 +347,7 @@ export async function addToConversationHistory(tabId: number, message: Anthropic
     logWithTimestamp(`Cannot add to conversation history: No window ID found for tab ${tabId}`, 'warn');
     return;
   }
-  
+
   const history = await getStructuredMessageHistory(tabId);
   history.conversationHistory.push(message);
   windowMessageHistories.set(windowId, history);
@@ -365,36 +363,36 @@ export async function addToConversationHistory(tabId: number, message: Anthropic
  */
 export async function initializeAgent(tabId: number, forceReinit: boolean = false): Promise<boolean> {
   const tabState = getTabState(tabId);
-  
+
   if (!tabState?.page || !tabState.windowId) {
     return false;
   }
-  
+
   const windowId = tabState.windowId;
-  
+
   // Get provider configuration
   const configManager = ConfigManager.getInstance();
   const providerConfig = await configManager.getProviderConfig();
-  
+
   // Update token tracking service with current provider and model
   const tokenTracker = TokenTrackingService.getInstance();
   tokenTracker.updateProviderAndModel(providerConfig.provider, providerConfig.apiModelId || '');
-  
+
   // Check if we need to initialize or reinitialize the agent
   const existingAgent = getAgentForWindow(windowId);
   const needsInit = !existingAgent || forceReinit;
   const needsReinit = existingAgent && await needsReinitialization(existingAgent, providerConfig);
-  
+
   if (needsInit || needsReinit) {
     try {
       // Make API key optional for Ollama
       if (providerConfig.apiKey || providerConfig.provider === 'ollama') {
         logWithTimestamp(`Creating LLM agent for window ${windowId} with ${providerConfig.provider} provider...`);
-        const agent = await createBrowserAgent(tabState.page, providerConfig.apiKey || 'dummy-key-for-ollama');
-        
+        const agent = await createBrowserAgent(tabState, providerConfig.apiKey || 'dummy-key-for-ollama');
+
         // Store the agent by window ID
         setAgentForWindow(windowId, agent);
-        
+
         logWithTimestamp(`LLM agent created successfully for window ${windowId}`);
         return true;
       } else {
@@ -406,7 +404,7 @@ export async function initializeAgent(tabId: number, forceReinit: boolean = fals
       return false;
     }
   }
-  
+
   return !!existingAgent;
 }
 
@@ -421,36 +419,36 @@ export function cancelExecution(tabId?: number): void {
     if (!currentTabId) return;
     tabId = currentTabId;
   }
-  
+
   // Get the window ID for this tab
   const windowId = getWindowForTab(tabId);
   if (!windowId) {
     logWithTimestamp(`Cannot cancel execution for tab ${tabId}: no window ID found`);
     return;
   }
-  
+
   // Get the agent for this window
   const agent = getAgentForWindow(windowId);
   if (!agent) {
     logWithTimestamp(`Cannot cancel execution for window ${windowId}: no agent found`);
     return;
   }
-  
+
   // Cancel the agent
   agent.cancel();
-  
+
   // Notify UI
   sendUIMessage('updateOutput', {
     type: 'system',
     content: 'Cancelling execution...'
   }, tabId);
-  
+
   // Immediately notify UI that processing is complete
   sendUIMessage('processingComplete', null, tabId);
-  
+
   // Set agent status to IDLE
   setAgentStatus(windowId, AgentStatus.IDLE);
-  
+
   logWithTimestamp(`Cancelled execution for tab ${tabId} in window ${windowId}`);
 }
 
@@ -465,7 +463,7 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
     // Get provider configuration from ConfigManager
     const configManager = ConfigManager.getInstance();
     const providerConfig = await configManager.getProviderConfig();
-    
+
     // Make API key optional for Ollama
     if (!providerConfig.apiKey && providerConfig.provider !== 'ollama') {
       sendUIMessage('updateOutput', {
@@ -482,7 +480,7 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       targetTabId = tabs[0]?.id;
     }
-    
+
     if (!targetTabId) {
       sendUIMessage('updateOutput', {
         type: 'system',
@@ -491,17 +489,17 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       sendUIMessage('processingComplete', null, tabId);
       return;
     }
-    
+
     logWithTimestamp(`Executing prompt for tab ${targetTabId}: "${prompt}"`);
-    
+
     // Get the tab state
     const tabState = getTabState(targetTabId);
-    
+
     // Check if we need to initialize or reattach
     const tabWindowId = tabState?.windowId;
     const needsInitialization = !tabState?.page || !tabWindowId || !getAgentForWindow(tabWindowId);
     const connectionBroken = tabState?.page && !(await isConnectionHealthy(tabState.page));
-    
+
     if (needsInitialization || connectionBroken) {
       // If connection is broken, log it
       if (connectionBroken) {
@@ -516,13 +514,13 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
           content: 'Initializing for tab...'
         }, targetTabId);
       }
-      
+
       // Import the attachToTab function dynamically to avoid circular dependencies
       const { attachToTab } = await import('./tabManager');
-      
+
       // Attach to the tab
       const attachResult = await attachToTab(targetTabId);
-      
+
       // Check if attachResult is an object with error information
       if (attachResult !== true && attachResult !== false && typeof attachResult === 'object' && 'error' in attachResult) {
         // This is a specific error case with detailed information
@@ -556,13 +554,13 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         logWithTimestamp(`Tab ${targetTabId} was replaced with new tab ${attachResult}`);
         targetTabId = attachResult;
       }
-      
+
       await initializeAgent(targetTabId);
     }
 
     // Get the updated tab state
     const updatedTabState = getTabState(targetTabId);
-    
+
     // If we still don't have a page or window ID, something went wrong
     if (!updatedTabState?.page || !updatedTabState?.windowId) {
       sendUIMessage('updateOutput', {
@@ -572,7 +570,7 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       sendUIMessage('processingComplete', null, targetTabId);
       return;
     }
-    
+
     // Update PageContextManager with the new page
     try {
       const { setCurrentPage } = await import('../agent/PageContextManager');
@@ -587,15 +585,15 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       try {
         const currentUrl = await updatedTabState.page.url();
         const currentTitle = await updatedTabState.page.title();
-        
+
         // Add a more explicit system message about the current page
         const pageContextMessage = `Current page: ${currentUrl} (${currentTitle}) - Consider this context when executing commands. If asked to summarize, create tables, or analyze options without specific references, assume the request refers to content on this page.`;
-        
+
         sendUIMessage('updateOutput', {
           type: 'system',
           content: pageContextMessage
         }, targetTabId);
-        
+
         // Set the current page context in the PromptManager
         // This will be included in the system prompt
         const updatedWindowId = updatedTabState.windowId;
@@ -613,57 +611,57 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         logWithTimestamp("Could not get current page info: " + String(error), 'warn');
       }
     }
-    
+
     // Execute the prompt
     sendUIMessage('updateOutput', {
       type: 'system',
       content: `Executing prompt: "${prompt}"`
     }, targetTabId);
-    
+
     // Set agent status to RUNNING if we have a window ID
     if (updatedTabState.windowId) {
       setAgentStatus(updatedTabState.windowId, AgentStatus.RUNNING);
     }
-    
+
     // Always enable streaming
     const useStreaming = true;
-    
+
     // Reset streaming buffer and segment ID
     resetStreamingState();
-    
+
     // Get the structured message history
     const history = await getStructuredMessageHistory(targetTabId);
-    
+
     // Check if this is the first prompt (no original request yet)
     if (!history.originalRequest) {
       // Store this as the original request without adding any special tag
-      await setOriginalRequest(targetTabId, { 
-        role: "user", 
-        content: prompt 
+      await setOriginalRequest(targetTabId, {
+        role: "user",
+        content: prompt
       });
-      
+
       // Also add it to the conversation history to maintain the flow
-      await addToConversationHistory(targetTabId, { 
-        role: "user", 
-        content: prompt 
+      await addToConversationHistory(targetTabId, {
+        role: "user",
+        content: prompt
       });
-      
+
       logWithTimestamp(`Set original request for tab ${targetTabId}: "${prompt}"`);
     } else {
       // This is a follow-up prompt, add it to conversation history
-      await addToConversationHistory(targetTabId, { 
-        role: "user", 
-        content: prompt 
+      await addToConversationHistory(targetTabId, {
+        role: "user",
+        content: prompt
       });
     }
-    
+
     // Create callbacks for the agent
     const callbacks: ExecutionCallbacks = {
       onLlmChunk: (chunk) => {
         if (useStreaming) {
           // Get the window ID for this tab
           const windowId = getWindowForTab(targetTabId);
-          
+
           // Add chunk to buffer
           addToStreamingBuffer(chunk, targetTabId, windowId);
         }
@@ -680,7 +678,7 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
           // This will be used in onComplete if needed
           setStreamingBuffer(content);
         }
-        
+
         // If this is a reflection prompt, directly save the memory
         if (isReflectionPrompt) {
           // Get the domain from the current page
@@ -688,7 +686,7 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
             updatedTabState.page.evaluate(() => window.location.href)
               .then((url: string) => {
                 const domain = new URL(url).hostname;
-                
+
                 // Directly save the memory
                 saveReflectionMemory(content, domain, targetTabId);
               })
@@ -699,35 +697,35 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
             logWithTimestamp(`Error in domain extraction for reflection: ${error instanceof Error ? error.message : String(error)}`, 'error');
           }
         }
-        
+
         try {
           // Add the assistant's response to conversation history
           await addToConversationHistory(targetTabId, { role: "assistant", content: content });
-          
+
           // Trim conversation history if it exceeds the token budget
           const history = await getStructuredMessageHistory(targetTabId);
-          
+
           // Calculate the current token count of the conversation history
           const conversationTokens = contextTokenCount(history.conversationHistory);
-          
+
           // If we're over budget, trim from the oldest messages until we're under budget
           if (conversationTokens > MAX_CONVERSATION_TOKENS) {
             logWithTimestamp(`Conversation history exceeds token budget (${conversationTokens}/${MAX_CONVERSATION_TOKENS}), trimming oldest messages`);
-            
+
             // Remove oldest messages until we're under the token budget
-            while (contextTokenCount(history.conversationHistory) > MAX_CONVERSATION_TOKENS && 
+            while (contextTokenCount(history.conversationHistory) > MAX_CONVERSATION_TOKENS &&
                    history.conversationHistory.length > 1) {
               // Remove the oldest message
               history.conversationHistory.shift();
             }
-            
+
             // Get the window ID for this tab
             const windowId = getWindowForTab(targetTabId);
             if (windowId) {
               // Update the message history
               windowMessageHistories.set(windowId, history);
             }
-            
+
             logWithTimestamp(`Trimmed conversation history to ${history.conversationHistory.length} messages (${contextTokenCount(history.conversationHistory)} tokens)`);
           }
         } catch (error) {
@@ -745,19 +743,19 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         // Check if this is a screenshot result by trying to parse it as JSON
         try {
           const data = JSON.parse(result);
-          
+
           // Handle screenshot reference format
           if (data.type === "screenshotRef" && data.id) {
             // Get the screenshot manager
             const screenshotManager = ScreenshotManager.getInstance();
-            
+
             // Get the screenshot data from the manager
             const screenshotData = screenshotManager.getScreenshot(data.id);
-            
-            if (screenshotData && 
-                screenshotData.source && 
+
+            if (screenshotData &&
+                screenshotData.source &&
                 screenshotData.source.data) {
-              
+
               // Send special screenshot message to UI
               sendUIMessage('updateScreenshot', {
                 type: 'screenshot',
@@ -765,7 +763,7 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
                 imageData: screenshotData.source.data,
                 mediaType: screenshotData.source.media_type || 'image/jpeg'
               }, targetTabId);
-              
+
               logWithTimestamp(`Sent screenshot ${data.id} to UI for tab ${targetTabId}`);
             } else {
               logWithTimestamp(`Screenshot data not found for ID ${data.id}`, 'warn');
@@ -780,12 +778,12 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         if (error?.error?.type === 'rate_limit_error' || error?.error?.type === 'overloaded_error') {
           const errorType = error?.error?.type === 'overloaded_error' ? 'Anthropic servers overloaded' : 'Rate limit exceeded';
           logWithTimestamp(`${errorType} error detected: ${JSON.stringify(error)}`, 'warn');
-          
+
           sendUIMessage('updateOutput', {
             type: 'system',
             content: `⚠️ ${errorType}. Retrying... (${error.error.message})`
           }, targetTabId);
-          
+
           // Explicitly tell the UI to stay in processing mode
           sendUIMessage('rateLimit', {
             isRetrying: true
@@ -798,7 +796,7 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         sendUIMessage('fallbackStarted', {
           message: "Switching to fallback mode due to error. Processing continues..."
         }, targetTabId);
-        
+
         // Explicitly tell the UI to stay in processing mode
         sendUIMessage('rateLimit', {
           isRetrying: true
@@ -808,10 +806,10 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         if (useStreaming) {
           // Get the window ID for this tab
           const windowId = getWindowForTab(targetTabId);
-          
+
           // Finalize the current streaming segment
           finalizeStreamingSegment(getCurrentSegmentId(), segment, targetTabId, windowId);
-          
+
           // Increment segment ID for the next segment
           incrementSegmentId();
         }
@@ -820,7 +818,7 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
         if (useStreaming) {
           // Get the window ID for this tab
           const windowId = getWindowForTab(targetTabId);
-          
+
           // Start a new segment for after the tool execution
           startNewSegment(getCurrentSegmentId(), targetTabId, windowId);
         }
@@ -828,36 +826,36 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       onComplete: () => {
         // Get the window ID for this tab
         const windowId = getWindowForTab(targetTabId);
-        
+
         // Finalize the last segment if needed FIRST
         // This ensures the final LLM output is not lost
         if (useStreaming && getStreamingBuffer().trim()) {
           // Check if this segment contains a tool call
           const hasToolCall = /<tool>(.*?)<\/tool>\s*<input>([\s\S]*?)<\/input>/.test(getStreamingBuffer());
-          
+
           // If it doesn't have a tool call, it's likely the final output
           if (!hasToolCall) {
             finalizeStreamingSegment(getCurrentSegmentId(), getStreamingBuffer(), targetTabId, windowId);
           }
         }
-        
+
         // THEN clear any remaining buffer
         clearStreamingBuffer(targetTabId, windowId);
-        
+
         // Signal that streaming is complete
         if (useStreaming) {
           signalStreamingComplete(targetTabId, windowId);
         }
-        
+
         // Set agent status to IDLE
         if (windowId) {
           setAgentStatus(windowId, AgentStatus.IDLE);
         }
-        
+
         sendUIMessage('processingComplete', null, targetTabId, windowId);
       }
     };
-    
+
     // Get the agent for this window
     const updatedWindowId = updatedTabState.windowId;
     if (!updatedWindowId) {
@@ -868,9 +866,9 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       sendUIMessage('processingComplete', null, targetTabId);
       return;
     }
-    
+
     const agent = getAgentForWindow(updatedWindowId);
-    
+
     if (!agent) {
       sendUIMessage('updateOutput', {
         type: 'system',
@@ -879,13 +877,13 @@ export async function executePrompt(prompt: string, tabId?: number, isReflection
       sendUIMessage('processingComplete', null, targetTabId);
       return;
     }
-    
+
     // Execute the prompt with the agent
     const messageHistory = await getMessageHistory(targetTabId);
     await executePromptWithFallback(
-      agent, 
-      prompt, 
-      callbacks, 
+      agent,
+      prompt,
+      callbacks,
       messageHistory
     );
   } catch (error) {

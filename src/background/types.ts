@@ -202,7 +202,7 @@ export interface AgentStatusUpdateMessage {
   windowId?: number;
 }
 
-export type BackgroundMessage = 
+export type BackgroundMessage =
   | ExecutePromptMessage
   | CancelExecutionMessage
   | ClearHistoryMessage
@@ -310,6 +310,7 @@ export type UIMessage =
 // State types
 export interface TabState {
   page: any;
+  tabId?: number;
   windowId?: number;
   title?: string;
 }

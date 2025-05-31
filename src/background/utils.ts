@@ -1,5 +1,5 @@
+import { v4 } from "uuid";
 import { getWindowForTab } from './tabManager';
-import { UIMessage } from './types';
 
 /**
  * Send a message to the UI
@@ -70,4 +70,8 @@ export function handleError(error: any, context: string): string {
  */
 export function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function generateUuid() {
+  return v4();
 }
