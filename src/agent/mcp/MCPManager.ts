@@ -42,14 +42,16 @@ export class MCPManager {
     this.onToolsReceived = onToolsReceived;
 
     console.debug('MCPManager.requestToolsForAgent sending mcp:activate message to tabId:', this.tabId);
-    chrome.tabs.sendMessage(this.tabId, {
-      action: 'mcp:activate',
-      tabId: this.tabId,
-    }, () => {
-      if (chrome.runtime.lastError) {
-        console.warn('MCPManager could not send message to content script:', chrome.runtime.lastError.message);
-      }
-    });
+    if (chrome.tabs.sendMessage) {
+      chrome.tabs.sendMessage(this.tabId, {
+        action: 'mcp:activate',
+        tabId: this.tabId,
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.warn('MCPManager could not send message to content script:', chrome.runtime.lastError.message);
+        }
+      });
+    }
   }
 
   private handleMessage(message: any) {
