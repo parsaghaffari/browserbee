@@ -20,7 +20,7 @@ export default defineConfig({
       // @ts-ignore
       plugins: [sourcemaps()],
       input: isContentScriptBuild
-        ? { contentScript: path.resolve(__dirname, 'src/contentScript.ts') }
+        ? { content: path.resolve(__dirname, 'src/content.ts') }
         : {
             background: path.resolve(__dirname, 'src/background.ts'),
             sidepanel: path.resolve(__dirname, 'src/sidepanel/index.tsx'),
