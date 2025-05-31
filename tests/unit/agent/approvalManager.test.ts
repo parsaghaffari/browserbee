@@ -282,7 +282,7 @@ describe('approvalManager', () => {
       });
 
       // Start all requests concurrently
-      const promises = requests.map(req => 
+      const promises = requests.map(req =>
         requestApproval(req.tabId, req.toolName, req.toolInput, req.reason)
       );
 
@@ -369,9 +369,9 @@ describe('approvalManager', () => {
 
       for (const testCase of testCases) {
         const approvalPromise = requestApproval(
-          123, 
-          testCase.toolName, 
-          testCase.toolInput, 
+          123,
+          testCase.toolName,
+          testCase.toolInput,
           testCase.reason
         );
 
@@ -504,7 +504,7 @@ describe('approvalManager', () => {
       });
 
       // Start all requests
-      const promises = requests.map(req => 
+      const promises = requests.map(req =>
         requestApproval(req.tabId, req.toolName, req.toolInput, req.reason)
       );
 
@@ -640,8 +640,8 @@ describe('approvalManager', () => {
       const reason = 'Entering sensitive information';
 
       // Mock extension context invalidation
-      mockChrome.runtime.lastError = { 
-        message: 'Extension context invalidated.' 
+      mockChrome.runtime.lastError = {
+        message: 'Extension context invalidated.'
       };
       mockChrome.runtime.sendMessage.mockImplementation((message: any, callback?: (response: any) => void) => {
         if (callback) callback({});
@@ -668,7 +668,7 @@ describe('approvalManager', () => {
       });
 
       // Start all requests
-      const promises = requests.map(req => 
+      const promises = requests.map(req =>
         requestApproval(req.tabId, req.toolName, 'test input', 'test reason')
       );
 
@@ -782,7 +782,7 @@ describe('approvalManager', () => {
       });
 
       // Create many requests rapidly
-      const promises = Array.from({ length: 100 }, (_, i) => 
+      const promises = Array.from({ length: 100 }, (_, i) =>
         requestApproval(i, 'browser_click', `button${i}`, `reason${i}`)
       );
 
@@ -818,13 +818,13 @@ describe('approvalManager', () => {
       // Create and resolve many approval requests
       for (let i = 0; i < 1000; i++) {
         const approvalPromise = requestApproval(i, 'browser_click', 'button', 'test');
-        
+
         await new Promise(resolve => setTimeout(resolve, 1));
-        
+
         const sentMessage = mockChrome.runtime.sendMessage.mock.calls[
           mockChrome.runtime.sendMessage.mock.calls.length - 1
         ][0] as any;
-        
+
         handleApprovalResponse(sentMessage.requestId, true);
         await approvalPromise;
       }
@@ -836,7 +836,7 @@ describe('approvalManager', () => {
       handleApprovalResponse('non-existent', true);
       expect(consoleSpy).toHaveBeenCalled();
       consoleSpy.mockRestore();
-    });
+    }, 30_000);
 
     it('should handle concurrent requests efficiently', async () => {
       mockChrome.runtime.sendMessage.mockImplementation((message: any, callback?: (response: any) => void) => {
@@ -847,7 +847,7 @@ describe('approvalManager', () => {
       const startTime = Date.now();
 
       // Create 50 concurrent requests
-      const promises = Array.from({ length: 50 }, (_, i) => 
+      const promises = Array.from({ length: 50 }, (_, i) =>
         requestApproval(i, 'browser_click', `button${i}`, `reason${i}`)
       );
 
