@@ -1,9 +1,9 @@
 # BrowserBee 🐝
 *Your in-browser AI assistant. Control the web with natural language.*
 
-https://github.com/user-attachments/assets/209c7042-6d54-4fce-92a7-ddf8519156c6
-
 [![Join our Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/g42ww3wn)
+
+https://github.com/user-attachments/assets/209c7042-6d54-4fce-92a7-ddf8519156c6
 
 BrowserBee is a privacy-first open source Chrome extension that lets you control your browser using natural language. It combines the power of an LLM for instruction parsing & planning, and Playwright for robust browser automation to accomplish tasks.
 
