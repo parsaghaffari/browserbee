@@ -1,6 +1,6 @@
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { generateUuid } from "../../background/utils";
-import { JSONRPCMessage } from "../a2a/schema";
+import { JSONRPCMessage } from "./JSONRPC";
 
 interface MCPMessage {
   method: string;

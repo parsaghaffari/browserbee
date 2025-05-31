@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import pkg from "../../../package.json";
 import { TabState } from "../../background/types";
-import { JSONRPCMessage } from "../a2a/schema";
+import { JSONRPCMessage } from "./JSONRPC";
 import { BrowserTool } from "../tools/types";
 import MCPClientTransport, { MCPClientTransportSourceId } from "./MCPClientTransport";
 

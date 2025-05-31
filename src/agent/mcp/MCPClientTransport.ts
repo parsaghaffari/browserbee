@@ -1,6 +1,6 @@
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { JSONRPCNotification, JSONRPCRequest } from "@modelcontextprotocol/sdk/types.js";
-import { JSONRPCMessage } from "../a2a/schema";
+import { JSONRPCMessage } from "./JSONRPC";
 import { MCPMessageFromContentScript } from "./MCPManager";
 
 export const MCPClientTransportSourceId = 'mcp-client';
