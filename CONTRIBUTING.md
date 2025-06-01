@@ -11,17 +11,21 @@ Please be respectful and considerate of others when contributing to this project
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/yourusername/browserbee.git`
 3. Install dependencies: `npm install`
-4. Create a branch for your changes: `git checkout -b feature/your-feature-name`
+4. Set up development environment: See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed setup instructions
+5. Create a branch for your changes: `git checkout -b feature/your-feature-name`
 
-## Development Workflow
+## Development Setup
 
-1. Make your changes
-2. Run the development server: `npm run dev`
-3. **Run tests**: `npm test` (see Testing section below)
-4. **Check code quality**: `npm run lint`
-5. Test your changes in Chrome
-6. Build the extension: `npm run build`
-7. Load the extension in Chrome from the `dist` directory
+For detailed development setup including hot reloading and extension loading instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
+
+### Quick Development Workflow
+
+1. **Set up development environment**: Follow [DEVELOPMENT.md](DEVELOPMENT.md) for initial setup
+2. **Make your changes**: Edit files in the `src/` directory
+3. **Test automatically**: The extension rebuilds automatically when you save files
+4. **Run tests**: `npm test` (see Testing section below)
+5. **Check code quality**: `npm run lint`
+6. **Refresh extension**: Click the refresh icon in Chrome's extension management page
 
 ## Project Structure
 

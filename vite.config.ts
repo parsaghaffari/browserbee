@@ -14,6 +14,8 @@ export default defineConfig({
     // playwright-crx cannot be obfuscated
     minify: false,
     sourcemap: true,
+    outDir: 'dist',
+    emptyOutDir: true,
     rollupOptions: {
       // @ts-ignore
       plugins: [sourcemaps()],
