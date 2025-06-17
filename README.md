@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/parsaghaffari-browserbee-badge.png)](https://mseep.ai/app/parsaghaffari-browserbee)
+
 # BrowserBee 🐝
 *Your in-browser AI assistant. Control the web with natural language.*
 
