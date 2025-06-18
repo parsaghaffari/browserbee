@@ -1,7 +1,11 @@
-import { faPaperPlane, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faMicrophone, faMicrophoneSlash, faPaperPlane, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
+import { useChromeMessaging } from '../hooks/useChromeMessaging';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useTabManagement } from '../hooks/useTabManagement';
+
 
 interface PromptFormProps {
   onSubmit: (prompt: string) => void;
@@ -17,12 +21,61 @@ export const PromptForm: React.FC<PromptFormProps> = ({
   tabStatus
 }) => {
   const [prompt, setPrompt] = useState('');
+  // const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const { tabId } = useTabManagement();
+
+  const continuousSpeechRecognition = true;
+  const autoSubmitSpeechResult = true;
+  const onInterimResult = useCallback((result: string) => {
+    setPrompt(result);
+  }, []);
+  const onSpeechResult = useCallback((result: string) => {
+    if (autoSubmitSpeechResult) {
+      console.info('onSpeechResult submitting:', result);
+      onSubmit(result);
+      setPrompt('');
+      if (!continuousSpeechRecognition) {
+        cancelSpeechRecognition();
+      }
+    }
+  }, []);
+
+  const {
+    recognitionSupported,
+    startSpeechRecognition,
+    processSpeechRecognition,
+    cancelSpeechRecognition,
+  } = useSpeechRecognition(
+    tabId,
+    continuousSpeechRecognition,
+    {
+      onInterimResult,
+      onSpeechResult,
+      onSpeechEnd: () => setIsRecording(false),
+    }
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || isProcessing || tabStatus === 'detached') return;
     onSubmit(prompt);
     setPrompt(''); // Clear the prompt after submission
+  };
+
+  const toggleRecording = async () => {
+    if (!recognitionSupported || tabStatus === 'detached') return;
+
+    if (!isRecording) {
+      setPrompt('');
+      startSpeechRecognition();
+    } else {
+      const result = await processSpeechRecognition();
+      console.log("toggleRecording result", isRecording, result);
+      setPrompt(result);
+    }
+
+    setIsRecording(!isRecording);
   };
 
   return (
@@ -40,14 +93,14 @@ export const PromptForm: React.FC<PromptFormProps> = ({
             }
             // Allow Shift+Enter to create a new line (default behavior)
           }}
-          placeholder={tabStatus === 'detached' 
-            ? "Tab connection lost. Please refresh the tab to continue." 
+          placeholder={tabStatus === 'detached'
+            ? "Tab connection lost. Please refresh the tab to continue."
             : "Type a message..."}
           autoFocus
           disabled={isProcessing || tabStatus === 'detached'}
           minRows={1}
           maxRows={10}
-          style={{ 
+          style={{
             resize: 'none',
             minHeight: '40px',
             maxHeight: '300px',
@@ -55,8 +108,8 @@ export const PromptForm: React.FC<PromptFormProps> = ({
           } as any}
         />
         {isProcessing ? (
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={onCancel}
             className="btn btn-sm btn-circle btn-error absolute"
             style={{ bottom: '5px', right: '5px' }}
@@ -65,15 +118,28 @@ export const PromptForm: React.FC<PromptFormProps> = ({
             <FontAwesomeIcon icon={faXmark} />
           </button>
         ) : (
-          <button 
-            type="submit" 
-            className="btn btn-sm btn-circle btn-primary absolute"
-            style={{ bottom: '5px', right: '5px' }}
-            disabled={!prompt.trim() || tabStatus === 'detached'}
-            title={tabStatus === 'detached' ? "Refresh tab to continue" : "Execute"}
-          >
-            <FontAwesomeIcon icon={faPaperPlane} />
-          </button>
+          <>
+            {recognitionSupported && (
+              <button
+                type="button"
+                onClick={toggleRecording}
+                className="btn btn-sm btn-circle absolute"
+                style={{ bottom: '5px', right: '40px' }}
+                title={isRecording ? "Stop recording" : "Start recording"}
+              >
+                <FontAwesomeIcon icon={isRecording ? faMicrophoneSlash : faMicrophone} />
+              </button>
+            )}
+            <button
+              type="submit"
+              className="btn btn-sm btn-circle btn-primary absolute"
+              style={{ bottom: '5px', right: '5px' }}
+              disabled={!prompt.trim() || tabStatus === 'detached'}
+              title={tabStatus === 'detached' ? "Refresh tab to continue" : "Execute"}
+            >
+              <FontAwesomeIcon icon={faPaperPlane} />
+            </button>
+          </>
         )}
       </div>
     </form>

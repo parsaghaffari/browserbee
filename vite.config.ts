@@ -20,6 +20,7 @@ export default defineConfig({
       // @ts-ignore
       plugins: [sourcemaps()],
       input: {
+        'content': path.resolve(__dirname, 'src/content.ts'),
         'background': path.resolve(__dirname, 'src/background.ts'),
         'sidepanel': path.resolve(__dirname, 'src/sidepanel/index.tsx'),
         'options': path.resolve(__dirname, 'src/options/index.tsx'),
