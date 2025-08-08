@@ -1,7 +1,7 @@
 # BrowserBee 🐝
 *Your in-browser AI assistant. Control the web with natural language.*
 
-[![Join our Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/g42ww3wn)
+[![Join our Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/RUaq9bfESj)
 
 https://github.com/user-attachments/assets/209c7042-6d54-4fce-92a7-ddf8519156c6
 
@@ -205,7 +205,7 @@ BrowserBee is now available on [Chrome Web Store](https://chromewebstore.google.
 
 Join our Discord community to connect with BrowserBee users and developers:
 
-[![Join our Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/g42ww3wn)
+[![Join our Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/RUaq9bfESj)
 
 ## 🫂 Acknowledgements
 
