@@ -152,13 +152,13 @@ export const openaiModels = {
   },
   "o3": {
     name: "o3",
-    inputPrice: 10.0,
-    outputPrice: 40.0,
+    inputPrice: 2.0,
+    outputPrice: 8.0,
     maxTokens: 100000,
     contextWindow: 200000,
     supportsImages: true,
     supportsPromptCache: true,
-    cacheReadsPrice: 2.5,
+    cacheReadsPrice: 0.5,
   },
   "o4-mini": {
     name: "o4-mini",
