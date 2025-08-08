@@ -105,6 +105,41 @@ export const anthropicModels = {
 export type OpenAIModelId = keyof typeof openaiModels;
 export const openaiDefaultModelId: OpenAIModelId = "gpt-4o";
 export const openaiModels = {
+  // GPT-5 Models (newest first)
+  "gpt-5": {
+    name: "GPT-5",
+    inputPrice: 1.25,
+    outputPrice: 10.0,
+    maxTokens: 128000,
+    contextWindow: 400000,
+    supportsImages: true,
+    supportsPromptCache: true,
+    cacheReadsPrice: 0.125,
+    isReasoningModel: true,
+  },
+  "gpt-5-mini": {
+    name: "GPT-5 Mini",
+    inputPrice: 0.25,
+    outputPrice: 2.0,
+    maxTokens: 128000,
+    contextWindow: 400000,
+    supportsImages: true,
+    supportsPromptCache: true,
+    cacheReadsPrice: 0.025,
+    isReasoningModel: true,
+  },
+  "gpt-5-nano": {
+    name: "GPT-5 Nano",
+    inputPrice: 0.05,
+    outputPrice: 0.40,
+    maxTokens: 128000,
+    contextWindow: 400000,
+    supportsImages: true,
+    supportsPromptCache: true,
+    cacheReadsPrice: 0.005,
+    isReasoningModel: true,
+  },
+  // Existing OpenAI Models
   "gpt-4o": {
     name: "GPT-4o",
     inputPrice: 2.5,

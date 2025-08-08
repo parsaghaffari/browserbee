@@ -8,6 +8,7 @@ export interface ModelInfo {
   supportsPromptCache?: boolean; // Whether the model supports prompt caching
   cacheWritesPrice?: number; // Price per million tokens for cache writes
   cacheReadsPrice?: number; // Price per million tokens for cache reads
+  isReasoningModel?: boolean; // Whether this is a reasoning model (GPT-5, o1, o3, etc.)
   thinkingConfig?: {
     maxBudget?: number; // Max allowed thinking budget tokens
     outputPrice?: number; // Output price per million tokens when budget > 0

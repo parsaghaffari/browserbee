@@ -49,19 +49,24 @@ export class OpenAIProvider implements LLMProvider {
       stream_options: { include_usage: true }, // Enable usage tracking in the stream
     };
     
-    // Check if this is a reasoning model family (o1, o3, o4)
-    const isReasoningModelFamily = modelId.includes("o1") || modelId.includes("o3") || modelId.includes("o4");
+    // Check if this is a reasoning model family (o1, o3, o4, gpt-5)
+    const isReasoningModelFamily = modelId.includes("o1") || modelId.includes("o3") || modelId.includes("o4") || modelId.includes("gpt-5");
     
     // Handle model-specific parameters
     if (isReasoningModelFamily || modelId.includes('gpt-4o')) {
-      // Newer models like o1, o3, o4 use max_completion_tokens
+      // Newer models like o1, o3, o4, gpt-5 use max_completion_tokens
       options.max_completion_tokens = model.info.maxTokens || 4096;
       
-      // Some models like o3 and o4-mini don't support temperature=0
-      if (modelId.includes('o3') || modelId.includes('o4-mini')) {
-        // Don't set temperature for o3 or o4-mini (use default)
+      // Some models like o3, o4-mini, and gpt-5 models don't support temperature=0
+      if (modelId.includes('o3') || modelId.includes('o4-mini') || modelId.includes('gpt-5')) {
+        // Don't set temperature for reasoning models (use default)
       } else {
         options.temperature = 0;
+      }
+      
+      // Add reasoning_effort for GPT-5 models (default to medium)
+      if (modelId.includes('gpt-5')) {
+        options.reasoning_effort = "medium";
       }
     } else {
       // Older models use max_tokens and support temperature=0
