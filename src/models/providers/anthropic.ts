@@ -29,7 +29,8 @@ export class AnthropicProvider implements LLMProvider {
 
     // Configure thinking budget if available
     const budget_tokens = this.options.thinkingBudgetTokens || 0;
-    const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0;
+    // Extended thinking is available for Claude 3.7+ and all Claude 4+ models
+    const reasoningOn = (modelId.includes("3-7") || modelId.includes("claude-sonnet-4") || modelId.includes("claude-haiku-4") || modelId.includes("claude-opus-4")) && budget_tokens !== 0;
 
     // Find user message indices for cache control
     const userMsgIndices = messages.reduce(

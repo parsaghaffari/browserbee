@@ -16,8 +16,42 @@ export const ollamaModels = {
 
 // Anthropic Models
 export type AnthropicModelId = keyof typeof anthropicModels;
-export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219";
+export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-5-20250929";
 export const anthropicModels = {
+  // Claude 4.5 Models (Latest)
+  "claude-sonnet-4-5-20250929": {
+    name: "Claude 4.5 Sonnet",
+    inputPrice: 3.0,
+    outputPrice: 15.0,
+    maxTokens: 64000,
+    contextWindow: 200000, // 1M with beta header
+    supportsImages: true,
+    supportsPromptCache: true,
+    cacheWritesPrice: 3.75, // 1.25x input price
+    cacheReadsPrice: 0.3, // 0.1x input price
+  },
+  "claude-haiku-4-5-20251001": {
+    name: "Claude 4.5 Haiku",
+    inputPrice: 1.0,
+    outputPrice: 5.0,
+    maxTokens: 64000,
+    contextWindow: 200000,
+    supportsImages: true,
+    supportsPromptCache: true,
+    cacheWritesPrice: 1.25, // 1.25x input price
+    cacheReadsPrice: 0.1, // 0.1x input price
+  },
+  "claude-opus-4-1-20250805": {
+    name: "Claude 4.1 Opus",
+    inputPrice: 15.0,
+    outputPrice: 75.0,
+    maxTokens: 32000,
+    contextWindow: 200000,
+    supportsImages: true,
+    supportsPromptCache: true,
+    cacheWritesPrice: 18.75, // 1.25x input price
+    cacheReadsPrice: 1.5, // 0.1x input price
+  },
   // Claude 4 Models
   "claude-opus-4-20250514": {
     name: "Claude 4 Opus",
