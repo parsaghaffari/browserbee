@@ -23,6 +23,9 @@ export function handleMessage(
 ): boolean {
   try {
     // Type guard to check if the message is a valid background message
+    if (message.action.startsWith("speech:")) {
+      return false;
+    }
     if (!isBackgroundMessage(message)) {
       logWithTimestamp(`Ignoring unknown message type: ${JSON.stringify(message)}`, 'warn');
       sendResponse({ success: false, error: 'Unknown message type' });
@@ -54,43 +57,43 @@ export function handleMessage(
         // We still return true to keep the message channel open
         handleInitializeTab(message, sendResponse);
         return true; // Keep the message channel open for async response
-        
+
       case 'switchToTab':
         handleSwitchToTab(message, sendResponse);
         return true;
-        
+
       case 'getTokenUsage':
         handleGetTokenUsage(message, sendResponse);
         return true;
-        
+
       case 'approvalResponse':
         handleApprovalResponse(message.requestId, message.approved);
         sendResponse({ success: true });
         return true;
-        
+
       case 'reflectAndLearn':
         handleReflectAndLearn(message, sendResponse);
         return true;
-        
+
       case 'tokenUsageUpdated':
         // Just pass through token usage updates
         // This allows the TokenTrackingService to broadcast updates
         // that will be received by all UI components
         sendResponse({ success: true });
         return true;
-        
+
       case 'updateOutput':
         // Just pass through output updates
         // This allows components to send UI updates
         sendResponse({ success: true });
         return true;
-        
+
       case 'providerConfigChanged':
         // Just pass through provider configuration change notifications
         // This allows the ProviderSelector component to refresh
         sendResponse({ success: true });
         return true;
-        
+
       case 'forceResetPlaywright':
         // Handle async function and keep message channel open
         handleForceResetPlaywright(message, sendResponse)
@@ -100,13 +103,13 @@ export function handleMessage(
             sendResponse({ success: false, error: errorMessage });
           });
         return true; // Keep the message channel open for async response
-        
+
       case 'requestApproval':
         // Just acknowledge receipt of the request approval message
         // The actual approval handling is done by the UI
         sendResponse({ success: true });
         return true;
-        
+
       case 'checkAgentStatus':
         // Handle async function and keep message channel open
         handleCheckAgentStatus(message, sendResponse)
@@ -209,12 +212,12 @@ async function handleClearHistory(
   sendResponse: (response?: any) => void
 ): Promise<void> {
   await clearMessageHistory(message.tabId, message.windowId);
-  
+
   // Reset token tracking
   try {
     const tokenTracker = TokenTrackingService.getInstance();
     tokenTracker.reset(message.windowId);
-    
+
     // Notify UI of reset
     chrome.runtime.sendMessage({
       action: 'tokenUsageUpdated',
@@ -225,7 +228,7 @@ async function handleClearHistory(
   } catch (error) {
     logWithTimestamp(`Error resetting token tracking: ${String(error)}`, 'warn');
   }
-  
+
   sendResponse({ success: true });
 }
 
@@ -253,10 +256,10 @@ function handleInitializeTab(
         } catch (titleError) {
           handleError(titleError, 'getting tab title');
         }
-        
+
         await attachToTab(message.tabId, message.windowId);
         await initializeAgent(message.tabId);
-        
+
         // Get the tab state to check if attachment was successful
         const tabState = getTabState(message.tabId);
         if (tabState) {
@@ -271,7 +274,7 @@ function handleInitializeTab(
             windowId: tabState.windowId
           });
         }
-        
+
         logWithTimestamp(`Tab ${message.tabId} in window ${message.windowId || 'unknown'} initialized from side panel`);
       } catch (error) {
         handleError(error, 'initializing tab from side panel');
@@ -293,15 +296,15 @@ function handleSwitchToTab(
   if (message.tabId) {
     // Get the window ID for this tab if available
     const windowId = getWindowForTab(message.tabId);
-    
+
     // Focus the window first if we have a window ID
     if (windowId) {
       chrome.windows.update(windowId, { focused: true });
     }
-    
+
     // Then focus the tab
     chrome.tabs.update(message.tabId, { active: true });
-    
+
     logWithTimestamp(`Switched to tab ${message.tabId} in window ${windowId || 'unknown'}`);
   }
   sendResponse({ success: true });
@@ -319,17 +322,17 @@ function handleGetTokenUsage(
   try {
     const tokenTracker = TokenTrackingService.getInstance();
     const usage = tokenTracker.getUsage();
-    
+
     // Get the window ID if available
     const windowId = message.windowId;
     const tabId = message.tabId;
-    
+
     // Send the usage directly in the response
-    sendResponse({ 
-      success: true, 
-      usage 
+    sendResponse({
+      success: true,
+      usage
     });
-    
+
     // Also broadcast it to all clients
     chrome.runtime.sendMessage({
       action: 'tokenUsageUpdated',
@@ -355,10 +358,10 @@ function handleReflectAndLearn(
 ): void {
   try {
     console.log("MEMORY DEBUG: handleReflectAndLearn called", { tabId: message.tabId });
-    
+
     // Trigger the reflection process
     triggerReflection(message.tabId);
-    
+
     console.log("MEMORY DEBUG: triggerReflection called successfully");
     sendResponse({ success: true });
   } catch (error) {
@@ -380,15 +383,15 @@ async function handleForceResetPlaywright(
 ): Promise<void> {
   try {
     logWithTimestamp('Force resetting Playwright instance');
-    
+
     // Call the forceResetPlaywright function from tabManager
     const result = await forceResetPlaywright();
-    
+
     // Get the current tab and window ID if possible
     const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     const tabId = tabs[0]?.id;
     const windowId = tabs[0]?.windowId;
-    
+
     // Notify UI components about the reset
     chrome.runtime.sendMessage({
       action: 'updateOutput',
@@ -399,7 +402,7 @@ async function handleForceResetPlaywright(
       tabId,
       windowId
     });
-    
+
     sendResponse({ success: result });
   } catch (error) {
     const errorMessage = handleError(error, 'force resetting Playwright instance');
@@ -420,17 +423,17 @@ async function handleCheckAgentStatus(
   try {
     // Get the window ID for this tab
     const windowId = message.windowId || (message.tabId ? getWindowForTab(message.tabId) : null);
-    
+
     if (!windowId) {
       logWithTimestamp(`Cannot check agent status: No window ID found for tab ${message.tabId}`, 'warn');
       sendResponse({ success: false, error: 'No window ID found' });
       return;
     }
-    
+
     // Get the agent status from agentController using dynamic import
     const { getAgentStatus } = await import('./agentController');
     const status = getAgentStatus(windowId);
-    
+
     // Send the status back to the UI
     chrome.runtime.sendMessage({
       action: 'agentStatusUpdate',
@@ -440,7 +443,7 @@ async function handleCheckAgentStatus(
       tabId: message.tabId,
       windowId
     });
-    
+
     sendResponse({ success: true });
   } catch (error) {
     const errorMessage = handleError(error, 'checking agent status');
